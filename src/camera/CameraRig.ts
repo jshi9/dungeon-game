@@ -21,6 +21,7 @@ export class CameraRig {
 
   public perspective: CameraPerspective = 'FPP';
   public mouseSensitivity: number = 1.0;
+  public fov: number = 72;
 
   public targetPosition: THREE.Vector3 = new THREE.Vector3();
   public currentPosition: THREE.Vector3 = new THREE.Vector3();
@@ -51,11 +52,12 @@ export class CameraRig {
   constructor(options: CameraRigOptions = {}) {
     this.perspective = options.perspective ?? 'FPP';
     this.mouseSensitivity = options.mouseSensitivity ?? 1.0;
+    this.fov = options.fov ?? 72;
 
     this.root = new THREE.Group();
     this.root.name = 'CameraRigRoot';
 
-    this.camera = new THREE.PerspectiveCamera(72, 16 / 9, 0.05, 250);
+    this.camera = new THREE.PerspectiveCamera(this.fov, 16 / 9, 0.05, 250);
     this.camera.name = 'MainCamera';
     this.camera.rotation.order = 'YXZ';
     this.root.add(this.camera);
@@ -64,19 +66,25 @@ export class CameraRig {
     this.bindInputs();
   }
 
+  public setFov(fov: number): void {
+    this.fov = THREE.MathUtils.clamp(fov, 40, 100);
+    this.camera.fov = this.fov;
+    this.camera.updateProjectionMatrix();
+  }
+
   public setPerspective(mode: CameraPerspective, instant: boolean = false): void {
     this.perspective = mode;
 
     if (mode === 'FPP') {
       this.targetDistance = 0.0;
       this.distance = 0.0;
-      this.camera.fov = 72;
+      this.camera.fov = this.fov;
       this.camera.near = 0.05;
       this.camera.updateProjectionMatrix();
     } else {
       this.targetDistance = 14.0;
       if (instant) this.distance = 14.0;
-      this.camera.fov = 45;
+      this.camera.fov = this.fov;
       this.camera.near = 0.1;
       this.camera.updateProjectionMatrix();
     }

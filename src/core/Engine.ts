@@ -85,12 +85,31 @@ export class Engine {
     this.settingsModal = new SettingsModal({
       onPerspectiveChange: (mode) => this.setPerspective(mode),
       onSensitivityChange: (sens) => this.cameraRig.setMouseSensitivity(sens),
+      onFovChange: (fov) => this.cameraRig.setFov(fov),
       onResolutionChange: (w, h) => this.renderPipeline.setResolution(w, h),
       onClose: () => {
         this.characterController.isInputPaused = false;
         this.canvas.requestPointerLock();
       }
     });
+
+    // Restore saved settings from localStorage
+    try {
+      const savedFov = localStorage.getItem('retro3d_fov');
+      if (savedFov) {
+        const f = parseInt(savedFov, 10);
+        if (!isNaN(f) && f >= 40 && f <= 100) {
+          this.cameraRig.setFov(f);
+        }
+      }
+      const savedSens = localStorage.getItem('retro3d_sens');
+      if (savedSens) {
+        const s = parseFloat(savedSens);
+        if (!isNaN(s) && s >= 0.5 && s <= 3.0) {
+          this.cameraRig.setMouseSensitivity(s);
+        }
+      }
+    } catch {}
 
     // 9. Retro HUD
     this.hud = new RetroHUD(this.hudRoot, {
@@ -129,13 +148,16 @@ export class Engine {
       }
     });
 
+    // Capture phase for Escape / KeyO to guarantee instantaneous trigger before any browser pointer lock consumption
     window.addEventListener('keydown', (e) => {
       this.keys[e.code] = true;
 
       // Escape or 'KeyO' to toggle settings
       if (e.code === 'Escape' || e.code === 'KeyO') {
         e.preventDefault();
+        e.stopPropagation();
         this.toggleSettings();
+        return;
       }
 
       // 'M' key for mode switch transition
@@ -147,7 +169,7 @@ export class Engine {
       if (e.code === 'KeyF' && !this.settingsModal.isOpen) {
         this.toggleFullscreen();
       }
-    });
+    }, { capture: true });
 
     window.addEventListener('keyup', (e) => {
       this.keys[e.code] = false;

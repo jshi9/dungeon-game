@@ -3,6 +3,7 @@ import { CameraPerspective } from '../camera/CameraRig';
 export interface SettingsModalCallbacks {
   onPerspectiveChange: (mode: CameraPerspective) => void;
   onSensitivityChange: (sens: number) => void;
+  onFovChange: (fov: number) => void;
   onResolutionChange: (w: number, h: number) => void;
   onClose: () => void;
 }
@@ -23,6 +24,16 @@ export class SettingsModal {
     this.element.className = 'modal-overlay';
     this.element.style.display = 'none';
 
+    // Retrieve saved settings from localStorage
+    let savedFov = 70;
+    let savedSens = 1.0;
+    try {
+      const f = localStorage.getItem('retro3d_fov');
+      if (f) savedFov = Math.max(40, Math.min(100, parseInt(f, 10) || 70));
+      const s = localStorage.getItem('retro3d_sens');
+      if (s) savedSens = Math.max(0.5, Math.min(3.0, parseFloat(s) || 1.0));
+    } catch {}
+
     this.element.innerHTML = `
       <div class="retro-modal retro-panel">
         <div class="modal-header">
@@ -40,13 +51,22 @@ export class SettingsModal {
             </div>
           </div>
 
+          <!-- Field of View (FOV) -->
+          <div class="setting-row">
+            <div class="label-with-val">
+              <label class="setting-label">FIELD OF VIEW (FOV)</label>
+              <span id="val-fov" class="setting-value-badge">${savedFov}°</span>
+            </div>
+            <input id="slider-fov" type="range" min="40" max="100" step="1" value="${savedFov}" class="retro-slider" />
+          </div>
+
           <!-- Mouse Sensitivity -->
           <div class="setting-row">
             <div class="label-with-val">
               <label class="setting-label">MOUSE SENSITIVITY</label>
-              <span id="val-sensitivity" class="setting-value-badge">1.0x</span>
+              <span id="val-sensitivity" class="setting-value-badge">${savedSens.toFixed(1)}x</span>
             </div>
-            <input id="slider-sensitivity" type="range" min="0.5" max="3.0" step="0.1" value="1.0" class="retro-slider" />
+            <input id="slider-sensitivity" type="range" min="0.5" max="3.0" step="0.1" value="${savedSens}" class="retro-slider" />
           </div>
 
           <!-- Resolution Selector -->
@@ -63,7 +83,7 @@ export class SettingsModal {
           <div class="setting-row controls-summary">
             <label class="setting-label">QUICK CONTROLS</label>
             <ul class="controls-list">
-              <li><span class="key-badge">Click Screen</span> : Lock Mouse Look (FPP)</li>
+              <li><span class="key-badge">Click Screen</span> : Lock Mouse Look / Orbit</li>
               <li><span class="key-badge">W</span><span class="key-badge">A</span><span class="key-badge">S</span><span class="key-badge">D</span> : Move / Strafe</li>
               <li><span class="key-badge">Shift</span> : Sprint &nbsp;|&nbsp; <span class="key-badge">M</span> : Switch Map</li>
               <li><span class="key-badge">Esc</span> / <span class="key-badge">O</span> : Settings Menu</li>
@@ -84,6 +104,8 @@ export class SettingsModal {
   private bindEvents(): void {
     const btnFpp = this.element.querySelector('#btn-fpp') as HTMLButtonElement;
     const btnTpp = this.element.querySelector('#btn-tpp') as HTMLButtonElement;
+    const sliderFov = this.element.querySelector('#slider-fov') as HTMLInputElement;
+    const valFov = this.element.querySelector('#val-fov') as HTMLElement;
     const sliderSens = this.element.querySelector('#slider-sensitivity') as HTMLInputElement;
     const valSens = this.element.querySelector('#val-sensitivity') as HTMLElement;
     const selectRes = this.element.querySelector('#modal-select-resolution') as HTMLSelectElement;
@@ -102,9 +124,21 @@ export class SettingsModal {
       this.callbacks.onPerspectiveChange('TPP');
     });
 
+    sliderFov.addEventListener('input', () => {
+      const val = parseInt(sliderFov.value, 10);
+      valFov.textContent = `${val}°`;
+      try {
+        localStorage.setItem('retro3d_fov', String(val));
+      } catch {}
+      this.callbacks.onFovChange(val);
+    });
+
     sliderSens.addEventListener('input', () => {
       const val = parseFloat(sliderSens.value);
       valSens.textContent = `${val.toFixed(1)}x`;
+      try {
+        localStorage.setItem('retro3d_sens', String(val));
+      } catch {}
       this.callbacks.onSensitivityChange(val);
     });
 
@@ -154,5 +188,12 @@ export class SettingsModal {
       btnTpp?.classList.add('active-mode');
       btnFpp?.classList.remove('active-mode');
     }
+  }
+
+  public setFovUI(fov: number): void {
+    const sliderFov = this.element.querySelector('#slider-fov') as HTMLInputElement;
+    const valFov = this.element.querySelector('#val-fov') as HTMLElement;
+    if (sliderFov) sliderFov.value = String(fov);
+    if (valFov) valFov.textContent = `${fov}°`;
   }
 }
