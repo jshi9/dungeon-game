@@ -291,16 +291,16 @@ export class Engine {
     const qPressed = !this.settingsModal.isOpen && !!this.keys['KeyQ'];
     const ePressed = !this.settingsModal.isOpen && !!this.keys['KeyE'];
 
-    // 2. Update Camera Rig
+    // 2. Update Character Movement relative to camera yaw first
+    this.characterController.update(delta, this.cameraRig.getYaw());
+
+    // 3. Update Camera Rig tracking the updated character position (0 lateral offset)
     this.cameraRig.setTarget(
       this.characterController.position.x,
       this.characterController.position.y,
       this.characterController.position.z
     );
     this.cameraRig.update(delta, gp.rightStickX, gp.rightStickY, qPressed, ePressed);
-
-    // 3. Update Character Movement relative to camera yaw
-    this.characterController.update(delta, this.cameraRig.getYaw());
 
     // 4. Update Active Map Systems
     if (this.currentMode === 'surface') {

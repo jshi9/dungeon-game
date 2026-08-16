@@ -17,8 +17,6 @@ export interface CameraRigOptions {
 
 export class CameraRig {
   public root: THREE.Group;
-  public yawGroup: THREE.Group;
-  public pitchGroup: THREE.Group;
   public camera: THREE.PerspectiveCamera;
 
   public perspective: CameraPerspective = 'FPP';
@@ -35,8 +33,8 @@ export class CameraRig {
   public pitch: number = 0;
   public targetPitch: number = 0;
 
-  public distance: number = 0;
-  public targetDistance: number = 0;
+  public distance: number = 14.0;
+  public targetDistance: number = 14.0;
 
   public minDistance: number = 4.0;
   public maxDistance: number = 26.0;
@@ -57,18 +55,10 @@ export class CameraRig {
     this.root = new THREE.Group();
     this.root.name = 'CameraRigRoot';
 
-    this.yawGroup = new THREE.Group();
-    this.yawGroup.name = 'CameraYawGroup';
-    this.root.add(this.yawGroup);
-
-    this.pitchGroup = new THREE.Group();
-    this.pitchGroup.name = 'CameraPitchGroup';
-    this.yawGroup.add(this.pitchGroup);
-
     this.camera = new THREE.PerspectiveCamera(72, 16 / 9, 0.05, 250);
     this.camera.name = 'MainCamera';
     this.camera.rotation.order = 'YXZ';
-    this.pitchGroup.add(this.camera);
+    this.root.add(this.camera);
 
     this.setPerspective(this.perspective, true);
     this.bindInputs();
@@ -99,9 +89,6 @@ export class CameraRig {
   }
 
   public updateRigTransforms(): void {
-    this.yawGroup.rotation.set(0, 0, 0);
-    this.pitchGroup.rotation.set(0, 0, 0);
-
     const cosPitch = Math.cos(this.pitch);
     const sinPitch = Math.sin(this.pitch);
     const cosYaw = Math.cos(this.yaw);
@@ -112,17 +99,17 @@ export class CameraRig {
     const dirZ = -cosYaw * cosPitch;
 
     if (this.perspective === 'FPP') {
-      // In FPP: Camera mounted at player eye level with direct YXZ Euler rotation
+      // In FPP: Camera at player eye level
       this.camera.position.set(this.targetPosition.x, this.targetPosition.y, this.targetPosition.z);
       this.camera.rotation.set(this.pitch, this.yaw, 0, 'YXZ');
     } else {
-      // In TPP: Direct YXZ Euler rotation (no lookAt) eliminating polar spiraling
-      const targetY = this.currentPosition.y;
-      const camX = this.currentPosition.x - dirX * this.distance;
-      const camY = targetY - dirY * this.distance;
-      const camZ = this.currentPosition.z - dirZ * this.distance;
-
-      this.camera.position.set(camX, camY, camZ);
+      // In TPP: Orbit focus target is player center (X, Y+1.2, Z) with 0 lateral offset
+      const target = this.currentPosition;
+      this.camera.position.set(
+        target.x - dirX * this.distance,
+        target.y - dirY * this.distance,
+        target.z - dirZ * this.distance
+      );
       this.camera.rotation.set(this.pitch, this.yaw, 0, 'YXZ');
     }
   }
@@ -191,8 +178,8 @@ export class CameraRig {
       // Mount at player eye level: Y = 1.65 above ground
       this.targetPosition.set(x, y + 1.65, z);
     } else {
-      // Center of body/chest in TPP: Y = 1.4 above ground
-      this.targetPosition.set(x, y + 1.4, z);
+      // Center of player body in TPP: Y = 1.2 above ground
+      this.targetPosition.set(x, y + 1.2, z);
     }
   }
 
@@ -235,14 +222,13 @@ export class CameraRig {
       // Direct tracking in FPP for crisp zero-latency camera movement
       this.yaw = this.targetYaw;
       this.pitch = this.targetPitch;
-      this.root.position.copy(this.targetPosition);
+      this.currentPosition.copy(this.targetPosition);
     } else {
       // Smooth interpolation in TPP
-      this.yaw = THREE.MathUtils.damp(this.yaw, this.targetYaw, 14, validDelta);
-      this.pitch = THREE.MathUtils.damp(this.pitch, this.targetPitch, 14, validDelta);
+      this.yaw = THREE.MathUtils.damp(this.yaw, this.targetYaw, 16, validDelta);
+      this.pitch = THREE.MathUtils.damp(this.pitch, this.targetPitch, 16, validDelta);
       this.distance = THREE.MathUtils.damp(this.distance, this.targetDistance, 14, validDelta);
-      this.currentPosition.lerp(this.targetPosition, Math.min(1.0, this.followSpeed * validDelta));
-      this.root.position.copy(this.currentPosition);
+      this.currentPosition.copy(this.targetPosition);
     }
 
     this.updateRigTransforms();
