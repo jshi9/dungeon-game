@@ -93,13 +93,23 @@ export class InteractionRaycaster {
     this.hoveredMesh = mesh;
     this.hoveredBookData = bookData;
 
-    const mat = mesh.material as THREE.MeshStandardMaterial;
-    if (mat && mat.emissive) {
-      this.originalEmissive.copy(mat.emissive);
-      this.originalEmissiveIntensity = mat.emissiveIntensity;
+    if (Array.isArray(mesh.material)) {
+      mesh.material.forEach((mat) => {
+        const stdMat = mat as THREE.MeshStandardMaterial;
+        if (stdMat && stdMat.emissive) {
+          stdMat.emissive.setHex(0xfce59f);
+          stdMat.emissiveIntensity = 0.65;
+        }
+      });
+    } else {
+      const mat = mesh.material as THREE.MeshStandardMaterial;
+      if (mat && mat.emissive) {
+        this.originalEmissive.copy(mat.emissive);
+        this.originalEmissiveIntensity = mat.emissiveIntensity;
 
-      mat.emissive.setHex(0xfce59f); // Golden amber hover glow
-      mat.emissiveIntensity = 0.65;
+        mat.emissive.setHex(0xfce59f); // Golden amber hover glow
+        mat.emissiveIntensity = 0.65;
+      }
     }
 
     this.callbacks.onHoverBook(bookData);
@@ -107,10 +117,20 @@ export class InteractionRaycaster {
 
   public clearHover(): void {
     if (this.hoveredMesh) {
-      const mat = this.hoveredMesh.material as THREE.MeshStandardMaterial;
-      if (mat && mat.emissive) {
-        mat.emissive.copy(this.originalEmissive);
-        mat.emissiveIntensity = this.originalEmissiveIntensity;
+      if (Array.isArray(this.hoveredMesh.material)) {
+        this.hoveredMesh.material.forEach((mat) => {
+          const stdMat = mat as THREE.MeshStandardMaterial;
+          if (stdMat && stdMat.emissive) {
+            stdMat.emissive.setHex(0x000000);
+            stdMat.emissiveIntensity = 0;
+          }
+        });
+      } else {
+        const mat = this.hoveredMesh.material as THREE.MeshStandardMaterial;
+        if (mat && mat.emissive) {
+          mat.emissive.copy(this.originalEmissive);
+          mat.emissiveIntensity = this.originalEmissiveIntensity;
+        }
       }
       this.hoveredMesh = null;
       this.hoveredBookData = null;

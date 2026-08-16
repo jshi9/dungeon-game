@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { TextureAtlas } from './TextureAtlas';
 import { LibraryLoreGenerator } from '../lore/LibraryLoreGenerator';
+import { BookSpineGenerator } from './BookSpineGenerator';
 
 export interface ChandelierInfo {
   group: THREE.Group;
@@ -60,9 +61,6 @@ export class LibraryManager {
     this.container.visible = visible;
   }
 
-  private getBookMaterial(colorHex: string): THREE.MeshStandardMaterial {
-    return this.atlas.createBookMaterial(colorHex);
-  }
 
   /**
    * 1. Cathedral Floors, Vaulted Ribbed Ceiling & Stone Pillars
@@ -228,10 +226,10 @@ export class LibraryManager {
               for (let s = 0; s < stackCount; s++) {
                 const bookSeed = seed + s * 37;
                 const bookData = LibraryLoreGenerator.generateBook(bookSeed);
-                const bookMat = this.getBookMaterial(bookData.coverColor);
+                const bookMats = BookSpineGenerator.getBookMaterials(bookData, true, side);
 
                 const bookGeom = new THREE.BoxGeometry(stackDepth, bookThick, stackWidth);
-                const bookMesh = new THREE.Mesh(bookGeom, bookMat);
+                const bookMesh = new THREE.Mesh(bookGeom, bookMats);
                 const bY = shelfY + 0.04 + s * bookThick + bookThick / 2;
                 bookMesh.position.set(shelfX - side * 0.06, bY, stackZ);
 
@@ -260,10 +258,10 @@ export class LibraryManager {
               const bY = shelfY + 0.04 + bHeight / 2;
 
               const bookData = LibraryLoreGenerator.generateBook(seed);
-              const bookMat = this.getBookMaterial(bookData.coverColor);
+              const bookMats = BookSpineGenerator.getBookMaterials(bookData, false, side);
 
               const bookGeom = new THREE.BoxGeometry(bDepth, bHeight, bWidth);
-              const bookMesh = new THREE.Mesh(bookGeom, bookMat);
+              const bookMesh = new THREE.Mesh(bookGeom, bookMats);
               bookMesh.position.set(shelfX - side * 0.06, bY, bZ);
 
               // Occasional natural tilt or lean against neighboring books
@@ -451,10 +449,10 @@ export class LibraryManager {
             for (let s = 0; s < stackCount; s++) {
               const bookSeed = seed + s * 41;
               const bookData = LibraryLoreGenerator.generateBook(bookSeed);
-              const bookMat = this.getBookMaterial(bookData.coverColor);
+              const bookMats = BookSpineGenerator.getBookMaterials(bookData, true, side);
 
               const bookGeom = new THREE.BoxGeometry(stackDepth, bookThick, stackWidth);
-              const bookMesh = new THREE.Mesh(bookGeom, bookMat);
+              const bookMesh = new THREE.Mesh(bookGeom, bookMats);
               const bY = shelfY + 0.04 + s * bookThick + bookThick / 2;
               bookMesh.position.set(shelfX - side * 0.06, bY, stackZ);
               bookMesh.rotation.y = (prng() - 0.5) * 0.08;
@@ -479,10 +477,10 @@ export class LibraryManager {
             const bY = shelfY + 0.04 + bHeight / 2;
 
             const bookData = LibraryLoreGenerator.generateBook(seed);
-            const bookMat = this.getBookMaterial(bookData.coverColor);
+            const bookMats = BookSpineGenerator.getBookMaterials(bookData, false, side);
 
             const bookGeom = new THREE.BoxGeometry(bDepth, bHeight, bWidth);
-            const bookMesh = new THREE.Mesh(bookGeom, bookMat);
+            const bookMesh = new THREE.Mesh(bookGeom, bookMats);
             bookMesh.position.set(shelfX - side * 0.06, bY, bZ);
 
             if (prng() < 0.16) {
@@ -610,8 +608,8 @@ export class LibraryManager {
       // Interactive Open Manuscript Folio Block
       const openBookData = LibraryLoreGenerator.generateBook(cfg.seed, cfg.title);
       const openBookGeom = new THREE.BoxGeometry(0.55, 0.06, 0.38);
-      const openBookMat = new THREE.MeshStandardMaterial({ color: 0xecdcb6, roughness: 0.9 });
-      const openBookMesh = new THREE.Mesh(openBookGeom, openBookMat);
+      const openBookMats = BookSpineGenerator.getBookMaterials(openBookData, true, 1);
+      const openBookMesh = new THREE.Mesh(openBookGeom, openBookMats);
       openBookMesh.position.set(0, 0.94, 0);
       openBookMesh.rotation.y = (Math.random() - 0.5) * 0.2;
       openBookMesh.castShadow = true;
@@ -620,25 +618,27 @@ export class LibraryManager {
       openBookMesh.userData = {
         isBook: true,
         bookData: openBookData,
-        originalColor: '#ecdcb6'
+        originalColor: openBookData.coverColor
       };
       this.raycastableBooks.push(openBookMesh);
       deskGroup.add(openBookMesh);
 
       // Stacked piles of books on desk corner (also interactive!)
       const stackBookData1 = LibraryLoreGenerator.generateBook(cfg.seed + 1000);
+      const stackMats1 = BookSpineGenerator.getBookMaterials(stackBookData1, true, 1);
       const stackMesh1 = new THREE.Mesh(
         new THREE.BoxGeometry(0.28, 0.06, 0.38),
-        this.getBookMaterial(stackBookData1.coverColor)
+        stackMats1
       );
       stackMesh1.position.set(0.6, 0.94, -0.2);
       stackMesh1.userData = { isBook: true, bookData: stackBookData1, originalColor: stackBookData1.coverColor };
       this.raycastableBooks.push(stackMesh1);
 
       const stackBookData2 = LibraryLoreGenerator.generateBook(cfg.seed + 2000);
+      const stackMats2 = BookSpineGenerator.getBookMaterials(stackBookData2, true, 1);
       const stackMesh2 = new THREE.Mesh(
         new THREE.BoxGeometry(0.26, 0.05, 0.35),
-        this.getBookMaterial(stackBookData2.coverColor)
+        stackMats2
       );
       stackMesh2.position.set(0.6, 0.995, -0.2);
       stackMesh2.rotation.y = 0.18;
