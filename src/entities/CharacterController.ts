@@ -189,39 +189,100 @@ export class CharacterController {
     );
   }
 
+  /**
+   * Sample multi-point footprint terrain height around (x, z) to prevent edge clipping and sinking.
+   * Takes the maximum walkable ground height among footprint points within step height range.
+   */
+  public getFootprintGroundHeight(x: number, z: number, currentY: number): number {
+    if (!this.surfaceManager) return 0;
+    const r = this.playerRadius;
+    const diag = r * 0.7071;
+
+    const points = [
+      { x: x, z: z },
+      { x: x, z: z - r },
+      { x: x, z: z + r },
+      { x: x + r, z: z },
+      { x: x - r, z: z },
+      { x: x + diag, z: z - diag },
+      { x: x - diag, z: z - diag },
+      { x: x + diag, z: z + diag },
+      { x: x - diag, z: z + diag },
+    ];
+
+    let maxWalkableH = -Infinity;
+    const centerH = this.surfaceManager.getElevation(x, z);
+
+    for (const p of points) {
+      const h = this.surfaceManager.getElevation(p.x, p.z);
+      // Valid supporting ground must be at or below current foot height + step threshold
+      if (h <= currentY + this.maxStepHeight + 0.1) {
+        if (h > maxWalkableH) {
+          maxWalkableH = h;
+        }
+      }
+    }
+
+    if (maxWalkableH === -Infinity) {
+      return centerH;
+    }
+
+    return maxWalkableH;
+  }
+
+  /**
+   * Check if any footprint bounding point at (x, z) hits a cliff/wall higher than maxStepHeight.
+   */
+  public isWallBlocked(x: number, z: number, currentY: number): boolean {
+    if (!this.surfaceManager) return false;
+    const r = this.playerRadius;
+    const diag = r * 0.7071;
+
+    const points = [
+      { x: x, z: z - r },
+      { x: x, z: z + r },
+      { x: x + r, z: z },
+      { x: x - r, z: z },
+      { x: x + diag, z: z - diag },
+      { x: x - diag, z: z - diag },
+      { x: x + diag, z: z + diag },
+      { x: x - diag, z: z + diag },
+    ];
+
+    for (const p of points) {
+      const h = this.surfaceManager.getElevation(p.x, p.z);
+      if (h > currentY + this.maxStepHeight + 0.1) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   private applyMovementAndCollisions(delta: number): void {
     const moveDistX = this.velocity.x * delta;
     const moveDistZ = this.velocity.z * delta;
 
     if (this.currentMode === 'surface' && this.surfaceManager) {
-      const currentH = this.surfaceManager.getElevation(this.position.x, this.position.z);
+      // 1. Check Horizontal Movement with Wall Collision
       const nextX = this.position.x + moveDistX;
-      const nextZ = this.position.z + moveDistZ;
-      const nextH = this.surfaceManager.getElevation(nextX, nextZ);
-
-      const heightDiff = nextH - currentH;
-
-      if (heightDiff <= this.maxStepHeight) {
+      const isWallBlockedX = this.isWallBlocked(nextX, this.position.z, this.position.y);
+      if (!isWallBlockedX) {
         this.position.x = nextX;
-        this.position.z = nextZ;
-        this.position.y = THREE.MathUtils.damp(this.position.y, nextH, 16, delta);
-      } else {
-        const nextHX = this.surfaceManager.getElevation(nextX, this.position.z);
-        if (nextHX - currentH <= this.maxStepHeight) {
-          this.position.x = nextX;
-          this.position.y = THREE.MathUtils.damp(this.position.y, nextHX, 16, delta);
-        }
-
-        const nextHZ = this.surfaceManager.getElevation(this.position.x, nextZ);
-        if (nextHZ - currentH <= this.maxStepHeight) {
-          this.position.z = nextZ;
-          this.position.y = THREE.MathUtils.damp(this.position.y, nextHZ, 16, delta);
-        }
       }
 
-      const finalGroundY = this.surfaceManager.getElevation(this.position.x, this.position.z);
-      if (this.position.y < finalGroundY) {
-        this.position.y = finalGroundY;
+      const nextZ = this.position.z + moveDistZ;
+      const isWallBlockedZ = this.isWallBlocked(this.position.x, nextZ, this.position.y);
+      if (!isWallBlockedZ) {
+        this.position.z = nextZ;
+      }
+
+      // 2. Multi-Point Footprint Ground Height Resolution (prevents edge sinking)
+      const targetGroundY = this.getFootprintGroundHeight(this.position.x, this.position.z, this.position.y);
+
+      // Smooth step-up and step-down interpolation
+      this.position.y = THREE.MathUtils.damp(this.position.y, targetGroundY, 20, delta);
+      if (this.position.y < targetGroundY) {
+        this.position.y = targetGroundY;
       }
     } else if (this.currentMode === 'dungeon' && this.dungeonManager) {
       const r = this.playerRadius;

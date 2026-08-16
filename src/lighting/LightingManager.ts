@@ -16,7 +16,7 @@ export class LightingManager {
 
   // Fogs
   private surfaceFog: THREE.FogExp2;
-  private dungeonFog: THREE.FogExp2;
+  private dungeonFog: THREE.Fog;
 
   // Background Colors
   private surfaceBgColor = new THREE.Color(0x8bc3ea);
@@ -25,8 +25,8 @@ export class LightingManager {
   constructor(scene: THREE.Scene) {
     this.scene = scene;
 
-    // 1. Hemisphere Light (Surface)
-    this.hemiLight = new THREE.HemisphereLight(0xfffaed, 0x3d3024, 0.9);
+    // 1. Hemisphere Light
+    this.hemiLight = new THREE.HemisphereLight(0xfffaed, 0x3d3024, 0.95);
     this.hemiLight.position.set(0, 50, 0);
     this.scene.add(this.hemiLight);
 
@@ -54,12 +54,12 @@ export class LightingManager {
     this.scene.add(this.dirLight);
 
     // 3. Dungeon Ambient (Warm baseline ambient for dungeon visibility)
-    this.dungeonAmbient = new THREE.AmbientLight(0x383244, 0.8);
+    this.dungeonAmbient = new THREE.AmbientLight(0x4c425e, 1.2);
     this.scene.add(this.dungeonAmbient);
 
-    // 4. Fogs (Dungeon fog density decreased to 0.020)
-    this.surfaceFog = new THREE.FogExp2(0x8bc3ea, 0.012);
-    this.dungeonFog = new THREE.FogExp2(0x0a0812, 0.020);
+    // 4. Fogs (Linear atmospheric falloff allows flashlight to penetrate far down halls)
+    this.surfaceFog = new THREE.FogExp2(0x8bc3ea, 0.010);
+    this.dungeonFog = new THREE.Fog(0x06050e, 18, 95);
 
     this.setMode('surface');
   }
@@ -70,15 +70,19 @@ export class LightingManager {
     if (mode === 'surface') {
       this.scene.background = this.surfaceBgColor;
       this.scene.fog = this.surfaceFog;
+      this.hemiLight.color.setHex(0xfffaed);
+      this.hemiLight.groundColor.setHex(0x3d3024);
       this.hemiLight.intensity = 0.95;
       this.dirLight.intensity = 1.8;
       this.dungeonAmbient.intensity = 0.1;
     } else {
       this.scene.background = this.dungeonBgColor;
       this.scene.fog = this.dungeonFog;
-      this.hemiLight.intensity = 0.08;
+      this.hemiLight.color.setHex(0x5a5070);
+      this.hemiLight.groundColor.setHex(0x2a2220);
+      this.hemiLight.intensity = 0.35;
       this.dirLight.intensity = 0.0;
-      this.dungeonAmbient.intensity = 0.8;
+      this.dungeonAmbient.intensity = 1.2;
     }
   }
 

@@ -119,114 +119,118 @@ export class PropsFactory {
     // Iron hinges
     const hingeGeom = new THREE.BoxGeometry(0.08, 0.08, 0.04);
     const h1 = new THREE.Mesh(hingeGeom, this.atlas.materials.iron);
-    h1.position.set(-0.5, 1.5, 0.36);
+    h1.position.set(-0.55, 1.4, 0.36);
     const h2 = new THREE.Mesh(hingeGeom, this.atlas.materials.iron);
-    h2.position.set(-0.5, 0.5, 0.36);
+    h2.position.set(-0.55, 0.5, 0.36);
     wardrobe.add(h1, h2);
 
     return wardrobe;
   }
 
   /**
-   * Table and chairs set matching reference image
+   * Table and 2 Chairs Set matching reference image
    */
   public createTableSet(): THREE.Group {
-    const set = new THREE.Group();
-    set.name = 'TableSet';
+    const group = new THREE.Group();
+    group.name = 'TableSet';
 
-    // Long Dining Table
-    const tabletopGeom = new THREE.BoxGeometry(1.8, 0.1, 1.0);
-    const tabletopMesh = new THREE.Mesh(tabletopGeom, this.atlas.materials.bedGreen); // Green cloth runner
-    tabletopMesh.position.set(0, 0.7, 0);
-    tabletopMesh.castShadow = true;
-    tabletopMesh.receiveShadow = true;
-    set.add(tabletopMesh);
+    // Green Tablecloth Top
+    const tableTopGeom = new THREE.BoxGeometry(1.5, 0.1, 0.9);
+    const tableTop = new THREE.Mesh(tableTopGeom, this.atlas.materials.bedGreen);
+    tableTop.position.set(0, 0.7, 0);
+    tableTop.castShadow = true;
+    tableTop.receiveShadow = true;
+    group.add(tableTop);
 
     // 4 Table legs
-    const legGeom = new THREE.BoxGeometry(0.1, 0.65, 0.1);
-    const legPositions = [
-      [-0.8, 0.325, -0.4],
-      [0.8, 0.325, -0.4],
-      [-0.8, 0.325, 0.4],
-      [0.8, 0.325, 0.4]
+    const legGeom = new THREE.BoxGeometry(0.08, 0.7, 0.08);
+    const legCoords = [
+      [-0.65, 0.35, -0.35],
+      [0.65, 0.35, -0.35],
+      [-0.65, 0.35, 0.35],
+      [0.65, 0.35, 0.35]
     ];
-    for (const p of legPositions) {
+    for (const pos of legCoords) {
       const leg = new THREE.Mesh(legGeom, this.atlas.materials.woodBeam);
-      leg.position.set(p[0], p[1], p[2]);
+      leg.position.set(pos[0], pos[1], pos[2]);
       leg.castShadow = true;
-      set.add(leg);
+      group.add(leg);
     }
 
-    // 2 Chairs facing the table
-    const chairPositions = [
-      [-0.4, 0, 0.8],
-      [0.4, 0, 0.8]
-    ];
-    for (const cp of chairPositions) {
-      const chair = this.createChair();
-      chair.position.set(cp[0], cp[1], cp[2]);
-      set.add(chair);
-    }
+    // Chair Left
+    const chairL = this.createChair();
+    chairL.position.set(-0.9, 0, 0);
+    chairL.rotation.y = Math.PI / 2;
+    group.add(chairL);
 
-    return set;
+    // Chair Right
+    const chairR = this.createChair();
+    chairR.position.set(0.9, 0, 0);
+    chairR.rotation.y = -Math.PI / 2;
+    group.add(chairR);
+
+    return group;
   }
 
-  public createChair(): THREE.Group {
+  private createChair(): THREE.Group {
     const chair = new THREE.Group();
-    chair.name = 'Chair';
-
     // Seat
-    const seatGeom = new THREE.BoxGeometry(0.45, 0.08, 0.45);
-    const seatMesh = new THREE.Mesh(seatGeom, this.atlas.materials.woodPlanks);
-    seatMesh.position.set(0, 0.42, 0);
-    seatMesh.castShadow = true;
-    chair.add(seatMesh);
+    const seat = new THREE.Mesh(
+      new THREE.BoxGeometry(0.42, 0.06, 0.42),
+      this.atlas.materials.woodPlanks
+    );
+    seat.position.set(0, 0.42, 0);
+    seat.castShadow = true;
+    chair.add(seat);
 
     // Backrest
-    const backGeom = new THREE.BoxGeometry(0.45, 0.5, 0.08);
-    const backMesh = new THREE.Mesh(backGeom, this.atlas.materials.woodBeam);
-    backMesh.position.set(0, 0.7, 0.18);
-    backMesh.castShadow = true;
-    chair.add(backMesh);
+    const back = new THREE.Mesh(
+      new THREE.BoxGeometry(0.42, 0.45, 0.06),
+      this.atlas.materials.woodBeam
+    );
+    back.position.set(0, 0.65, -0.18);
+    back.castShadow = true;
+    chair.add(back);
 
-    // 4 Legs
-    const legGeom = new THREE.BoxGeometry(0.06, 0.38, 0.06);
-    const lPos = [
-      [-0.18, 0.19, -0.18],
-      [0.18, 0.19, -0.18],
-      [-0.18, 0.19, 0.18],
-      [0.18, 0.19, 0.18]
+    // Legs
+    const chairLegGeom = new THREE.BoxGeometry(0.05, 0.42, 0.05);
+    const cPositions = [
+      [-0.18, 0.21, -0.18],
+      [0.18, 0.21, -0.18],
+      [-0.18, 0.21, 0.18],
+      [0.18, 0.21, 0.18]
     ];
-    for (const p of lPos) {
-      const leg = new THREE.Mesh(legGeom, this.atlas.materials.woodBeam);
-      leg.position.set(p[0], p[1], p[2]);
-      leg.castShadow = true;
-      chair.add(leg);
+    for (const p of cPositions) {
+      const cl = new THREE.Mesh(chairLegGeom, this.atlas.materials.woodBeam);
+      cl.position.set(p[0], p[1], p[2]);
+      cl.castShadow = true;
+      chair.add(cl);
     }
-
     return chair;
   }
 
   /**
-   * Crimson & Gold Ornate Carpet matching reference screenshot
+   * Carpet matching reference image (Red with gold trim)
    */
-  public createCarpet(width = 3.6, length = 2.4): THREE.Mesh {
-    const carpetGeom = new THREE.PlaneGeometry(width, length);
-    const carpetMesh = new THREE.Mesh(carpetGeom, this.atlas.materials.carpetRed);
-    carpetMesh.rotation.x = -Math.PI / 2;
-    carpetMesh.position.set(0, 0.02, 0);
-    carpetMesh.receiveShadow = true;
-    return carpetMesh;
+  public createCarpet(width: number, height: number): THREE.Mesh {
+    const geom = new THREE.PlaneGeometry(width, height);
+    const mesh = new THREE.Mesh(geom, this.atlas.materials.carpetRed);
+    mesh.rotation.x = -Math.PI / 2;
+    mesh.receiveShadow = true;
+    return mesh;
   }
 
   /**
-   * Wall Torch with dynamic warm PointLight and flickering flame
+   * Wall Torch Sconce with dynamic point light and warm ambient glow
    */
-  public createTorch(x: number, y: number, z: number): { group: THREE.Group; lightInfo: TorchLightInfo } {
+  public createTorch(x: number, y: number, z: number): {
+    group: THREE.Group;
+    lightInfo: TorchLightInfo;
+  } {
     const group = new THREE.Group();
     group.position.set(x, y, z);
 
-    // Sconce iron bracket
+    // Iron Wall Bracket
     const bracketGeom = new THREE.BoxGeometry(0.12, 0.35, 0.2);
     const bracketMesh = new THREE.Mesh(bracketGeom, this.atlas.materials.iron);
     bracketMesh.position.set(0, 0, 0.1);
@@ -241,13 +245,13 @@ export class PropsFactory {
 
     // Glowing flame core
     const flameGeom = new THREE.BoxGeometry(0.15, 0.22, 0.15);
-    const flameMat = new THREE.MeshBasicMaterial({ color: 0xffaa33 });
+    const flameMat = new THREE.MeshBasicMaterial({ color: 0xffdd66 });
     const flameMesh = new THREE.Mesh(flameGeom, flameMat);
     flameMesh.position.set(0, 0.42, 0.25);
     group.add(flameMesh);
 
-    // Dynamic Point Light (intensity 2.0, distance 15.0)
-    const light = new THREE.PointLight(0xffa834, 2.0, 15.0, 1.2);
+    // Dynamic Point Light (intensity 4.5, distance 24.0, smooth decay)
+    const light = new THREE.PointLight(0xffbe44, 4.5, 24.0, 1.05);
     light.position.set(0, 0.5, 0.3);
     light.castShadow = true;
     light.shadow.bias = -0.002;
@@ -257,7 +261,7 @@ export class PropsFactory {
 
     const lightInfo: TorchLightInfo = {
       light,
-      baseIntensity: 2.0,
+      baseIntensity: 4.5,
       flickerSpeed: 7 + Math.random() * 5,
       flickerPhase: Math.random() * Math.PI * 2,
       position: new THREE.Vector3(x, y + 0.5, z + 0.3)
@@ -280,8 +284,8 @@ export class PropsFactory {
     windowMesh.position.set(0, 0, 0.02);
     group.add(windowMesh);
 
-    // Window light beam
-    const windowLight = new THREE.PointLight(0xfffae0, 3.0, 8.0, 1.2);
+    // Window light beam (intensity 5.5, distance 16.0)
+    const windowLight = new THREE.PointLight(0xfff5d0, 5.5, 16.0, 1.05);
     windowLight.position.set(0, 0, 0.5);
     group.add(windowLight);
 

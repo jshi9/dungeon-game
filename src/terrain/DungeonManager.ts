@@ -324,9 +324,9 @@ export class DungeonManager {
 
   public updateTorches(time: number): void {
     for (const t of this.torchLights) {
-      const flicker = Math.sin(time * t.flickerSpeed + t.flickerPhase) * 0.35 +
-                      Math.cos(time * (t.flickerSpeed * 1.7) + t.flickerPhase * 2) * 0.15;
-      t.light.intensity = Math.max(0.8, t.baseIntensity + flicker);
+      const flicker = Math.sin(time * t.flickerSpeed + t.flickerPhase) * 0.6 +
+                      Math.cos(time * (t.flickerSpeed * 1.7) + t.flickerPhase * 2) * 0.3;
+      t.light.intensity = Math.max(3.2, t.baseIntensity + flicker);
     }
   }
 

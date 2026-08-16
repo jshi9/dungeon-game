@@ -66,8 +66,8 @@ export class Engine {
     this.surfaceManager = new SurfaceManager(this.scene, this.atlas);
     this.dungeonManager = new DungeonManager(this.scene, this.atlas, 48, 48);
 
-    // 6. Character & Controller
-    this.characterModel = new CharacterModel(this.atlas);
+    // 6. Character & Controller (Attach FPS viewmodel to camera)
+    this.characterModel = new CharacterModel(this.atlas, this.cameraRig.camera);
     this.scene.add(this.characterModel.group);
 
     this.characterController = new CharacterController(this.characterModel);
@@ -111,11 +111,12 @@ export class Engine {
       }
     } catch {}
 
-    // 9. Retro HUD
+    // 9. Retro HUD with Inventory Hotbar
     this.hud = new RetroHUD(this.hudRoot, {
       onToggleMode: () => this.switchModeWithTransition(),
       onSelectResolution: (w, h) => this.renderPipeline.setResolution(w, h),
-      onToggleFullscreen: () => this.toggleFullscreen()
+      onToggleFullscreen: () => this.toggleFullscreen(),
+      onSelectItem: (item) => this.characterModel.setActiveItem(item ? item.id : null)
     });
 
     // 10. Bind Window Events
@@ -124,6 +125,8 @@ export class Engine {
     // 11. Initial Mode & Perspective Setup
     this.setMode('surface', true);
     this.setPerspective('FPP');
+    const initialItem = this.hud.getSelectedItem();
+    this.characterModel.setActiveItem(initialItem ? initialItem.id : null);
   }
 
   private bindEvents(): void {
@@ -148,7 +151,7 @@ export class Engine {
       }
     });
 
-    // Capture phase for Escape / KeyO to guarantee instantaneous trigger before any browser pointer lock consumption
+    // Capture phase for Escape / KeyO / Hotbar keys
     window.addEventListener('keydown', (e) => {
       this.keys[e.code] = true;
 
@@ -158,6 +161,14 @@ export class Engine {
         e.stopPropagation();
         this.toggleSettings();
         return;
+      }
+
+      // Number keys 1-8 for Hotbar Slot Selection (Toggle equip/unequip)
+      if (!this.settingsModal.isOpen && e.code.startsWith('Digit')) {
+        const num = parseInt(e.code.replace('Digit', ''), 10);
+        if (num >= 1 && num <= 8) {
+          this.hud.selectSlot(num - 1);
+        }
       }
 
       // 'M' key for mode switch transition
@@ -204,11 +215,7 @@ export class Engine {
     this.settingsModal.setPerspectiveUI(mode);
     this.renderPipeline.setCrosshairVisible(mode === 'FPP');
 
-    if (mode === 'FPP') {
-      this.characterModel.setFirstPerson(true);
-    } else {
-      this.characterModel.setFirstPerson(false);
-    }
+    this.characterModel.setFirstPerson(mode === 'FPP');
 
     if (!this.settingsModal.isOpen) {
       this.canvas.requestPointerLock();
@@ -256,9 +263,16 @@ export class Engine {
     if (mode === 'surface') {
       if (this.surfaceManager) this.surfaceManager.setVisible(true);
       if (this.dungeonManager) this.dungeonManager.setVisible(false);
-      if (this.characterModel?.lanternLight) {
-        this.characterModel.lanternLight.intensity = 1.2;
-        this.characterModel.lanternLight.distance = 18;
+      if (this.characterModel) {
+        this.characterModel.baseLanternIntensity = 2.0;
+        if (this.characterModel.fpsLanternLight) {
+          this.characterModel.fpsLanternLight.intensity = 2.0;
+          this.characterModel.fpsLanternLight.distance = 20;
+        }
+        if (this.characterModel.tppLanternLight) {
+          this.characterModel.tppLanternLight.intensity = 2.0;
+          this.characterModel.tppLanternLight.distance = 20;
+        }
       }
 
       const targetPos = this.surfacePlayerPos;
@@ -271,9 +285,16 @@ export class Engine {
     } else {
       if (this.surfaceManager) this.surfaceManager.setVisible(false);
       if (this.dungeonManager) this.dungeonManager.setVisible(true);
-      if (this.characterModel?.lanternLight) {
-        this.characterModel.lanternLight.intensity = 2.5;
-        this.characterModel.lanternLight.distance = 25;
+      if (this.characterModel) {
+        this.characterModel.baseLanternIntensity = 5.0;
+        if (this.characterModel.fpsLanternLight) {
+          this.characterModel.fpsLanternLight.intensity = 5.0;
+          this.characterModel.fpsLanternLight.distance = 30;
+        }
+        if (this.characterModel.tppLanternLight) {
+          this.characterModel.tppLanternLight.intensity = 5.0;
+          this.characterModel.tppLanternLight.distance = 30;
+        }
       }
 
       const targetPos = this.dungeonPlayerPos;
@@ -324,7 +345,19 @@ export class Engine {
     );
     this.cameraRig.update(delta, gp.rightStickX, gp.rightStickY, qPressed, ePressed);
 
-    // 4. Update Active Map Systems
+    // 4. Update Flashlight and Handheld Direction Aiming
+    const cosPitch = Math.cos(this.cameraRig.pitch);
+    const sinPitch = Math.sin(this.cameraRig.pitch);
+    const cosYaw = Math.cos(this.cameraRig.yaw);
+    const sinYaw = Math.sin(this.cameraRig.yaw);
+    const lookDir = new THREE.Vector3(
+      -sinYaw * cosPitch,
+      sinPitch,
+      -cosYaw * cosPitch
+    );
+    this.characterModel.updateLightAim(this.cameraRig.camera.position, lookDir);
+
+    // 5. Update Active Map Systems
     if (this.currentMode === 'surface') {
       this.surfaceManager.update(this.characterController.position.x, this.characterController.position.z);
       this.lightingManager.updateSunPosition(this.characterController.position);
@@ -332,10 +365,10 @@ export class Engine {
       this.dungeonManager.updateTorches(elapsedTime);
     }
 
-    // 5. Render Scene via Pixel-Grid Pipeline
+    // 6. Render Scene via Pixel-Grid Pipeline
     this.renderPipeline.render(this.scene, this.cameraRig.camera, delta);
 
-    // 6. Update HUD Telemetry
+    // 7. Update HUD Telemetry
     const chunkX = Math.floor(this.characterController.position.x / 16);
     const chunkZ = Math.floor(this.characterController.position.z / 16);
     this.hud.updateTelemetry(
