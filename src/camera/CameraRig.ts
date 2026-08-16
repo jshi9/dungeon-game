@@ -31,7 +31,7 @@ export class CameraRig {
   public yaw: number = 0;
   public targetYaw: number = 0;
 
-  // Pitch: 0 = horizon, +1.45 rad = look up, -1.45 rad = look down
+  // Pitch: 0 = horizon, +1.49 rad = look straight up, -1.49 rad = look straight down
   public pitch: number = 0;
   public targetPitch: number = 0;
 
@@ -46,6 +46,9 @@ export class CameraRig {
   private isDraggingRightMouse: boolean = false;
   private previousMouseX: number = 0;
   private previousMouseY: number = 0;
+
+  // Max pitch angle (~85.4 degrees) preventing pole singularities
+  public static readonly MAX_PITCH: number = Math.PI / 2 - 0.08;
 
   constructor(options: CameraRigOptions = {}) {
     this.perspective = options.perspective ?? 'FPP';
@@ -99,23 +102,28 @@ export class CameraRig {
     this.yawGroup.rotation.set(0, 0, 0);
     this.pitchGroup.rotation.set(0, 0, 0);
 
+    const cosPitch = Math.cos(this.pitch);
+    const sinPitch = Math.sin(this.pitch);
+    const cosYaw = Math.cos(this.yaw);
+    const sinYaw = Math.sin(this.yaw);
+
+    const dirX = -sinYaw * cosPitch;
+    const dirY = sinPitch;
+    const dirZ = -cosYaw * cosPitch;
+
     if (this.perspective === 'FPP') {
-      // In FPP mode: Camera at player eye level with direct YXZ Euler look
+      // In FPP: Camera mounted at player eye level with direct YXZ Euler rotation
       this.camera.position.set(this.targetPosition.x, this.targetPosition.y, this.targetPosition.z);
       this.camera.rotation.set(this.pitch, this.yaw, 0, 'YXZ');
     } else {
-      // In TPP mode: Compute spherical position behind player matching identical look direction
+      // In TPP: Direct YXZ Euler rotation (no lookAt) eliminating polar spiraling
       const targetY = this.currentPosition.y;
-      const dirX = -Math.sin(this.yaw) * Math.cos(this.pitch);
-      const dirY = Math.sin(this.pitch);
-      const dirZ = -Math.cos(this.yaw) * Math.cos(this.pitch);
-
       const camX = this.currentPosition.x - dirX * this.distance;
       const camY = targetY - dirY * this.distance;
       const camZ = this.currentPosition.z - dirZ * this.distance;
 
       this.camera.position.set(camX, camY, camZ);
-      this.camera.lookAt(this.currentPosition.x, targetY, this.currentPosition.z);
+      this.camera.rotation.set(this.pitch, this.yaw, 0, 'YXZ');
     }
   }
 
@@ -128,8 +136,8 @@ export class CameraRig {
         this.yaw -= e.movementX * this.mouseSensitivity * 0.002;
         this.pitch -= e.movementY * this.mouseSensitivity * 0.002;
 
-        // Clamp vertical pitch between -1.45 rad (~ -83 deg) and +1.45 rad (~ +83 deg)
-        this.pitch = Math.max(-1.45, Math.min(1.45, this.pitch));
+        // Clamp pitch to safe spherical limit (~85.4 deg)
+        this.pitch = Math.max(-CameraRig.MAX_PITCH, Math.min(CameraRig.MAX_PITCH, this.pitch));
         this.targetYaw = this.yaw;
         this.targetPitch = this.pitch;
 
@@ -142,7 +150,7 @@ export class CameraRig {
 
         this.targetYaw -= deltaX * 0.006 * this.mouseSensitivity;
         this.targetPitch -= deltaY * 0.006 * this.mouseSensitivity;
-        this.targetPitch = Math.max(-1.45, Math.min(1.45, this.targetPitch));
+        this.targetPitch = Math.max(-CameraRig.MAX_PITCH, Math.min(CameraRig.MAX_PITCH, this.targetPitch));
 
         this.yaw = this.targetYaw;
         this.pitch = this.targetPitch;
@@ -219,7 +227,7 @@ export class CameraRig {
     }
     if (Math.abs(gamepadRightStickY) > 0.15) {
       this.targetPitch -= gamepadRightStickY * this.rotateSpeed * validDelta * 1.2;
-      this.targetPitch = Math.max(-1.45, Math.min(1.45, this.targetPitch));
+      this.targetPitch = Math.max(-CameraRig.MAX_PITCH, Math.min(CameraRig.MAX_PITCH, this.targetPitch));
     }
 
     // 3. Transform Updates
