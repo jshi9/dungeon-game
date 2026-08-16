@@ -141,10 +141,10 @@ export class CameraRig {
           this.updateRigTransforms();
         }
       } else {
-        // TPP Mode
+        // TPP Mode: Invert movementY so pushing mouse up raises the camera orbit angle
         if (isLocked) {
           this.yaw -= e.movementX * this.mouseSensitivity * 0.002;
-          this.pitch -= e.movementY * this.mouseSensitivity * 0.002;
+          this.pitch += e.movementY * this.mouseSensitivity * 0.002;
 
           // Clamp TPP pitch between 0.08 rad (~5 deg) and 1.40 rad (~80 deg)
           this.pitch = Math.max(0.08, Math.min(1.40, this.pitch));
@@ -157,7 +157,7 @@ export class CameraRig {
           this.previousMouseY = e.clientY;
 
           this.targetYaw -= deltaX * 0.006 * this.mouseSensitivity;
-          this.targetPitch -= deltaY * 0.006 * this.mouseSensitivity;
+          this.targetPitch += deltaY * 0.006 * this.mouseSensitivity;
           this.targetPitch = Math.max(0.08, Math.min(1.40, this.targetPitch));
 
           this.yaw = this.targetYaw;
@@ -234,10 +234,11 @@ export class CameraRig {
       this.targetYaw -= gamepadRightStickX * this.rotateSpeed * validDelta * 1.5;
     }
     if (Math.abs(gamepadRightStickY) > 0.15) {
-      this.targetPitch -= gamepadRightStickY * this.rotateSpeed * validDelta * 1.2;
       if (this.perspective === 'FPP') {
+        this.targetPitch -= gamepadRightStickY * this.rotateSpeed * validDelta * 1.2;
         this.targetPitch = Math.max(-1.45, Math.min(1.45, this.targetPitch));
       } else {
+        this.targetPitch += gamepadRightStickY * this.rotateSpeed * validDelta * 1.2;
         this.targetPitch = Math.max(0.08, Math.min(1.40, this.targetPitch));
       }
     }

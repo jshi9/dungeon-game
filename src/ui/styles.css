@@ -40,57 +40,58 @@ body.pointer-locked * {
   cursor: none !important;
 }
 
-/* Centered High-Contrast Dual-Tone Crosshair */
+/* Dynamic Color-Inverting Crosshair (mix-blend-mode: difference against canvas) */
+#crosshair,
 .retro-crosshair {
-  position: absolute;
+  position: fixed;
   top: 50%;
   left: 50%;
-  width: 20px;
-  height: 20px;
   transform: translate(-50%, -50%);
   pointer-events: none;
-  z-index: 50;
+  mix-blend-mode: difference !important;
+  z-index: 9999;
+  width: 20px;
+  height: 20px;
 }
 
 .crosshair-tick {
   position: absolute;
   background-color: #ffffff !important;
-  border: 1px solid #000000 !important;
-  box-sizing: border-box !important;
+  border: none !important;
+  box-shadow: none !important;
   opacity: 1 !important;
-  filter: none !important;
 }
 
-/* Top tick: 4px wide (2px inner white + 2x1px border), 7px long */
+/* Top tick: 2px wide, 7px long */
 .crosshair-tick.tick-top {
   top: 0;
-  left: 8px;
-  width: 4px;
+  left: 9px;
+  width: 2px;
   height: 7px;
 }
 
-/* Bottom tick: 4px wide, 7px long */
+/* Bottom tick: 2px wide, 7px long */
 .crosshair-tick.tick-bottom {
   bottom: 0;
-  left: 8px;
-  width: 4px;
+  left: 9px;
+  width: 2px;
   height: 7px;
 }
 
-/* Left tick: 7px long, 4px wide */
+/* Left tick: 7px long, 2px wide */
 .crosshair-tick.tick-left {
-  top: 8px;
+  top: 9px;
   left: 0;
   width: 7px;
-  height: 4px;
+  height: 2px;
 }
 
-/* Right tick: 7px long, 4px wide */
+/* Right tick: 7px long, 2px wide */
 .crosshair-tick.tick-right {
-  top: 8px;
+  top: 9px;
   right: 0;
   width: 7px;
-  height: 4px;
+  height: 2px;
 }
 
 /* Retro HUD Overlay */

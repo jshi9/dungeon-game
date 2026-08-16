@@ -32,7 +32,7 @@ export class RetroHUD {
 
   private buildDOM(): void {
     this.root.innerHTML = `
-      <div id="fpp-crosshair" class="retro-crosshair">
+      <div id="crosshair" class="retro-crosshair">
         <div class="crosshair-tick tick-top"></div>
         <div class="crosshair-tick tick-bottom"></div>
         <div class="crosshair-tick tick-left"></div>
@@ -83,7 +83,7 @@ export class RetroHUD {
         </div>
 
         <div class="retro-panel controls-guide">
-          <div><span class="key-badge">Click</span> : Mouse Look (FPP) &nbsp;|&nbsp; <span class="key-badge">W</span> <span class="key-badge">A</span> <span class="key-badge">S</span> <span class="key-badge">D</span> : Move / Strafe</div>
+          <div><span class="key-badge">Click</span> : Mouse Look (FPP) / Orbit (TPP) &nbsp;|&nbsp; <span class="key-badge">W</span> <span class="key-badge">A</span> <span class="key-badge">S</span> <span class="key-badge">D</span> : Move</div>
           <div><span class="key-badge">Shift</span> : Sprint &nbsp;|&nbsp; <span class="key-badge">M</span> : Switch Map (Screen Wipe)</div>
           <div><span class="key-badge">Esc</span> / <span class="key-badge">O</span> : Settings (Toggle FPP/TPP, Sensitivity)</div>
         </div>
@@ -92,7 +92,7 @@ export class RetroHUD {
 
     this.modeBtn = this.root.querySelector('#btn-mode-toggle')!;
     this.viewBadgeEl = this.root.querySelector('#hud-view-badge')!;
-    this.crosshairEl = this.root.querySelector('#fpp-crosshair')!;
+    this.crosshairEl = this.root.querySelector('#crosshair')!;
     this.posValueEl = this.root.querySelector('#tel-pos')!;
     this.chunkValueEl = this.root.querySelector('#tel-chunk')!;
     this.yawValueEl = this.root.querySelector('#tel-yaw')!;
