@@ -86,7 +86,7 @@ export class SurfaceChunk {
         let topMat = 'grassTop';
         if (biome === 'water') topMat = 'water';
         else if (biome === 'sand') topMat = 'sand';
-        else if (biome === 'stone' || biome === 'snow') topMat = 'stone';
+        else topMat = 'grassTop';
 
         addQuad(
           topMat,

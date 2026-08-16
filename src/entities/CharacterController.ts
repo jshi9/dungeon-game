@@ -74,7 +74,7 @@ export class CharacterController {
         rightStickX = rx;
       }
 
-      // Sprint button (e.g. A or B or Left Trigger)
+      // Sprint button
       if (gp.buttons[0]?.pressed || gp.buttons[10]?.pressed) {
         sprint = true;
       }
@@ -85,6 +85,8 @@ export class CharacterController {
   }
 
   public update(delta: number, cameraYaw: number): void {
+    const validDelta = (Number.isFinite(delta) && delta > 0) ? Math.min(delta, 0.1) : 0.016;
+
     // 1. Gather Inputs
     let inputX = 0;
     let inputZ = 0;
@@ -115,7 +117,6 @@ export class CharacterController {
     this.isMoving = inputLen > 0.05;
 
     // 2. Camera-Relative Movement Calculation
-    // Forward direction in world coords according to current camera yaw
     const forwardX = -Math.sin(cameraYaw);
     const forwardZ = -Math.cos(cameraYaw);
     const rightX = Math.cos(cameraYaw);
@@ -130,30 +131,36 @@ export class CharacterController {
 
     // 3. Smooth Acceleration & Deceleration
     const accelRate = this.isMoving ? this.acceleration : this.deceleration;
-    this.velocity.x = THREE.MathUtils.damp(this.velocity.x, targetVelX, accelRate, delta);
-    this.velocity.z = THREE.MathUtils.damp(this.velocity.z, targetVelZ, accelRate, delta);
+    this.velocity.x = THREE.MathUtils.damp(this.velocity.x, targetVelX, accelRate, validDelta);
+    this.velocity.z = THREE.MathUtils.damp(this.velocity.z, targetVelZ, accelRate, validDelta);
 
     // 4. Move with Collision Detection & Step-Up
-    this.applyMovementAndCollisions(delta);
+    this.applyMovementAndCollisions(validDelta);
 
-    // 5. 8-Directional Facing Snapping
-    if (this.isMoving && Math.hypot(worldDirX, worldDirZ) > 0.05) {
+    // 5. 8-Directional Facing Snapping (Defensive check against NaN / zero vector)
+    const moveMag = Math.hypot(worldDirX, worldDirZ);
+    if (this.isMoving && moveMag > 0.001) {
       const rawAngle = Math.atan2(worldDirX, worldDirZ);
-      // Snap to nearest 45 degrees (8 directions)
-      const snapStep = Math.PI / 4;
-      this.targetFacingAngle = Math.round(rawAngle / snapStep) * snapStep;
+      if (Number.isFinite(rawAngle)) {
+        const snapStep = Math.PI / 4;
+        this.targetFacingAngle = Math.round(rawAngle / snapStep) * snapStep;
+      }
     }
 
     // Smoothly rotate character to target facing angle
     let diff = this.targetFacingAngle - this.facingAngle;
     while (diff < -Math.PI) diff += Math.PI * 2;
     while (diff > Math.PI) diff -= Math.PI * 2;
-    this.facingAngle += diff * Math.min(1.0, 14 * delta);
+    this.facingAngle += diff * Math.min(1.0, 14 * validDelta);
     this.model.group.rotation.y = this.facingAngle;
 
-    // 6. Update Mesh & Animations
+    // 6. Update Character Mesh & Walk Cycle
     this.model.group.position.copy(this.position);
-    this.model.updateAnimation(this.isMoving, delta, Math.hypot(this.velocity.x, this.velocity.z) / this.moveSpeed);
+    this.model.updateAnimation(
+      this.isMoving,
+      validDelta,
+      Math.hypot(this.velocity.x, this.velocity.z) / this.moveSpeed
+    );
   }
 
   private applyMovementAndCollisions(delta: number): void {
@@ -161,40 +168,42 @@ export class CharacterController {
     const moveDistZ = this.velocity.z * delta;
 
     if (this.currentMode === 'surface' && this.surfaceManager) {
-      // Surface Mode: Terraced height stepping and cliff collisions
+      const currentH = this.surfaceManager.getElevation(this.position.x, this.position.z);
       const nextX = this.position.x + moveDistX;
       const nextZ = this.position.z + moveDistZ;
-
-      const currentH = this.surfaceManager.getElevation(this.position.x, this.position.z);
       const nextH = this.surfaceManager.getElevation(nextX, nextZ);
 
-      // Check height delta for step-up or blocked cliff
       const heightDiff = nextH - currentH;
 
       if (heightDiff <= this.maxStepHeight) {
-        // Can climb or descend step smoothly
         this.position.x = nextX;
         this.position.z = nextZ;
-        this.position.y = THREE.MathUtils.damp(this.position.y, nextH, 14, delta);
+        // Smoothly adjust height to step
+        this.position.y = THREE.MathUtils.damp(this.position.y, nextH, 16, delta);
       } else {
         // High cliff: test sliding along X and Z independently
         const nextHX = this.surfaceManager.getElevation(nextX, this.position.z);
         if (nextHX - currentH <= this.maxStepHeight) {
           this.position.x = nextX;
-          this.position.y = THREE.MathUtils.damp(this.position.y, nextHX, 14, delta);
+          this.position.y = THREE.MathUtils.damp(this.position.y, nextHX, 16, delta);
         }
 
         const nextHZ = this.surfaceManager.getElevation(this.position.x, nextZ);
         if (nextHZ - currentH <= this.maxStepHeight) {
           this.position.z = nextZ;
-          this.position.y = THREE.MathUtils.damp(this.position.y, nextHZ, 14, delta);
+          this.position.y = THREE.MathUtils.damp(this.position.y, nextHZ, 16, delta);
         }
       }
+
+      // Ensure feet never sink below the actual terrain height
+      const finalGroundY = this.surfaceManager.getElevation(this.position.x, this.position.z);
+      if (this.position.y < finalGroundY) {
+        this.position.y = finalGroundY;
+      }
     } else if (this.currentMode === 'dungeon' && this.dungeonManager) {
-      // Dungeon Mode: Solid wall and furniture grid collision
       const r = this.playerRadius;
 
-      // Attempt movement on X
+      // Test X movement
       const testX = this.position.x + moveDistX;
       const blockedX =
         this.dungeonManager.isSolid(testX - r, this.position.z - r) ||
@@ -206,7 +215,7 @@ export class CharacterController {
         this.position.x = testX;
       }
 
-      // Attempt movement on Z
+      // Test Z movement
       const testZ = this.position.z + moveDistZ;
       const blockedZ =
         this.dungeonManager.isSolid(this.position.x - r, testZ - r) ||

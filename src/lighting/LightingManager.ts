@@ -20,13 +20,13 @@ export class LightingManager {
 
   // Background Colors
   private surfaceBgColor = new THREE.Color(0x8bc3ea);
-  private dungeonBgColor = new THREE.Color(0x08060c);
+  private dungeonBgColor = new THREE.Color(0x0a0812);
 
   constructor(scene: THREE.Scene) {
     this.scene = scene;
 
     // 1. Hemisphere Light (Surface)
-    this.hemiLight = new THREE.HemisphereLight(0xfffaed, 0x3d3024, 0.85);
+    this.hemiLight = new THREE.HemisphereLight(0xfffaed, 0x3d3024, 0.9);
     this.hemiLight.position.set(0, 50, 0);
     this.scene.add(this.hemiLight);
 
@@ -53,13 +53,13 @@ export class LightingManager {
     this.dirLight.target = this.dirLightTarget;
     this.scene.add(this.dirLight);
 
-    // 3. Dungeon Ambient
-    this.dungeonAmbient = new THREE.AmbientLight(0x181420, 0.25);
+    // 3. Dungeon Ambient (Warm baseline ambient for dungeon visibility)
+    this.dungeonAmbient = new THREE.AmbientLight(0x383244, 0.8);
     this.scene.add(this.dungeonAmbient);
 
-    // 4. Fogs
+    // 4. Fogs (Dungeon fog density decreased to 0.020)
     this.surfaceFog = new THREE.FogExp2(0x8bc3ea, 0.012);
-    this.dungeonFog = new THREE.FogExp2(0x08060c, 0.065);
+    this.dungeonFog = new THREE.FogExp2(0x0a0812, 0.020);
 
     this.setMode('surface');
   }
@@ -70,15 +70,15 @@ export class LightingManager {
     if (mode === 'surface') {
       this.scene.background = this.surfaceBgColor;
       this.scene.fog = this.surfaceFog;
-      this.hemiLight.intensity = 0.9;
+      this.hemiLight.intensity = 0.95;
       this.dirLight.intensity = 1.8;
       this.dungeonAmbient.intensity = 0.1;
     } else {
       this.scene.background = this.dungeonBgColor;
       this.scene.fog = this.dungeonFog;
-      this.hemiLight.intensity = 0.05;
+      this.hemiLight.intensity = 0.08;
       this.dirLight.intensity = 0.0;
-      this.dungeonAmbient.intensity = 0.35;
+      this.dungeonAmbient.intensity = 0.8;
     }
   }
 

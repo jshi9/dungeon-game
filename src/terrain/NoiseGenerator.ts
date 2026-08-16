@@ -66,11 +66,11 @@ export class NoiseGenerator {
     let biome: TerrainSample['biome'] = 'grass';
     if (isWater) {
       biome = 'water';
-    } else if (steppedHeight === this.waterLevel + this.stepHeight && moisture < 0.6) {
+    } else if (steppedHeight === this.waterLevel + this.stepHeight && moisture < 0.4) {
       biome = 'sand';
-    } else if (steppedHeight >= 7.0) {
+    } else if (steppedHeight >= 10.0) {
       biome = 'snow';
-    } else if (steppedHeight >= 5.0) {
+    } else if (steppedHeight >= 9.0) {
       biome = 'stone';
     } else {
       biome = 'grass';

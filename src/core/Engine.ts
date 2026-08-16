@@ -164,7 +164,10 @@ export class Engine {
     if (mode === 'surface') {
       if (this.surfaceManager) this.surfaceManager.setVisible(true);
       if (this.dungeonManager) this.dungeonManager.setVisible(false);
-      if (this.characterModel?.lanternLight) this.characterModel.lanternLight.intensity = 1.0;
+      if (this.characterModel?.lanternLight) {
+        this.characterModel.lanternLight.intensity = 1.2;
+        this.characterModel.lanternLight.distance = 18;
+      }
 
       const targetPos = this.surfacePlayerPos;
       if (this.characterController) {
@@ -176,7 +179,10 @@ export class Engine {
     } else {
       if (this.surfaceManager) this.surfaceManager.setVisible(false);
       if (this.dungeonManager) this.dungeonManager.setVisible(true);
-      if (this.characterModel?.lanternLight) this.characterModel.lanternLight.intensity = 2.2;
+      if (this.characterModel?.lanternLight) {
+        this.characterModel.lanternLight.intensity = 2.5;
+        this.characterModel.lanternLight.distance = 25;
+      }
 
       const targetPos = this.dungeonPlayerPos;
       if (this.characterController) {

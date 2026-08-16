@@ -246,8 +246,8 @@ export class PropsFactory {
     flameMesh.position.set(0, 0.42, 0.25);
     group.add(flameMesh);
 
-    // Dynamic Point Light
-    const light = new THREE.PointLight(0xffa834, 2.5, 9.0, 1.8);
+    // Dynamic Point Light (intensity 2.0, distance 15.0)
+    const light = new THREE.PointLight(0xffa834, 2.0, 15.0, 1.2);
     light.position.set(0, 0.5, 0.3);
     light.castShadow = true;
     light.shadow.bias = -0.002;
@@ -257,7 +257,7 @@ export class PropsFactory {
 
     const lightInfo: TorchLightInfo = {
       light,
-      baseIntensity: 2.5,
+      baseIntensity: 2.0,
       flickerSpeed: 7 + Math.random() * 5,
       flickerPhase: Math.random() * Math.PI * 2,
       position: new THREE.Vector3(x, y + 0.5, z + 0.3)
