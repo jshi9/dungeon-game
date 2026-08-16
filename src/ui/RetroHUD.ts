@@ -5,7 +5,6 @@ export interface HUDCallbacks {
   onToggleMode: () => void;
   onSelectResolution: (width: number, height: number) => void;
   onToggleFullscreen: () => void;
-  onOpenSettings: () => void;
 }
 
 export class RetroHUD {
@@ -14,8 +13,8 @@ export class RetroHUD {
 
   // Elements
   private modeBtn!: HTMLButtonElement;
-  private settingsBtn!: HTMLButtonElement;
   private viewBadgeEl!: HTMLElement;
+  private crosshairEl!: HTMLElement;
   private posValueEl!: HTMLElement;
   private chunkValueEl!: HTMLElement;
   private yawValueEl!: HTMLElement;
@@ -33,6 +32,8 @@ export class RetroHUD {
 
   private buildDOM(): void {
     this.root.innerHTML = `
+      <div id="fpp-crosshair" class="retro-crosshair"></div>
+
       <header class="hud-top-bar">
         <div class="retro-panel hud-title">
           <span>⚔️ RETRO-3D ENGINE</span>
@@ -42,10 +43,6 @@ export class RetroHUD {
         <div class="hud-controls-group">
           <button id="btn-mode-toggle" class="retro-panel retro-btn">
             <span>🗺️ MAP: SURFACE</span>
-          </button>
-
-          <button id="btn-settings-toggle" class="retro-panel retro-btn" title="Settings Menu (Esc / O)">
-            <span>⚙️ SETTINGS</span>
           </button>
 
           <button id="btn-fullscreen" class="retro-panel retro-btn" title="Toggle Fullscreen (F)">
@@ -83,14 +80,14 @@ export class RetroHUD {
         <div class="retro-panel controls-guide">
           <div><span class="key-badge">Click</span> : Mouse Look (FPP) &nbsp;|&nbsp; <span class="key-badge">W</span> <span class="key-badge">A</span> <span class="key-badge">S</span> <span class="key-badge">D</span> : Move / Strafe</div>
           <div><span class="key-badge">Shift</span> : Sprint &nbsp;|&nbsp; <span class="key-badge">M</span> : Switch Map (Screen Wipe)</div>
-          <div><span class="key-badge">Esc</span> / <span class="key-badge">O</span> / <span class="key-badge">⚙️</span> : Settings (Toggle FPP/TPP, Sensitivity)</div>
+          <div><span class="key-badge">Esc</span> / <span class="key-badge">O</span> : Settings (Toggle FPP/TPP, Sensitivity)</div>
         </div>
       </footer>
     `;
 
     this.modeBtn = this.root.querySelector('#btn-mode-toggle')!;
-    this.settingsBtn = this.root.querySelector('#btn-settings-toggle')!;
     this.viewBadgeEl = this.root.querySelector('#hud-view-badge')!;
+    this.crosshairEl = this.root.querySelector('#fpp-crosshair')!;
     this.posValueEl = this.root.querySelector('#tel-pos')!;
     this.chunkValueEl = this.root.querySelector('#tel-chunk')!;
     this.yawValueEl = this.root.querySelector('#tel-yaw')!;
@@ -102,14 +99,12 @@ export class RetroHUD {
       this.callbacks.onToggleMode();
     });
 
-    this.settingsBtn.addEventListener('click', () => {
-      this.callbacks.onOpenSettings();
-    });
-
     const fsBtn = this.root.querySelector('#btn-fullscreen')!;
     fsBtn.addEventListener('click', () => {
       this.callbacks.onToggleFullscreen();
     });
+
+    this.setPerspective('FPP');
   }
 
   public setMode(mode: EnvironmentMode): void {
@@ -124,6 +119,11 @@ export class RetroHUD {
 
   public setPerspective(mode: CameraPerspective): void {
     this.viewBadgeEl.textContent = mode;
+    if (mode === 'FPP') {
+      this.crosshairEl.style.display = 'block';
+    } else {
+      this.crosshairEl.style.display = 'none';
+    }
   }
 
   public updateTelemetry(

@@ -98,8 +98,7 @@ export class Engine {
     this.hud = new RetroHUD(this.hudRoot, {
       onToggleMode: () => this.switchModeWithTransition(),
       onSelectResolution: (w, h) => this.renderPipeline.setResolution(w, h),
-      onToggleFullscreen: () => this.toggleFullscreen(),
-      onOpenSettings: () => this.openSettings()
+      onToggleFullscreen: () => this.toggleFullscreen()
     });
 
     // 10. Bind Window Events
@@ -116,18 +115,25 @@ export class Engine {
       this.cameraRig.setAspect(window.innerWidth / window.innerHeight);
     });
 
-    // Pointer lock on canvas click in FPP
+    // Direct pointer lock on canvas click in FPP
     this.canvas.addEventListener('click', () => {
       if (!this.settingsModal.isOpen && this.currentPerspective === 'FPP') {
         this.canvas.requestPointerLock();
       }
     });
 
+    document.addEventListener('pointerlockchange', () => {
+      if (!document.pointerLockElement && this.currentPerspective === 'FPP' && !this.settingsModal.isOpen) {
+        // Cursor unlocked
+      }
+    });
+
     window.addEventListener('keydown', (e) => {
       this.keys[e.code] = true;
 
-      // Escape or 'O' key to toggle settings
+      // Escape or 'KeyO' to toggle settings
       if (e.code === 'Escape' || e.code === 'KeyO') {
+        e.preventDefault();
         this.toggleSettings();
       }
 
