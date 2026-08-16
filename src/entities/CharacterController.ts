@@ -300,31 +300,42 @@ export class CharacterController {
 
       this.position.y = 0;
     } else if (this.currentMode === 'library' && this.libraryManager) {
-      // 3. Grand Cathedral Library Collision
+      // 3. Grand Cathedral Library Collision & Height
       const r = this.playerRadius;
 
-      const testX = this.position.x + moveDistX;
+      // X Movement & Step-Up Check
+      const nextX = this.position.x + moveDistX;
+      const targetGroundX = this.libraryManager.getElevation(nextX, this.position.z, this.position.y);
+      const isHeightStepBlockedX = targetGroundX > this.position.y + this.maxStepHeight;
       const blockedX =
-        this.libraryManager.isBlocked(testX - r, this.position.z, this.position.y) ||
-        this.libraryManager.isBlocked(testX + r, this.position.z, this.position.y);
+        isHeightStepBlockedX ||
+        this.libraryManager.isBlocked(nextX - r, this.position.z, this.position.y) ||
+        this.libraryManager.isBlocked(nextX + r, this.position.z, this.position.y);
 
       if (!blockedX) {
-        this.position.x = testX;
+        this.position.x = nextX;
       }
 
-      const testZ = this.position.z + moveDistZ;
+      // Z Movement & Step-Up Check
+      const nextZ = this.position.z + moveDistZ;
+      const targetGroundZ = this.libraryManager.getElevation(this.position.x, nextZ, this.position.y);
+      const isHeightStepBlockedZ = targetGroundZ > this.position.y + this.maxStepHeight;
       const blockedZ =
-        this.libraryManager.isBlocked(this.position.x, testZ - r, this.position.y) ||
-        this.libraryManager.isBlocked(this.position.x, testZ + r, this.position.y);
+        isHeightStepBlockedZ ||
+        this.libraryManager.isBlocked(this.position.x, nextZ - r, this.position.y) ||
+        this.libraryManager.isBlocked(this.position.x, nextZ + r, this.position.y);
 
       if (!blockedZ) {
-        this.position.z = testZ;
+        this.position.z = nextZ;
       }
 
-      const targetGroundY = this.libraryManager.getElevation(this.position.x, this.position.z);
-      this.position.y = THREE.MathUtils.damp(this.position.y, targetGroundY, 20, delta);
-      if (this.position.y < targetGroundY) {
-        this.position.y = targetGroundY;
+      // Smooth Ground Height Resolution
+      const targetGroundY = this.libraryManager.getElevation(this.position.x, this.position.z, this.position.y);
+      if (targetGroundY <= this.position.y + this.maxStepHeight + 0.1 || targetGroundY < this.position.y) {
+        this.position.y = THREE.MathUtils.damp(this.position.y, targetGroundY, 20, delta);
+        if (this.position.y < targetGroundY) {
+          this.position.y = targetGroundY;
+        }
       }
     }
   }

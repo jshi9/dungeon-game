@@ -25,6 +25,14 @@ export interface TextureMap {
   carvedStonePillar: THREE.CanvasTexture;
   globeTexture: THREE.CanvasTexture;
   inscriptionPlaque: THREE.CanvasTexture;
+  plaqueHistoria: THREE.CanvasTexture;
+  plaquePhilosophia: THREE.CanvasTexture;
+  plaqueScientia: THREE.CanvasTexture;
+  plaqueTheologia: THREE.CanvasTexture;
+  plaqueArcanum: THREE.CanvasTexture;
+  plaqueMythologia: THREE.CanvasTexture;
+  darkOak: THREE.CanvasTexture;
+  brassMetal: THREE.CanvasTexture;
 }
 
 export class TextureAtlas {
@@ -470,10 +478,51 @@ export class TextureAtlas {
     ctxPlaque.fillRect(0, 0, 1, 16);
     ctxPlaque.fillRect(15, 0, 1, 16);
     ctxPlaque.fillStyle = '#3b250d';
-    // Carved lettering simulation
     ctxPlaque.fillRect(3, 4, 10, 2);
     ctxPlaque.fillRect(4, 8, 8, 2);
     ctxPlaque.fillRect(5, 12, 6, 2);
+
+    // 24. Carved Shelf Category Plaques
+    const makeCategoryPlaque = (label: string) => {
+      const [c, ctx] = this.createCanvas(64, 16);
+      ctx.fillStyle = '#331d0d'; // Dark mahogany backing
+      ctx.fillRect(0, 0, 64, 16);
+      ctx.fillStyle = '#a87d3b'; // Carved gold border
+      ctx.fillRect(1, 1, 62, 14);
+      ctx.fillStyle = '#241409';
+      ctx.fillRect(2, 2, 60, 12);
+      ctx.fillStyle = '#fce59f'; // Gilded embossed text
+      ctx.font = 'bold 9px monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(label, 32, 8);
+      return this.wrapTexture(c);
+    };
+
+    // 25. Dark Oak
+    const [cDarkOak, ctxDarkOak] = this.createCanvas(16, 16);
+    for (let y = 0; y < 16; y++) {
+      for (let x = 0; x < 16; x++) {
+        const rand = Math.random();
+        ctxDarkOak.fillStyle = rand > 0.5 ? '#362112' : '#2a190c';
+        ctxDarkOak.fillRect(x, y, 1, 1);
+      }
+    }
+    ctxDarkOak.fillStyle = '#1c1007';
+    ctxDarkOak.fillRect(0, 0, 16, 1);
+    ctxDarkOak.fillRect(0, 15, 16, 1);
+
+    // 26. Brass Metal
+    const [cBrass, ctxBrass] = this.createCanvas(16, 16);
+    for (let y = 0; y < 16; y++) {
+      for (let x = 0; x < 16; x++) {
+        const rand = Math.random();
+        ctxBrass.fillStyle = rand > 0.6 ? '#d9a84e' : rand > 0.3 ? '#b88937' : '#946c25';
+        ctxBrass.fillRect(x, y, 1, 1);
+      }
+    }
+    ctxBrass.fillStyle = '#ffe08a';
+    ctxBrass.fillRect(0, 0, 16, 2);
 
     this.textures = {
       grassTop: this.wrapTexture(cGrass),
@@ -499,7 +548,15 @@ export class TextureAtlas {
       stoneTileFloor: this.wrapTexture(cStoneTile),
       carvedStonePillar: this.wrapTexture(cPillar),
       globeTexture: this.wrapTexture(cGlobe),
-      inscriptionPlaque: this.wrapTexture(cPlaque)
+      inscriptionPlaque: this.wrapTexture(cPlaque),
+      plaqueHistoria: makeCategoryPlaque('HISTORIA'),
+      plaquePhilosophia: makeCategoryPlaque('PHILOSOPHIA'),
+      plaqueScientia: makeCategoryPlaque('SCIENTIA'),
+      plaqueTheologia: makeCategoryPlaque('THEOLOGIA'),
+      plaqueArcanum: makeCategoryPlaque('ARCANUM'),
+      plaqueMythologia: makeCategoryPlaque('MYTHOLOGIA'),
+      darkOak: this.wrapTexture(cDarkOak),
+      brassMetal: this.wrapTexture(cBrass)
     };
   }
 
@@ -652,7 +709,97 @@ export class TextureAtlas {
         roughness: 0.85,
         metalness: 0.05,
         side: THREE.DoubleSide
+      }),
+      plaqueHistoria: new THREE.MeshStandardMaterial({
+        map: this.textures.plaqueHistoria,
+        roughness: 0.6,
+        metalness: 0.2,
+        side: THREE.DoubleSide
+      }),
+      plaquePhilosophia: new THREE.MeshStandardMaterial({
+        map: this.textures.plaquePhilosophia,
+        roughness: 0.6,
+        metalness: 0.2,
+        side: THREE.DoubleSide
+      }),
+      plaqueScientia: new THREE.MeshStandardMaterial({
+        map: this.textures.plaqueScientia,
+        roughness: 0.6,
+        metalness: 0.2,
+        side: THREE.DoubleSide
+      }),
+      plaqueTheologia: new THREE.MeshStandardMaterial({
+        map: this.textures.plaqueTheologia,
+        roughness: 0.6,
+        metalness: 0.2,
+        side: THREE.DoubleSide
+      }),
+      plaqueArcanum: new THREE.MeshStandardMaterial({
+        map: this.textures.plaqueArcanum,
+        roughness: 0.6,
+        metalness: 0.2,
+        side: THREE.DoubleSide
+      }),
+      plaqueMythologia: new THREE.MeshStandardMaterial({
+        map: this.textures.plaqueMythologia,
+        roughness: 0.6,
+        metalness: 0.2,
+        side: THREE.DoubleSide
+      }),
+      darkOak: new THREE.MeshStandardMaterial({
+        map: this.textures.darkOak,
+        roughness: 0.8,
+        metalness: 0.05,
+        side: THREE.DoubleSide
+      }),
+      brassMetal: new THREE.MeshStandardMaterial({
+        map: this.textures.brassMetal,
+        roughness: 0.35,
+        metalness: 0.8,
+        side: THREE.DoubleSide
       })
     };
+  }
+
+  private bookSpineMatCache: Map<string, THREE.MeshStandardMaterial> = new Map();
+
+  public createBookMaterial(coverColor: string, accentColor = '#ffd88a'): THREE.MeshStandardMaterial {
+    const key = `${coverColor}_${accentColor}`;
+    if (this.bookSpineMatCache.has(key)) {
+      return this.bookSpineMatCache.get(key)!;
+    }
+
+    const [c, ctx] = this.createCanvas(16, 16);
+    // Base leather
+    ctx.fillStyle = coverColor;
+    ctx.fillRect(0, 0, 16, 16);
+
+    // Leather edge shading
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.fillRect(0, 0, 16, 1);
+    ctx.fillRect(0, 15, 16, 1);
+    ctx.fillRect(0, 0, 1, 16);
+    ctx.fillRect(15, 0, 1, 16);
+
+    // Gilded gold bands on spine
+    ctx.fillStyle = accentColor;
+    ctx.fillRect(2, 3, 12, 1);
+    ctx.fillRect(2, 12, 12, 1);
+
+    // Embossed gold symbol / title block
+    ctx.fillStyle = 'rgba(0,0,0,0.4)';
+    ctx.fillRect(5, 7, 6, 3);
+    ctx.fillStyle = accentColor;
+    ctx.fillRect(6, 8, 4, 1);
+
+    const tex = this.wrapTexture(c);
+    const mat = new THREE.MeshStandardMaterial({
+      map: tex,
+      roughness: 0.6,
+      metalness: 0.15
+    });
+
+    this.bookSpineMatCache.set(key, mat);
+    return mat;
   }
 }

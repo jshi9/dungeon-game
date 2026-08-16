@@ -464,55 +464,79 @@ body.pointer-locked * {
 }
 
 /* -------------------------------------------------------------
- * HUD PROXIMITY INTERACTION PROMPT
+ * HUD RAYCAST BOOK HOVER BADGE & RETICLE
  * ------------------------------------------------------------- */
-.hud-interaction-prompt {
+.hud-book-hover-badge {
   position: absolute;
-  top: 58%;
+  top: 60%;
   left: 50%;
   transform: translate(-50%, -50%);
   display: flex;
   align-items: center;
-  gap: 8px;
-  background: rgba(18, 14, 26, 0.88);
-  border: 2px solid #f7d583;
-  padding: 8px 16px;
-  border-radius: 4px;
-  box-shadow: 0 0 16px rgba(247, 213, 131, 0.4), 0 4px 12px rgba(0, 0, 0, 0.8);
+  gap: 12px;
+  background: rgba(18, 14, 26, 0.94);
+  border: 2px solid #ffd88a;
+  padding: 8px 18px;
+  border-radius: 6px;
+  box-shadow: 0 0 20px rgba(255, 216, 138, 0.45), 0 6px 16px rgba(0, 0, 0, 0.85);
   pointer-events: none;
   z-index: 90;
-  animation: promptPulse 1.8s infinite ease-in-out;
+  animation: bookHoverPulse 2s infinite ease-in-out;
+  transition: opacity 0.2s ease-out, transform 0.2s ease-out;
 }
 
-.hud-interaction-prompt.hidden {
-  display: none;
+.hud-book-hover-badge.hidden {
+  opacity: 0;
+  transform: translate(-50%, -40%) scale(0.95);
+  pointer-events: none;
 }
 
-.prompt-key {
-  font-size: 14px;
-  padding: 3px 8px;
-  background: #f7d583;
-  color: #211910;
-  border-color: #543916;
+.book-hover-icon {
+  font-size: 22px;
+  filter: drop-shadow(0 0 6px #ffd88a);
+}
+
+.book-hover-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.hover-book-title {
+  font-family: 'Cinzel', Georgia, serif;
+  font-size: 13.5px;
   font-weight: 900;
-}
-
-.prompt-text {
-  font-size: 13px;
-  font-weight: 700;
-  color: #fff9e6;
+  color: #fff6e0;
   letter-spacing: 0.5px;
   text-shadow: 1px 1px 2px #000;
 }
 
-@keyframes promptPulse {
+.hover-book-category {
+  font-family: 'Courier New', monospace;
+  font-size: 10px;
+  font-weight: bold;
+  color: #fce59f;
+  letter-spacing: 0.5px;
+}
+
+.hover-click-prompt {
+  font-family: 'Courier New', monospace;
+  font-size: 10.5px;
+  font-weight: 900;
+  background: #fce59f;
+  color: #2b170c;
+  padding: 3px 8px;
+  border-radius: 3px;
+  box-shadow: 0 0 6px rgba(252, 229, 159, 0.6);
+  letter-spacing: 0.5px;
+}
+
+@keyframes bookHoverPulse {
   0%, 100% {
-    transform: translate(-50%, -50%) scale(1);
-    box-shadow: 0 0 12px rgba(247, 213, 131, 0.3);
+    box-shadow: 0 0 16px rgba(255, 216, 138, 0.35), 0 6px 16px rgba(0, 0, 0, 0.85);
   }
   50% {
-    transform: translate(-50%, -50%) scale(1.04);
-    box-shadow: 0 0 20px rgba(247, 213, 131, 0.6);
+    box-shadow: 0 0 24px rgba(255, 216, 138, 0.65), 0 6px 20px rgba(0, 0, 0, 0.9);
   }
 }
 

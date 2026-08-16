@@ -5,13 +5,15 @@ import { LightingManager, EnvironmentMode } from '../lighting/LightingManager';
 import { TextureAtlas } from '../terrain/TextureAtlas';
 import { SurfaceManager } from '../terrain/SurfaceManager';
 import { DungeonManager } from '../terrain/DungeonManager';
-import { LibraryManager, InteractiveBookLocation } from '../terrain/LibraryManager';
+import { LibraryManager } from '../terrain/LibraryManager';
 import { CharacterModel } from '../entities/CharacterModel';
 import { CharacterController } from '../entities/CharacterController';
 import { RetroHUD } from '../ui/RetroHUD';
 import { SettingsModal } from '../ui/SettingsModal';
 import { BookReaderModal } from '../ui/BookReaderModal';
 import { LibraryMusicManager } from '../audio/LibraryMusicManager';
+import { InteractionRaycaster } from './InteractionRaycaster';
+import { BookData } from '../lore/LibraryLoreGenerator';
 
 export class Engine {
   public canvas: HTMLCanvasElement;
@@ -28,6 +30,7 @@ export class Engine {
   public dungeonManager: DungeonManager;
   public libraryManager: LibraryManager;
   public musicManager: LibraryMusicManager;
+  public interactionRaycaster: InteractionRaycaster;
   public characterModel: CharacterModel;
   public characterController: CharacterController;
   public hud: RetroHUD;
@@ -41,7 +44,6 @@ export class Engine {
   private dungeonPlayerPos = new THREE.Vector3(0, 0, 0);
   private libraryPlayerPos = new THREE.Vector3(0, 0, -1.0);
 
-  private nearestInteractiveBook: InteractiveBookLocation | null = null;
   private keys: Record<string, boolean> = {};
 
   constructor(canvas: HTMLCanvasElement, hudRoot: HTMLElement) {
@@ -117,6 +119,26 @@ export class Engine {
       }
     });
 
+    // 11. Mouse Raycaster for Click-to-Read Book Interaction
+    this.interactionRaycaster = new InteractionRaycaster(
+      this.cameraRig.camera,
+      this.canvas,
+      {
+        onHoverBook: (book) => {
+          if (book && this.currentMode === 'library' && !this.bookReaderModal.getIsOpen() && !this.settingsModal.isOpen) {
+            this.hud.showBookHover(book);
+          } else {
+            this.hud.hideBookHover();
+          }
+        },
+        onSelectBook: (book) => {
+          if (this.currentMode === 'library' && !this.settingsModal.isOpen) {
+            this.openBookReader(book);
+          }
+        }
+      }
+    );
+
     // Restore saved settings from localStorage
     try {
       const savedFov = localStorage.getItem('retro3d_fov');
@@ -142,7 +164,7 @@ export class Engine {
       }
     } catch {}
 
-    // 11. Retro HUD with Inventory Hotbar
+    // 12. Retro HUD with Inventory Hotbar
     this.hud = new RetroHUD(this.hudRoot, {
       onToggleMode: () => this.switchModeWithTransition(),
       onSelectResolution: (w, h) => this.renderPipeline.setResolution(w, h),
@@ -155,10 +177,10 @@ export class Engine {
       this.hud.showNowPlaying(title, subtitle);
     };
 
-    // 12. Bind Window Events
+    // 13. Bind Window Events
     this.bindEvents();
 
-    // 13. Initial Mode & Perspective Setup
+    // 14. Initial Mode & Perspective Setup
     this.setMode('surface', true);
     this.setPerspective('FPP');
     const initialItem = this.hud.getSelectedItem();
@@ -173,19 +195,14 @@ export class Engine {
 
     // Direct pointer lock on canvas click in both FPP and TPP
     this.canvas.addEventListener('click', () => {
-      // Resume audio if needed
+      // Resume audio if in library
       if (this.currentMode === 'library') {
         this.musicManager.setLibraryMode(true);
       }
 
       if (this.bookReaderModal.getIsOpen()) return;
 
-      if (this.nearestInteractiveBook && this.currentMode === 'library' && !this.settingsModal.isOpen) {
-        this.openBookReader(this.nearestInteractiveBook);
-        return;
-      }
-
-      if (!this.settingsModal.isOpen) {
+      if (!this.settingsModal.isOpen && !this.interactionRaycaster.getHoveredBook()) {
         this.canvas.requestPointerLock();
       }
     });
@@ -199,16 +216,16 @@ export class Engine {
       }
     });
 
-    // Capture phase for Escape / KeyO / KeyN / KeyE / Hotbar keys
+    // Capture phase for Escape / KeyO / KeyN / Hotbar keys
     window.addEventListener('keydown', (e) => {
       this.keys[e.code] = true;
 
-      // Resume audio on first keypress if in library
+      // Resume audio on keypress if in library
       if (this.currentMode === 'library') {
         this.musicManager.setLibraryMode(true);
       }
 
-      // Escape or 'KeyO' to toggle settings
+      // Escape or 'KeyO' to toggle settings / close book
       if (e.code === 'Escape' || e.code === 'KeyO') {
         if (this.bookReaderModal.getIsOpen()) {
           this.bookReaderModal.close();
@@ -218,19 +235,6 @@ export class Engine {
         e.stopPropagation();
         this.toggleSettings();
         return;
-      }
-
-      // 'E' key to interact with books or lore
-      if (e.code === 'KeyE' && !this.settingsModal.isOpen) {
-        if (this.bookReaderModal.getIsOpen()) {
-          this.bookReaderModal.close();
-          return;
-        }
-        if (this.nearestInteractiveBook && this.currentMode === 'library') {
-          e.preventDefault();
-          this.openBookReader(this.nearestInteractiveBook);
-          return;
-        }
       }
 
       // 'N' key for direct Grand Library access
@@ -268,10 +272,12 @@ export class Engine {
     });
   }
 
-  public openBookReader(bookLoc: InteractiveBookLocation): void {
+  public openBookReader(book: BookData): void {
     this.characterController.isInputPaused = true;
     document.exitPointerLock();
-    this.bookReaderModal.open(bookLoc.book);
+    this.interactionRaycaster.clearHover();
+    this.hud.hideBookHover();
+    this.bookReaderModal.open(book);
   }
 
   public openSettings(): void {
@@ -477,26 +483,30 @@ export class Engine {
     );
     this.cameraRig.update(delta, gp.rightStickX, gp.rightStickY, qPressed, ePressed);
 
-    // 4. Update Active Map Systems
+    // 4. Update Active Map Systems & Raycast Interaction
     if (this.currentMode === 'surface') {
       this.surfaceManager.update(this.characterController.position.x, this.characterController.position.z);
       this.lightingManager.updateSunPosition(this.characterController.position);
-      this.hud.hideInteractionPrompt();
-      this.nearestInteractiveBook = null;
+      this.interactionRaycaster.isEnabled = false;
+      this.interactionRaycaster.clearHover();
+      this.hud.hideBookHover();
     } else if (this.currentMode === 'dungeon') {
       this.dungeonManager.updateTorches(elapsedTime);
-      this.hud.hideInteractionPrompt();
-      this.nearestInteractiveBook = null;
+      this.interactionRaycaster.isEnabled = false;
+      this.interactionRaycaster.clearHover();
+      this.hud.hideBookHover();
     } else {
       // Grand Cathedral Library update
       this.libraryManager.update(elapsedTime);
 
-      // Check proximity to interactive books / desks / globe
-      this.nearestInteractiveBook = this.libraryManager.getNearestInteractiveBook(this.characterController.position, 2.5);
-      if (this.nearestInteractiveBook && !this.bookReaderModal.getIsOpen() && !this.settingsModal.isOpen) {
-        this.hud.showInteractionPrompt(`[E] READ: ${this.nearestInteractiveBook.label.toUpperCase()}`);
+      // Perform Raycasting against individual books on shelves and desks
+      if (!this.bookReaderModal.getIsOpen() && !this.settingsModal.isOpen) {
+        this.interactionRaycaster.isEnabled = true;
+        this.interactionRaycaster.update(this.libraryManager.raycastableBooks);
       } else {
-        this.hud.hideInteractionPrompt();
+        this.interactionRaycaster.isEnabled = false;
+        this.interactionRaycaster.clearHover();
+        this.hud.hideBookHover();
       }
     }
 

@@ -1,5 +1,6 @@
 import { EnvironmentMode } from '../lighting/LightingManager';
 import { CameraPerspective } from '../camera/CameraRig';
+import { BookData } from '../lore/LibraryLoreGenerator';
 
 export interface InventoryItem {
   id: string;
@@ -41,15 +42,20 @@ export class RetroHUD {
   private gamepadBadgeEl!: HTMLElement;
   private hotbarLabelEl!: HTMLElement;
   private hotbarSlotsContainer!: HTMLElement;
-  private interactionPromptEl!: HTMLElement;
-  private promptTextEl!: HTMLElement;
+
+  // Book Hover Tooltip
+  private bookHoverBadgeEl!: HTMLElement;
+  private hoverTitleEl!: HTMLElement;
+  private hoverCategoryEl!: HTMLElement;
+
+  // Music Toast
   private musicToastEl!: HTMLElement;
   private musicTitleEl!: HTMLElement;
   private musicSubtitleEl!: HTMLElement;
   private musicToastTimer: number | null = null;
 
   public items: InventoryItem[] = [...DEFAULT_HOTBAR_ITEMS];
-  public selectedIndex: number = 0; // Starts with Flashlight equipped (index 0)
+  public selectedIndex: number = -1;
 
   private frameCount: number = 0;
   private lastFpsUpdate: number = performance.now();
@@ -88,15 +94,19 @@ export class RetroHUD {
         </div>
       </div>
 
-      <!-- Center Screen Interaction Prompt -->
-      <div id="hud-interaction-prompt" class="hud-interaction-prompt hidden">
-        <span class="key-badge prompt-key">E</span>
-        <span id="prompt-text" class="prompt-text">READ BOOK</span>
+      <!-- Center-Screen Raycast Book Hover Badge -->
+      <div id="hud-book-hover-badge" class="hud-book-hover-badge hidden">
+        <span class="book-hover-icon">📖</span>
+        <div class="book-hover-info">
+          <div id="hover-book-title" class="hover-book-title">The Codex of Veritas</div>
+          <div id="hover-book-category" class="hover-book-category">NON-FICTION • HISTORY</div>
+        </div>
+        <span class="hover-click-prompt">CLICK TO READ</span>
       </div>
 
       <!-- Center-Bottom Pixel Inventory Hotbar -->
       <div class="hud-hotbar-container">
-        <div id="hotbar-item-label" class="hotbar-item-label">🔦 HIGH-POWER FLASHLIGHT</div>
+        <div id="hotbar-item-label" class="hotbar-item-label" style="display: none;"></div>
         <div id="hotbar-slots" class="hotbar-slots-wrapper retro-panel">
           <!-- Populated by renderHotbar() -->
         </div>
@@ -129,7 +139,7 @@ export class RetroHUD {
         </div>
 
         <div class="retro-panel controls-guide">
-          <div><span class="key-badge">1</span>-<span class="key-badge">8</span> : Items &nbsp;|&nbsp; <span class="key-badge">W</span><span class="key-badge">A</span><span class="key-badge">S</span><span class="key-badge">D</span> : Move &nbsp;|&nbsp; <span class="key-badge">E</span> : Read</div>
+          <div><span class="key-badge">Click Book</span> : Read &nbsp;|&nbsp; <span class="key-badge">1</span>-<span class="key-badge">8</span> : Items &nbsp;|&nbsp; <span class="key-badge">W</span><span class="key-badge">A</span><span class="key-badge">S</span><span class="key-badge">D</span> : Move</div>
           <div><span class="key-badge">M</span> : Switch Map &nbsp;|&nbsp; <span class="key-badge">N</span> : Grand Library &nbsp;|&nbsp; <span class="key-badge">Esc</span> : Settings</div>
         </div>
       </footer>
@@ -144,8 +154,9 @@ export class RetroHUD {
     this.gamepadBadgeEl = this.root.querySelector('#tel-gamepad')!;
     this.hotbarLabelEl = this.root.querySelector('#hotbar-item-label')!;
     this.hotbarSlotsContainer = this.root.querySelector('#hotbar-slots')!;
-    this.interactionPromptEl = this.root.querySelector('#hud-interaction-prompt')!;
-    this.promptTextEl = this.root.querySelector('#prompt-text')!;
+    this.bookHoverBadgeEl = this.root.querySelector('#hud-book-hover-badge')!;
+    this.hoverTitleEl = this.root.querySelector('#hover-book-title')!;
+    this.hoverCategoryEl = this.root.querySelector('#hover-book-category')!;
     this.musicToastEl = this.root.querySelector('#hud-music-toast')!;
     this.musicTitleEl = this.root.querySelector('#music-title')!;
     this.musicSubtitleEl = this.root.querySelector('#music-subtitle')!;
@@ -164,6 +175,16 @@ export class RetroHUD {
     this.setPerspective('FPP');
   }
 
+  public showBookHover(book: BookData): void {
+    this.hoverTitleEl.textContent = book.title;
+    this.hoverCategoryEl.textContent = `${book.classification.toUpperCase()} • ${book.subgenre.toUpperCase()}`;
+    this.bookHoverBadgeEl.classList.remove('hidden');
+  }
+
+  public hideBookHover(): void {
+    this.bookHoverBadgeEl.classList.add('hidden');
+  }
+
   public showNowPlaying(title: string, subtitle: string): void {
     this.musicTitleEl.textContent = title;
     this.musicSubtitleEl.textContent = subtitle;
@@ -176,15 +197,6 @@ export class RetroHUD {
     this.musicToastTimer = window.setTimeout(() => {
       this.musicToastEl.classList.add('hidden');
     }, 5500);
-  }
-
-  public showInteractionPrompt(text: string): void {
-    this.promptTextEl.textContent = text;
-    this.interactionPromptEl.classList.remove('hidden');
-  }
-
-  public hideInteractionPrompt(): void {
-    this.interactionPromptEl.classList.add('hidden');
   }
 
   public renderHotbar(): void {
@@ -215,7 +227,6 @@ export class RetroHUD {
   public selectSlot(index: number): void {
     if (index < 0 || index >= this.items.length) return;
 
-    // Toggle unequip if pressing the already equipped slot
     if (this.selectedIndex === index) {
       this.selectedIndex = -1;
 
@@ -270,7 +281,6 @@ export class RetroHUD {
       this.hotbarLabelEl.style.display = 'block';
       this.hotbarLabelEl.textContent = `${item.icon} ${item.name.toUpperCase()}`;
       this.hotbarLabelEl.classList.remove('animate-pop');
-      // Trigger reflow for animation restart
       void this.hotbarLabelEl.offsetWidth;
       this.hotbarLabelEl.classList.add('animate-pop');
     } else {
@@ -314,7 +324,6 @@ export class RetroHUD {
     deg = ((deg % 360) + 360) % 360;
     this.yawValueEl.textContent = `${deg.toFixed(0)}°`;
 
-    // FPS update
     this.frameCount++;
     const now = performance.now();
     if (now - this.lastFpsUpdate >= 500) {
@@ -324,7 +333,6 @@ export class RetroHUD {
       this.lastFpsUpdate = now;
     }
 
-    // Check Gamepad
     const gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
     const hasGamepad = Array.from(gamepads).some((g) => g !== null && g.connected);
     if (hasGamepad) {

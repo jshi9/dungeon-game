@@ -1,4 +1,4 @@
-import { Book } from '../lore/LibraryLoreGenerator';
+import { BookData } from '../lore/LibraryLoreGenerator';
 
 export interface BookReaderCallbacks {
   onClose: () => void;
@@ -7,7 +7,7 @@ export interface BookReaderCallbacks {
 export class BookReaderModal {
   private overlayEl: HTMLElement;
   private modalEl: HTMLElement;
-  private currentBook: Book | null = null;
+  private currentBook: BookData | null = null;
   private currentPageIndex: number = 0; // index in book.pages (spread shows page & page+1)
   private isOpen: boolean = false;
   private callbacks: BookReaderCallbacks;
@@ -38,7 +38,7 @@ export class BookReaderModal {
     window.addEventListener('keydown', (e) => {
       if (!this.isOpen) return;
 
-      if (e.code === 'Escape' || e.code === 'KeyE') {
+      if (e.code === 'Escape') {
         e.preventDefault();
         e.stopPropagation();
         this.close();
@@ -55,7 +55,7 @@ export class BookReaderModal {
     }, { capture: true });
   }
 
-  public open(book: Book): void {
+  public open(book: BookData): void {
     this.currentBook = book;
     this.currentPageIndex = 0;
     this.isOpen = true;
@@ -110,7 +110,7 @@ export class BookReaderModal {
             <div class="page-inner">
               ${this.currentPageIndex === 0 ? `
                 <div class="book-title-header">
-                  <div class="book-category-tag ${book.category.toLowerCase().replace(/\s+/g, '-')}">${book.category.toUpperCase()} • ${book.rarity.toUpperCase()}</div>
+                  <div class="book-category-tag">${book.classification.toUpperCase()} • ${book.subgenre.toUpperCase()}</div>
                   <h1 class="book-title">${book.title}</h1>
                   <div class="book-author">By <em>${book.author}</em></div>
                   <div class="book-era">${book.era}</div>
