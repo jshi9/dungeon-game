@@ -1,19 +1,28 @@
 import { BookData, BookPage } from '../lore/LibraryLoreGenerator';
+import { SvgDiagramGenerator } from '../lore/SvgDiagramGenerator';
 
 export interface BookReaderCallbacks {
-  onClose: () => void;
+  onClose?: () => void;
 }
 
+/**
+ * Authentic Medieval Two-Page Parchment Book Reader Modal
+ * Restored to the classic, consistent spread design with equal-sized pages,
+ * well-proportioned bottom navigation controls, generative SVG diagrams,
+ * and mathematical equation rendering.
+ */
 export class BookReaderModal {
   private overlayEl: HTMLElement;
   private modalEl: HTMLElement;
   private currentBook: BookData | null = null;
-  private currentPageIndex: number = 0; // index of left page (0, 2, 4, 6...)
+  private currentPageIndex: number = 0; // index in book.pages (spread shows page & page+1)
   private isOpen: boolean = false;
-  private callbacks: BookReaderCallbacks;
+  private onCloseCallback?: () => void;
 
-  constructor(callbacks: BookReaderCallbacks) {
-    this.callbacks = callbacks;
+  constructor(options?: { onClose?: () => void }) {
+    if (options?.onClose) {
+      this.onCloseCallback = options.onClose;
+    }
 
     this.overlayEl = document.createElement('div');
     this.overlayEl.id = 'book-reader-overlay';
@@ -35,39 +44,37 @@ export class BookReaderModal {
       }
     });
 
-    window.addEventListener('keydown', (e) => {
-      if (!this.isOpen) return;
+    window.addEventListener(
+      'keydown',
+      (e) => {
+        if (!this.isOpen) return;
 
-      if (e.code === 'Escape') {
-        e.preventDefault();
-        e.stopPropagation();
-        this.close();
-        return;
-      }
-
-      if (e.code === 'ArrowRight' || e.code === 'KeyD' || e.code === 'PageDown') {
-        e.preventDefault();
-        this.nextPage();
-      } else if (e.code === 'ArrowLeft' || e.code === 'KeyA' || e.code === 'PageUp') {
-        e.preventDefault();
-        this.prevPage();
-      } else if (e.code === 'Home') {
-        e.preventDefault();
-        this.goToPage(0);
-      } else if (e.code === 'End') {
-        e.preventDefault();
-        if (this.currentBook) {
-          const lastSpread = Math.floor((this.currentBook.pages.length - 1) / 2) * 2;
-          this.goToPage(lastSpread);
+        if (e.code === 'Escape' || e.code === 'KeyE') {
+          e.preventDefault();
+          e.stopPropagation();
+          this.close();
+          return;
         }
-      }
-    }, { capture: true });
+
+        if (e.code === 'ArrowRight' || e.code === 'KeyD' || e.code === 'PageDown' || e.code === 'Space') {
+          e.preventDefault();
+          this.nextPage();
+        } else if (e.code === 'ArrowLeft' || e.code === 'KeyA' || e.code === 'PageUp') {
+          e.preventDefault();
+          this.prevPage();
+        }
+      },
+      { capture: true }
+    );
   }
 
-  public open(book: BookData): void {
+  public open(book: BookData, onClose?: () => void): void {
     this.currentBook = book;
     this.currentPageIndex = 0;
     this.isOpen = true;
+    if (onClose) {
+      this.onCloseCallback = onClose;
+    }
     this.overlayEl.classList.remove('hidden');
     document.exitPointerLock();
     this.render();
@@ -77,18 +84,13 @@ export class BookReaderModal {
     if (!this.isOpen) return;
     this.isOpen = false;
     this.overlayEl.classList.add('hidden');
-    this.callbacks.onClose();
+    if (this.onCloseCallback) {
+      this.onCloseCallback();
+    }
   }
 
   public getIsOpen(): boolean {
     return this.isOpen;
-  }
-
-  public goToPage(index: number): void {
-    if (!this.currentBook) return;
-    const spreadIndex = Math.max(0, Math.min(Math.floor(index / 2) * 2, this.currentBook.pages.length - 1));
-    this.currentPageIndex = spreadIndex;
-    this.render();
   }
 
   private nextPage(): void {
@@ -110,40 +112,34 @@ export class BookReaderModal {
     if (!this.currentBook) return;
     const book = this.currentBook;
 
-    const leftPage = book.pages[this.currentPageIndex];
-    const rightPage = book.pages[this.currentPageIndex + 1];
+    const leftPage = book.pages[this.currentPageIndex] || null;
+    const rightPage = book.pages[this.currentPageIndex + 1] || null;
 
     const hasPrev = this.currentPageIndex > 0;
     const hasNext = this.currentPageIndex + 2 < book.pages.length;
 
-    const fontClass = `font-${book.fontFamily || 'garamond'}`;
-    const sizeClass = `size-${book.fontSize || 'regular'}`;
-    const layoutClass = `layout-${book.layoutFormat || 'standard'}`;
-
     this.modalEl.innerHTML = `
-      <div class="book-leather-binding ${fontClass} ${sizeClass} ${layoutClass}" style="border-color: ${book.coverColor};">
+      <div class="book-leather-binding" style="border-color: ${book.coverColor || '#5a301a'};">
         <div class="book-ribbon-bookmark"></div>
 
         <div class="book-pages-spread">
           <!-- LEFT PARCHMENT PAGE -->
-          <div class="parchment-page left-page ${book.layoutFormat === 'illuminated' ? 'has-illuminated-border' : ''}">
+          <div class="parchment-page left-page">
             <div class="page-inner">
-              ${leftPage ? this.renderPageContent(leftPage, book) : '<div class="blank-page-note"></div>'}
-
+              ${leftPage ? this.renderPageContent(leftPage, book, true) : ''}
               <div class="page-footer">
-                <span class="page-num">${leftPage ? leftPage.pageNumber : ''}</span>
+                <span class="page-num">${leftPage && leftPage.pageType !== 'half-title' ? leftPage.pageNumber : ''}</span>
               </div>
             </div>
           </div>
 
-          <!-- BOOK SPINE CENTER FOLD -->
+          <!-- BOOK SPINE CENTER CREASE -->
           <div class="book-spine-crease"></div>
 
           <!-- RIGHT PARCHMENT PAGE -->
-          <div class="parchment-page right-page ${book.layoutFormat === 'illuminated' ? 'has-illuminated-border' : ''}">
+          <div class="parchment-page right-page">
             <div class="page-inner">
-              ${rightPage ? this.renderPageContent(rightPage, book) : '<div class="blank-page-note">~ Finis ~</div>'}
-
+              ${rightPage ? this.renderPageContent(rightPage, book, false) : '<div class="blank-page-note">~ End of Volume ~</div>'}
               <div class="page-footer">
                 <span class="page-num">${rightPage ? rightPage.pageNumber : ''}</span>
               </div>
@@ -151,22 +147,16 @@ export class BookReaderModal {
           </div>
         </div>
 
-        <!-- FOOTER CONTROLS & JUMP SELECTOR -->
+        <!-- BOTTOM NAVIGATION BAR -->
         <div class="book-nav-bar">
           <div class="nav-left-group">
             <button id="btn-prev-page" class="retro-btn nav-page-btn" ${!hasPrev ? 'disabled' : ''}>
-              ◀ PREV
-            </button>
-            <button id="btn-toc-jump" class="retro-btn nav-page-btn" title="Jump to Table of Contents (Page 6)">
-              📜 TOC
+              ◀ PREVIOUS
             </button>
           </div>
 
           <div class="nav-center-group">
-            <span class="page-indicator">Pages ${this.currentPageIndex + 1}-${Math.min(this.currentPageIndex + 2, book.pages.length)} of ${book.pages.length}</span>
-            <select id="book-page-selector" class="book-page-select">
-              ${this.generatePageOptions(book)}
-            </select>
+            <span class="page-indicator">Pages ${this.currentPageIndex + 1}–${Math.min(this.currentPageIndex + 2, book.pages.length)} of ${book.pages.length}</span>
           </div>
 
           <div class="nav-right-group">
@@ -181,7 +171,7 @@ export class BookReaderModal {
       </div>
     `;
 
-    // Bind page controls
+    // Bind footer navigation buttons
     this.modalEl.querySelector('#btn-prev-page')?.addEventListener('click', (e) => {
       e.stopPropagation();
       this.prevPage();
@@ -192,62 +182,25 @@ export class BookReaderModal {
       this.nextPage();
     });
 
-    this.modalEl.querySelector('#btn-toc-jump')?.addEventListener('click', (e) => {
-      e.stopPropagation();
-      this.goToPage(4); // Jump to TOC spread (pages 5-6)
-    });
-
     this.modalEl.querySelector('#btn-close-book')?.addEventListener('click', (e) => {
       e.stopPropagation();
       this.close();
     });
-
-    const selectorEl = this.modalEl.querySelector('#book-page-selector') as HTMLSelectElement;
-    if (selectorEl) {
-      selectorEl.value = `${this.currentPageIndex}`;
-      selectorEl.addEventListener('change', (e) => {
-        const targetPage = parseInt((e.target as HTMLSelectElement).value, 10);
-        this.goToPage(targetPage);
-      });
-    }
-
-    // Bind clickable Table of Contents rows
-    this.modalEl.querySelectorAll('.toc-row-link').forEach((row) => {
-      row.addEventListener('click', (e) => {
-        const pageNum = parseInt((e.currentTarget as HTMLElement).dataset.page || '1', 10);
-        this.goToPage(pageNum - 1);
-      });
-    });
   }
 
-  private generatePageOptions(book: BookData): string {
-    let options = '';
-    for (let p = 0; p < book.pages.length; p += 2) {
-      const p1 = book.pages[p];
-      const p2 = book.pages[p + 1];
-      const label = p2
-        ? `Pages ${p + 1}-${p + 2}: ${p1.chapterTitle || p2.chapterTitle || 'Spread'}`
-        : `Page ${p + 1}: ${p1.chapterTitle || 'End'}`;
-      options += `<option value="${p}">📖 ${label.slice(0, 38)}</option>`;
-    }
-    return options;
-  }
-
-  private renderPageContent(page: BookPage, book: BookData): string {
+  private renderPageContent(page: BookPage, book: BookData, _isLeft: boolean): string {
     switch (page.pageType) {
       case 'half-title':
         return `
           <div class="page-half-title">
-            <div class="half-title-text">${book.title}</div>
-            <div class="ornate-divider">❦ ════════ ❧</div>
+            <div class="half-title-text">${page.content.replace(/\n/g, '<br/>')}</div>
           </div>
         `;
 
       case 'frontispiece':
         return `
           <div class="page-frontispiece">
-            <div class="frontispiece-header">ILLUMINATED FRONTISPIECE</div>
-            <pre class="frontispiece-ascii">${page.content}</pre>
+            <div class="frontispiece-ascii">${page.content}</div>
           </div>
         `;
 
@@ -256,22 +209,19 @@ export class BookReaderModal {
           <div class="page-title-page">
             <div class="book-category-tag">${book.classification.toUpperCase()} • ${book.subgenre.toUpperCase()}</div>
             <h1 class="book-main-title">${book.title}</h1>
-            <div class="book-subtitle">${book.subtitle}</div>
-            <div class="ornate-divider">❦ ════════════ ❧</div>
-            <div class="book-author-lead">Authored By</div>
+            <div class="book-subtitle">— ${book.subtitle} —</div>
+            <div class="ornate-divider">❦ ════════ ❧</div>
+            <div class="book-author-lead">BY</div>
             <div class="book-author-name">${book.author}</div>
             <div class="book-era-tag">${book.era}</div>
-            <div class="book-press-imprint">
-              Published by the High Cathedral Scriptorium<br/>
-              Archives of Alderia • Anno Domini
-            </div>
+            <div class="book-press-imprint">Archival Repository • ${book.subgenre}</div>
           </div>
         `;
 
       case 'copyright':
         return `
           <div class="page-copyright">
-            <div class="copyright-header">ARCHIVAL CATALOG & NOTICES</div>
+            <div class="copyright-header">ARCHIVAL CATALOGUE NOTICE</div>
             <div class="copyright-body">${page.content.replace(/\n/g, '<br/>')}</div>
           </div>
         `;
@@ -279,7 +229,7 @@ export class BookReaderModal {
       case 'dedication':
         return `
           <div class="page-dedication">
-            <div class="dedication-body">${page.content.replace(/\n/g, '<br/>')}</div>
+            <div class="dedication-content">${page.content.replace(/\n/g, '<br/>')}</div>
           </div>
         `;
 
@@ -287,139 +237,173 @@ export class BookReaderModal {
         return `
           <div class="page-toc">
             <div class="chapter-header">TABLE OF CONTENTS</div>
-            <div class="toc-list">
-              ${this.formatClickableToc(page.content)}
-            </div>
+            <div class="toc-list">${this.formatTocList(page.content)}</div>
           </div>
         `;
 
-      case 'glossary':
+      default:
         return `
-          <div class="page-glossary">
-            <div class="chapter-header">GLOSSARY OF ANCIENT TERMS</div>
-            <div class="glossary-body">${this.formatGlossary(page.content)}</div>
+          <div class="chapter-header">${page.chapterTitle || ''}</div>
+          <div class="page-body-text">
+            ${this.formatBodyText(page.content)}
           </div>
         `;
-
-      case 'author-bio':
-        return `
-          <div class="page-author-bio">
-            <div class="chapter-header">ABOUT THE AUTHOR</div>
-            <div class="author-bio-body">${this.formatBodyText(page.content, book)}</div>
-          </div>
-        `;
-
-      case 'chapter':
-      case 'foreword':
-      case 'prologue':
-      case 'epilogue':
-      case 'acknowledgments':
-      case 'appendix':
-      default: {
-        const isTwoCol = book.layoutFormat === 'two-column' && page.pageType === 'chapter';
-        const isVerse = book.layoutFormat === 'verse' && page.pageType === 'chapter';
-        const marginal = page.marginalNote ? `<div class="marginalia-note">📜 ${page.marginalNote}</div>` : '';
-
-        return `
-          ${page.chapterTitle ? `<div class="chapter-header">${page.chapterTitle}</div>` : ''}
-          ${marginal}
-          <div class="page-body-text ${isTwoCol ? 'layout-two-column' : ''} ${isVerse ? 'layout-verse' : ''}">
-            ${this.formatBodyText(page.content, book)}
-          </div>
-        `;
-      }
     }
   }
 
-  private formatClickableToc(content: string): string {
-    const lines = content.split('\n').filter(l => l.trim().length > 0);
-    let html = '';
+  private formatTocList(content: string): string {
+    const lines = content.split('\n').filter((l) => l.trim().length > 0 && !l.includes('TABLE OF CONTENTS'));
+    return lines
+      .map((line) => {
+        const parts = line.split(/\s*\.\s*\.\s*/);
+        if (parts.length >= 2) {
+          const title = parts[0].trim();
+          const pageNum = parts[parts.length - 1].trim();
+          return `
+            <div class="toc-row-link">
+              <span class="toc-title">${title}</span>
+              <span class="toc-dots"></span>
+              <span class="toc-page-badge">${pageNum}</span>
+            </div>
+          `;
+        }
+        return `<div class="toc-row-link"><span class="toc-title">${line}</span></div>`;
+      })
+      .join('');
+  }
+
+  private formatBodyText(content: string): string {
+    const paragraphs = content.split('\n\n');
+    return paragraphs
+      .map((p, idx) => {
+        const trimmed = p.trim();
+        if (!trimmed) return '';
+
+        // 1. Single-Line SVG Diagram Token
+        if (trimmed.startsWith('[SVG_DIAGRAM:')) {
+          const parts = trimmed.slice(1, -1).split(':');
+          const dType = parts[1] || 'GOTHIC_ARCH';
+          const dTitle = parts[2] || 'ILLUMINATED SCHEMATIC';
+          const dCaption = parts[3] || '';
+          const dSeed = parseInt(parts[4]) || 101;
+          return SvgDiagramGenerator.generateDiagram(dType, dTitle, dCaption, dSeed);
+        }
+
+        // 2. Direct SVG / HTML Diagram Box
+        if (trimmed.startsWith('<div class="medieval-diagram-box">') || trimmed.startsWith('<svg')) {
+          return trimmed;
+        }
+
+        // 3. Technical Diagram / Figure Box (Fallback)
+        if (trimmed.startsWith('[DIAGRAM:') || trimmed.startsWith('[FIGURE:')) {
+          return this.formatDiagramBlock(trimmed);
+        }
+
+        // 4. Verified Data Table
+        if (trimmed.startsWith('Table of Verified') || trimmed.startsWith('Table of Observational') || trimmed.startsWith('Table of ')) {
+          return this.formatDataTable(trimmed);
+        }
+
+        // 5. Math Theorem / Lemma / Axiom / Proposition Header
+        if (
+          trimmed.startsWith('[THEOREM') ||
+          trimmed.startsWith('[LEMMA') ||
+          trimmed.startsWith('[AXIOM') ||
+          trimmed.startsWith('[PROPOSITION') ||
+          trimmed.startsWith('[FORMULA')
+        ) {
+          return this.formatMathBlock(trimmed);
+        }
+
+        // 6. Math Derivation / Proof step block
+        if (
+          trimmed.startsWith('[MATHEMATICAL DERIVATION') ||
+          trimmed.startsWith('[STRUCTURAL RESOLUTION') ||
+          trimmed.startsWith('[CRYSTALLINE GIBBS') ||
+          trimmed.startsWith('[EIGENVALUE DECOMPOSITION') ||
+          trimmed.startsWith('[FORMAL DEDUCTIVE') ||
+          trimmed.startsWith('[PROOF')
+        ) {
+          return this.formatMathBlock(trimmed);
+        }
+
+        // 7. Section or Canto Header
+        if (trimmed.startsWith('[VERSE CANTO') || trimmed.startsWith('[SECTION') || trimmed.startsWith('[DISPUTATIO')) {
+          const headerTitle = trimmed.slice(1, trimmed.indexOf(']'));
+          return `<div class="special-section-header">✦ ${headerTitle} ✦</div>`;
+        }
+
+        // 8. Standalone Math Display Equation: $$ ... $$
+        if (trimmed.startsWith('$$') && trimmed.endsWith('$$')) {
+          const eq = trimmed.slice(2, -2).trim();
+          return `<div class="math-display-eq">${MathRenderer.renderEquation(eq)}</div>`;
+        }
+
+        // 9. Q.E.D. Seal
+        if (trimmed === '[Q.E.D. • Quod Erat Demonstrandum]' || trimmed === '[Q.E.D.]') {
+          return `<div class="math-qed-badge">❦ Quod Erat Demonstrandum • Q.E.D.</div>`;
+        }
+
+        // 10. Regular Paragraphs
+        const renderedText = MathRenderer.renderInlineAndBlocks(trimmed);
+
+        if (idx === 0 && !trimmed.startsWith('*') && !trimmed.startsWith('•') && !trimmed.startsWith('[') && !trimmed.startsWith('╔') && !trimmed.startsWith('<')) {
+          const firstChar = renderedText.charAt(0);
+          const rest = renderedText.slice(1);
+          return `<p class="first-paragraph"><span class="drop-cap">${firstChar}</span>${rest.replace(/\n/g, '<br/>')}</p>`;
+        }
+        return `<p>${renderedText.replace(/\n/g, '<br/>')}</p>`;
+      })
+      .join('');
+  }
+
+  private formatDiagramBlock(text: string): string {
+    const lines = text.split('\n');
+    let title = 'ILLUMINATED SCHEMATIC';
+    let caption = '';
+
     for (const line of lines) {
-      if (line.includes('TABLE OF CONTENTS')) continue;
-      const match = line.match(/(.+?)\s*\.\s*\.\s*(\d+)$/);
-      if (match) {
-        const title = match[1].trim();
-        const page = match[2].trim();
-        html += `
-          <div class="toc-row toc-row-link" data-page="${page}">
-            <span class="toc-title">${title}</span>
-            <span class="toc-dots"></span>
-            <span class="toc-page-badge">${page}</span>
+      const trimmedLine = line.trim();
+      if (trimmedLine.startsWith('[DIAGRAM:') || trimmedLine.startsWith('[FIGURE:')) {
+        title = trimmedLine.replace(/^\[(DIAGRAM|FIGURE):\s*/, '').replace(/\]$/, '').trim();
+      } else if (trimmedLine.startsWith('[CAPTION:') || trimmedLine.startsWith('Caption:')) {
+        caption = trimmedLine.replace(/^\[?CAPTION:\s*/i, '').replace(/\]$/, '').trim();
+      }
+    }
+
+    return SvgDiagramGenerator.generateDiagram(title, title, caption, 101);
+  }
+
+  private formatDataTable(text: string): string {
+    const lines = text.split('\n').filter((l) => l.trim().length > 0);
+    const title = lines[0].replace(/:$/, '').trim();
+    const rows = lines.slice(1);
+
+    let rowsHtml = '';
+    for (const row of rows) {
+      const cleanRow = row.replace(/^•\s*/, '').trim();
+      const parts = cleanRow.split(':');
+      if (parts.length >= 2) {
+        const param = parts[0].trim();
+        const val = parts.slice(1).join(':').trim();
+        rowsHtml += `
+          <div class="data-table-row">
+            <span class="data-param-name">${MathRenderer.renderInlineAndBlocks(param)}</span>
+            <span class="data-param-dots"></span>
+            <span class="data-param-val">${MathRenderer.renderInlineAndBlocks(val)}</span>
           </div>
         `;
       } else {
-        html += `<div class="toc-section-divider">${line}</div>`;
+        rowsHtml += `<div class="data-table-row">${MathRenderer.renderInlineAndBlocks(cleanRow)}</div>`;
       }
     }
-    return html;
-  }
 
-  private formatGlossary(content: string): string {
-    const lines = content.split('\n').filter(l => l.startsWith('•'));
-    return lines.map(line => {
-      const parts = line.replace('•', '').split(':');
-      if (parts.length >= 2) {
-        const term = parts[0].trim();
-        const def = parts.slice(1).join(':').trim();
-        return `<div class="glossary-entry"><strong class="glossary-term">${term}:</strong> <span class="glossary-def">${def}</span></div>`;
-      }
-      return `<p>${line}</p>`;
-    }).join('');
-  }
-
-  private formatBodyText(content: string, _book?: BookData): string {
-    const paragraphs = content.split('\n\n');
-    return paragraphs.map((p, idx) => {
-      const trimmed = p.trim();
-      if (!trimmed) return '';
-
-      // 1. Math Theorem / Lemma / Axiom / Proposition Header
-      if (
-        trimmed.startsWith('[THEOREM') ||
-        trimmed.startsWith('[LEMMA') ||
-        trimmed.startsWith('[AXIOM') ||
-        trimmed.startsWith('[PROPOSITION') ||
-        trimmed.startsWith('[FORMULA')
-      ) {
-        return this.formatMathBlock(trimmed);
-      }
-
-      // 2. Math Derivation / Proof step block
-      if (
-        trimmed.startsWith('[MATHEMATICAL DERIVATION') ||
-        trimmed.startsWith('[STRUCTURAL RESOLUTION') ||
-        trimmed.startsWith('[PROOF')
-      ) {
-        return this.formatMathBlock(trimmed);
-      }
-
-      // 3. Section or Canto Header
-      if (trimmed.startsWith('[VERSE CANTO') || trimmed.startsWith('[SECTION') || trimmed.startsWith('[DISPUTATIO')) {
-        const headerTitle = trimmed.slice(1, trimmed.indexOf(']'));
-        return `<div class="special-section-header">✦ ${headerTitle} ✦</div>`;
-      }
-
-      // 4. Standalone Math Display Equation: $$ ... $$
-      if (trimmed.startsWith('$$') && trimmed.endsWith('$$')) {
-        const eq = trimmed.slice(2, -2).trim();
-        return `<div class="math-display-eq">${MathRenderer.renderEquation(eq)}</div>`;
-      }
-
-      // 5. Q.E.D. Seal
-      if (trimmed === '[Q.E.D. • Quod Erat Demonstrandum]' || trimmed === '[Q.E.D.]') {
-        return `<div class="math-qed-badge">❦ Quod Erat Demonstrandum • Q.E.D.</div>`;
-      }
-
-      // 6. Regular Paragraphs
-      const renderedText = MathRenderer.renderInlineAndBlocks(trimmed);
-
-      if (idx === 0 && !trimmed.startsWith('*') && !trimmed.startsWith('•') && !trimmed.startsWith('[')) {
-        const firstChar = renderedText.charAt(0);
-        const rest = renderedText.slice(1);
-        return `<p class="first-paragraph"><span class="drop-cap">${firstChar}</span>${rest.replace(/\n/g, '<br/>')}</p>`;
-      }
-      return `<p>${renderedText.replace(/\n/g, '<br/>')}</p>`;
-    }).join('');
+    return `
+      <div class="medieval-data-table-card">
+        <div class="data-table-header">⚜ ${title}</div>
+        <div class="data-table-body">${rowsHtml}</div>
+      </div>
+    `;
   }
 
   private formatMathBlock(text: string): string {
@@ -476,57 +460,65 @@ class MathRenderer {
 
     // B. Matrix Environments (\begin{bmatrix} ... \end{bmatrix} / \begin{pmatrix})
     if (eq.includes('\\begin{bmatrix}') || eq.includes('\\begin{pmatrix}')) {
-      return this.renderMatrix(eq);
+      eq = this.renderMatrices(eq);
     }
 
-    // C. Bracket and Parenthesis commands (before word boundary replacements)
+    // C. Text & Named Functions (Run first so \text{...} isn't mangled by subscripts)
+    eq = eq.replace(/\\text\{([^{}]+)\}/g, '<span class="math-text">$1</span>');
+    eq = eq.replace(/\\pmod\{([^{}]+)\}/g, '<span class="math-text"> (mod $1)</span>');
+
+    // D. Bracket and Parenthesis commands
     eq = eq.replace(/\\left\s*\(/g, '<span class="math-delim">(</span>');
     eq = eq.replace(/\\right\s*\)/g, '<span class="math-delim">)</span>');
     eq = eq.replace(/\\left\s*\[/g, '<span class="math-delim">[</span>');
     eq = eq.replace(/\\right\s*\]/g, '<span class="math-delim">]</span>');
-    eq = eq.replace(/\\left\s*\\\{/g, '{');
-    eq = eq.replace(/\\right\s*\\\}/g, '}');
+    eq = eq.replace(/\\left\s*\\\{/g, '<span class="math-delim">{</span>');
+    eq = eq.replace(/\\right\s*\\\}/g, '<span class="math-delim">}</span>');
 
-    // D. Fractions (recursive for nested fractions like \frac{\sqrt{2}}{2})
+    // E. Fractions (recursive for nested fractions like \frac{\sqrt{2}}{2})
     eq = this.replaceFractions(eq);
 
-    // E. Square Roots
+    // F. Square Roots
     eq = eq.replace(/\\sqrt\{([^{}]+)\}/g, '<span class="math-sqrt">&radic;<span class="math-radicand">$1</span></span>');
-    eq = eq.replace(/\\sqrt\s*([0-9a-zA-Z\\]+)/g, '<span class="math-sqrt">&radic;<span class="math-radicand">$1</span></span>');
+    eq = eq.replace(/\\sqrt\s*([0-9a-zA-Z]+)/g, '<span class="math-sqrt">&radic;<span class="math-radicand">$1</span></span>');
 
-    // F. Vectors & Hats
+    // G. Vectors & Hats
     eq = eq.replace(/\\vec\{([^{}]+)\}/g, '<span class="math-vec"><span class="math-vec-arrow">&rarr;</span><span class="math-vec-base">$1</span></span>');
     eq = eq.replace(/\\hat\{([^{}]+)\}/g, '<span class="math-hat"><span class="math-hat-sym">^</span><span class="math-vec-base">$1</span></span>');
 
-    // G. Integrals, Contour Integrals & Summations
-    eq = eq.replace(/\\oint_\{?\\mathcal\{S\}\}?/g, '<span class="math-op">&conint;</span><sub>𝒮</sub>');
+    // H. Integrals, Contour Integrals & Summations
+    eq = eq.replace(/\\oint_\{?\\mathcal\{S\}\}?/g, '<span class="math-op">&conint;</span><sub class="math-sub">𝒮</sub>');
     eq = eq.replace(/\\oint/g, '<span class="math-op">&conint;</span>');
-    eq = eq.replace(/\\iiint_\{?\\Omega\}?/g, '<span class="math-op">&iiint;</span><sub>Ω</sub>');
-    eq = eq.replace(/\\iiint/g, '<span class="math-op">&iiint;</span>');
-    eq = eq.replace(/\\iint/g, '<span class="math-op">&iint;</span>');
-    eq = eq.replace(/\\int_\{([^{}]+)\}\^\{([^{}]+)\}/g, '<span class="math-op">&int;</span><sub>$1</sub><sup>$2</sup>');
-    eq = eq.replace(/\\int_([0-9a-zA-Z\\]+)\^([0-9a-zA-Z\\]+)/g, '<span class="math-op">&int;</span><sub>$1</sub><sup>$2</sup>');
+    eq = eq.replace(/\\int_\{([^{}]+)\}\^\{([^{}]+)\}/g, '<span class="math-op">&int;</span><sub class="math-sub">$1</sub><sup class="math-sup">$2</sup>');
+    eq = eq.replace(/\\int_([0-9a-zA-Z\\]+)\^([0-9a-zA-Z\\]+)/g, '<span class="math-op">&int;</span><sub class="math-sub">$1</sub><sup class="math-sup">$2</sup>');
     eq = eq.replace(/\\int/g, '<span class="math-op">&int;</span>');
-    eq = eq.replace(/\\sum_\{([^{}]+)\}\^\{([^{}]+)\}/g, '<span class="math-op">&sum;</span><sub>$1</sub><sup>$2</sup>');
+    eq = eq.replace(/\\sum_\{([^{}]+)\}\^\{([^{}]+)\}/g, '<span class="math-op">&sum;</span><sub class="math-sub">$1</sub><sup class="math-sup">$2</sup>');
     eq = eq.replace(/\\sum/g, '<span class="math-op">&sum;</span>');
     eq = eq.replace(/\\prod/g, '<span class="math-op">&prod;</span>');
 
-    // H. Del & Derivatives
-    eq = eq.replace(/\\nabla\^2/g, '&nabla;&sup2;');
+    // I. Del & Derivatives
+    eq = eq.replace(/\\nabla\^2/g, '&nabla;<sup class="math-sup">2</sup>');
     eq = eq.replace(/\\nabla/g, '&nabla;');
     eq = eq.replace(/\\partial/g, '&part;');
 
-    // I. Greek Letters (Word-bounded)
-    eq = eq.replace(/\\Psi\b/g, 'Ψ');
-    eq = eq.replace(/\\Phi\b/g, 'Φ');
-    eq = eq.replace(/\\Omega\b/g, 'Ω');
-    eq = eq.replace(/\\Delta\b/g, 'Δ');
+    // J. Functions and Arrow Labels
+    eq = eq.replace(/\\xrightarrow\{([^}]+)\}/g, '<span class="math-arrow-labeled">&mdash;&mdash;($1)&rarr;</span>');
+    eq = eq.replace(/\\gcd\b/g, '<span class="math-func">gcd</span>');
+    eq = eq.replace(/\\det\b/g, '<span class="math-func">det</span>');
+    eq = eq.replace(/\\cos\b/g, '<span class="math-func">cos</span>');
+    eq = eq.replace(/\\sin\b/g, '<span class="math-func">sin</span>');
+    eq = eq.replace(/\\ln\b/g, '<span class="math-func">ln</span>');
+    eq = eq.replace(/\\exp\b/g, '<span class="math-func">exp</span>');
+    eq = eq.replace(/\\tan\b/g, '<span class="math-func">tan</span>');
+
+    // K. Greek Letters (Word-bounded)
     eq = eq.replace(/\\alpha\b/g, 'α');
     eq = eq.replace(/\\beta\b/g, 'β');
     eq = eq.replace(/\\gamma\b/g, 'γ');
     eq = eq.replace(/\\theta\b/g, 'θ');
     eq = eq.replace(/\\lambda\b/g, 'λ');
     eq = eq.replace(/\\mu\b/g, 'μ');
+    eq = eq.replace(/\\nu\b/g, 'ν');
     eq = eq.replace(/\\omega\b/g, 'ω');
     eq = eq.replace(/\\kappa\b/g, 'κ');
     eq = eq.replace(/\\sigma\b/g, 'σ');
@@ -534,14 +526,20 @@ class MathRenderer {
     eq = eq.replace(/\\phi\b/g, 'ϕ');
     eq = eq.replace(/\\rho\b/g, 'ρ');
     eq = eq.replace(/\\pi\b/g, 'π');
+    eq = eq.replace(/\\Psi\b/g, 'Ψ');
+    eq = eq.replace(/\\Phi\b/g, 'Φ');
+    eq = eq.replace(/\\Omega\b/g, 'Ω');
+    eq = eq.replace(/\\Delta\b/g, 'Δ');
     eq = eq.replace(/\\mathbb\{Z\}/g, 'ℤ');
-    eq = eq.replace(/\\mathcal\{M\}_\{?\\odot\}?/g, 'ℳ<sub>☉</sub>');
+    eq = eq.replace(/\\mathbb\{R\}/g, 'ℝ');
+    eq = eq.replace(/\\mathcal\{D\}/g, '𝒟');
+    eq = eq.replace(/\\mathcal\{M\}_\{?\\odot\}?/g, 'ℳ<sub class="math-sub">☉</sub>');
     eq = eq.replace(/\\mathcal\{N\}/g, '𝒩');
     eq = eq.replace(/\\mathcal\{H\}/g, 'ℋ');
     eq = eq.replace(/\\mathcal\{S\}/g, '𝒮');
     eq = eq.replace(/\\mathcal\{F\}/g, 'ℱ');
 
-    // J. Operators & Relational Symbols (Word-bounded to never collide with \left, \right, etc.)
+    // L. Relational & Operator Symbols
     eq = eq.replace(/\\le\b/g, '&le;');
     eq = eq.replace(/\\ge\b/g, '&ge;');
     eq = eq.replace(/\\pm\b/g, '&plusmn;');
@@ -563,25 +561,18 @@ class MathRenderer {
     eq = eq.replace(/\\uparrow\b/g, '&uarr;');
     eq = eq.replace(/\\circ\b/g, '&deg;');
 
-    // K. Text & Named Functions
-    eq = eq.replace(/\\text\{([^{}]+)\}/g, '<span class="math-text">$1</span>');
-    eq = eq.replace(/\\pmod\{([^{}]+)\}/g, '<span class="math-text"> (mod $1)</span>');
-    eq = eq.replace(/\\gcd\b/g, '<span class="math-func">gcd</span>');
-    eq = eq.replace(/\\det\b/g, '<span class="math-func">det</span>');
-    eq = eq.replace(/\\cos\b/g, '<span class="math-func">cos</span>');
-    eq = eq.replace(/\\sin\b/g, '<span class="math-func">sin</span>');
-    eq = eq.replace(/\\ln\b/g, '<span class="math-func">ln</span>');
-    eq = eq.replace(/\\exp\b/g, '<span class="math-func">exp</span>');
-    eq = eq.replace(/\\xrightarrow\{([^}]+)\}/g, '<span class="math-arrow-labeled">&mdash;&mdash;($1)&rarr;</span>');
+    // M. Subscripts & Superscripts
+    eq = eq.replace(/\^\{([^{}]+)\}/g, '<sup class="math-sup">$1</sup>');
+    eq = eq.replace(/\^([0-9a-zA-Z°]+)/g, '<sup class="math-sup">$1</sup>');
+    eq = eq.replace(/_\{([^{}]+)\}/g, '<sub class="math-sub">$1</sub>');
+    eq = eq.replace(/_([0-9a-zA-Z]+)/g, '<sub class="math-sub">$1</sub>');
 
-    // L. Subscripts & Superscripts
-    eq = eq.replace(/\^\{([^{}]+)\}/g, '<sup>$1</sup>');
-    eq = eq.replace(/\^([0-9a-zA-Z°]+)/g, '<sup>$1</sup>');
-    eq = eq.replace(/_\{([^{}]+)\}/g, '<sub>$1</sub>');
-    eq = eq.replace(/_([0-9a-zA-Z]+)/g, '<sub>$1</sub>');
-
-    // M. Spacing
-    eq = eq.replace(/\\(\s|,|;|quad)/g, '&nbsp;&nbsp;');
+    // N. Spacing
+    eq = eq.replace(/\\qquad/g, '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;');
+    eq = eq.replace(/\\quad/g, '&nbsp;&nbsp;&nbsp;&nbsp;');
+    eq = eq.replace(/\\,/g, '&nbsp;');
+    eq = eq.replace(/\\;/g, '&nbsp;&nbsp;');
+    eq = eq.replace(/\\ /g, '&nbsp;');
 
     return eq;
   }
@@ -598,27 +589,24 @@ class MathRenderer {
     return current;
   }
 
-  private static renderMatrix(rawMatrix: string): string {
-    const isBmatrix = rawMatrix.includes('bmatrix');
-    const inner = rawMatrix
-      .replace(/\\begin\{[bp]matrix\}/g, '')
-      .replace(/\\end\{[bp]matrix\}/g, '')
-      .trim();
+  private static renderMatrices(raw: string): string {
+    return raw.replace(/\\begin\{([bp]matrix)\}([\s\S]*?)\\end\{\1\}/g, (_m, type, inner) => {
+      const isBmatrix = type === 'bmatrix';
+      const rows = inner.split('\\\\');
+      let matrixHtml = `<span class="math-matrix-wrapper"><table class="math-matrix-table ${isBmatrix ? 'bmatrix' : 'pmatrix'}"><tbody>`;
 
-    const rows = inner.split('\\\\');
-    let matrixHtml = `<div class="math-matrix-wrapper"><table class="math-matrix-table ${isBmatrix ? 'bmatrix' : 'pmatrix'}"><tbody>`;
-
-    for (const row of rows) {
-      if (!row.trim()) continue;
-      matrixHtml += '<tr>';
-      const cells = row.split('&');
-      for (const cell of cells) {
-        matrixHtml += `<td>${this.renderEquation(cell.trim())}</td>`;
+      for (const row of rows) {
+        if (!row.trim()) continue;
+        matrixHtml += '<tr>';
+        const cells = row.split('&');
+        for (const cell of cells) {
+          matrixHtml += `<td>${this.renderEquation(cell.trim())}</td>`;
+        }
+        matrixHtml += '</tr>';
       }
-      matrixHtml += '</tr>';
-    }
 
-    matrixHtml += '</tbody></table></div>';
-    return matrixHtml;
+      matrixHtml += '</tbody></table></span>';
+      return matrixHtml;
+    });
   }
 }

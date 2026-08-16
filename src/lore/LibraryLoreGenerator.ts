@@ -1,3 +1,5 @@
+import { GenerativeMathEngine } from './GenerativeMathEngine';
+
 export type MainBookClassification =
   | 'Fiction'
   | 'Non-Fiction'
@@ -38,10 +40,10 @@ export type BookFontSize =
 
 export type BookLayoutFormat =
   | 'standard'     // Single column with drop cap
-  | 'two-column'   // Two-column scholarly layout (ideal for Lexicons, Dictionaries, Compendiums)
-  | 'marginalia'   // Text with scriptorium marginal glosses / commentary
+  | 'two-column'   // Two-column scholarly layout
+  | 'marginalia'   // Text with scriptorium marginal glosses
   | 'illuminated'  // Decorative border frame around pages
-  | 'verse';       // Centered poetic stanzas for Epic Poetry / Mythological songs
+  | 'verse';       // Centered poetic stanzas for Epic Poetry
 
 export type BookWritingStyle =
   | 'academic-treatise'
@@ -76,132 +78,134 @@ export interface BookData {
   fontSize: BookFontSize;
   layoutFormat: BookLayoutFormat;
   writingStyle: BookWritingStyle;
+  isSTEM: boolean;
 }
 
 export class LibraryLoreGenerator {
   public static sessionSeed = Math.floor(Math.random() * 10000000);
 
-  // 1. Classifications & Subgenres
+  // 1. Classifications & Rich Subgenres
   private static CLASSIFICATIONS: Record<MainBookClassification, string[]> = {
-    'Fiction': ['High Fantasy', 'Gothic Tales', 'Fables & Parables', 'Epic Poetry'],
+    'Fiction': ['High Fantasy', 'Gothic Tales', 'Fables & Parables', 'Epic Poetry', 'Chivalric Romance', 'Courtly Allegories'],
     'Non-Fiction': [
-      'Biography',
-      'Autobiography',
-      'History',
-      'Statecraft & Law',
+      'Biography & Memoirs',
+      'Cartography & Expeditions',
+      'Chronicles of Antiquity',
+      'Statecraft & Jurisprudence',
       'Natural Philosophy',
       'Science & Technology',
-      'Travel & Culture',
-      'Academics'
-    ],
-    'Academic Texts & Grammar': ['Ancient Linguistics & Lexicons', 'Classical Rhetoric', 'Aristotelian Logic', 'Cartography & Geometry'],
-    'Professional Manuals': ['Master Stonemasonry', 'Cathedral Architecture', 'Herbalism & Apothecary', 'Alchemical Metallurgy', 'Tactical Siegecraft'],
-    'Breakthroughs & Theories': ['Celestial Mechanics', 'Etheric Resonance Theory', 'Elemental Transmutation', 'Chrono-Geometric Principles'],
-    'Dissertations': ['Theological Treatise', 'Metaphysical Inquiries', 'Subterranean Excavations', 'Cryptographic Syntheses'],
-    'Mysticism & Magic': ['Astral Pyromancy', 'Void Weaving', 'Sacred Runic Inscriptions', 'Divination & Starlight Scrying'],
-    'Tales & Mythology': ['Legends of the First Age', 'Chronicles of the Golden Lion', 'The Sunken Kingdoms', 'Behemoths of the Deep']
-  };
-
-  private static CLASSIC_TITLES: Record<MainBookClassification, string[]> = {
-    'Fiction': [
-      'The Chronicles of Wessex', 'Poems of the Minstrels', 'Song of the Wounded Stag',
-      'The Knight of the Silver Shield', 'The Phantom of the Cloister', 'The Winter King'
-    ],
-    'Non-Fiction': [
-      'Historia Britanniae', 'The Lives of Saints', 'Tacitus Annales', 'The Art of War',
-      'Chronicles of the Crusades', 'Gesta Danorum', 'Chronicon Saxonicum', 'On Virtue and Honor'
+      'Travelogues of the Great Sea',
+      'Academics & Curricula'
     ],
     'Academic Texts & Grammar': [
-      'Geometria', 'De Officiis Regum', 'Grammatica Antiqua', 'The Oxford Lexicon',
-      'Ars Grammatica', 'The Canon of Dialectic', 'De Interpretatione'
+      'Ancient Linguistics & Lexicons',
+      'Classical Rhetoric & Oratory',
+      'Aristotelian Logic & Dialectics',
+      'Cartography & Spatial Geometry',
+      'Sacred Arithmetic & Ratios',
+      'Philology of the First Tongue'
     ],
     'Professional Manuals': [
-      'Herbarius', 'De Medicina', 'Treatise on Archery', 'Liber Florum',
-      'Master Stonemasonry', 'Compendium Architecturae', 'Apothecary Formulary'
+      'Master Stonemasonry & Vaulting',
+      'Cathedral & Fortress Architecture',
+      'Herbalism & Field Apothecary',
+      'Alchemical Metallurgy & Smelting',
+      'Tactical Siegecraft & Ballistics',
+      'Horology & Precision Clockmaking',
+      'Vellum Curing & Bookbinding'
     ],
     'Breakthroughs & Theories': [
-      'Astronomia', 'Philosophia Naturalis', 'The Harmonies of the Spheres',
-      'Treatise on Etheric Flow', 'Chrono-Geometric Axioms', 'Optics of the Prism'
+      'Celestial Mechanics & Orbitals',
+      'Etheric Resonance & Wave Dynamics',
+      'Elemental Transmutation Kinetics',
+      'Chrono-Geometric Field Axioms',
+      'Optics & Prism Light Dispersion',
+      'Thermodynamics of Crucible Steels'
     ],
     'Dissertations': [
-      'De Rerum Natura', 'Compendium Theologiae', 'Epistemology of the Light',
-      'Speculum Humanae Salvationis', 'The Subterranean Vaults: A Study', 'Treatise on Free Will'
+      'Theological Axioms of the Light',
+      'Metaphysical Inquiries on Form',
+      'Subterranean Strata Excavations',
+      'Cryptographic Analysis of Archon Seals',
+      'Epistemology of Objective Truth',
+      'The Doctrine of Cosmic Equilibrium'
     ],
     'Mysticism & Magic': [
-      'Ars Magica', 'Liber Alchimia', 'The Emerald Tablet', 'Malleus Arcanum',
-      'Grimoire of Starlight', 'The Seven Sacred Seals', 'The Book of Shadows'
+      'Astral Pyromancy & Fire Wards',
+      'Void Weaving & Spatial Foldings',
+      'Sacred Runic Glyph Inscriptions',
+      'Divination & Starlight Ephemerides',
+      'Hermetic Matrix Binding & Seals',
+      'The Rites of the Equinoctial Gate'
     ],
     'Tales & Mythology': [
-      'Celtic Myths & Legends', 'The Book of Kells', 'Tales of the Golden Lion',
-      'The Primordial Slumber', 'Legends of the High Barrows', 'The Sunken Spires of Alderia'
+      'Legends of the Primordial Dawn',
+      'Chronicles of the Sunken Spires',
+      'Mythos of the Silver Falcon',
+      'Ballads of the Wandering King',
+      'Sagas of the High Barrows',
+      'The Great Vigil of the Star-Watchers'
     ]
   };
 
-  private static TITLE_PATTERNS = [
-    'The Codex of [Adjective] [Noun]',
-    'Treatise on [Concept]',
-    'Memoirs of a [Profession]',
-    'The Principles of [Concept]',
-    'Chronicles of [Noun]',
-    'A Scholar\'s Guide to [Concept]',
-    'The Lost Gospel of [ProperName]',
-    'Observations on [Adjective] [Noun]',
-    'The Architecture of [Noun]',
-    'An Inquiry into [Concept]',
-    'Discourses on [Adjective] [Concept]',
-    'The Secrets of [Noun]',
-    'A Compendium of [Adjective] [Concept]',
-    'The Seven Pillars of [Concept]',
-    'Meditations upon [Noun]',
-    'Visions of [ProperName] and the [Noun]'
+  private static FIRST_NAMES = [
+    'Aurelius', 'Cassian', 'Valerius', 'Ignatius', 'Theodosia', 'Claudius', 'Severus', 'Octavius',
+    'Tiberius', 'Marcellus', 'Decimus', 'Lucian', 'Felix', 'Hadrian', 'Titus', 'Antoninus', 'Aurelia',
+    'Gideon', 'Branok', 'Rhiannon', 'Gawain', 'Isolde', 'Gareth', 'Kaelen', 'Cormac', 'Torin',
+    'Morvath', 'Arthur', 'Percival', 'Bedivere', 'Cador', 'Elowen', 'Bryn', 'Meredith', 'Taliesin',
+    'Zephyrus', 'Alexios', 'Irene', 'Basil', 'Leontios', 'Demetrios', 'Theophano', 'Konstantinos',
+    'Helene', 'Andronikos', 'Niketas', 'Kassandra', 'Thales', 'Eudoxia', 'Herakleios', 'Zenobia',
+    'Roderick', 'Eldred', 'Bramwell', 'Aldhelm', 'Sigurd', 'Wulfric', 'Ethelwulf', 'Hildegard',
+    'Alistair', 'Gunther', 'Berengar', 'Conrad', 'Anselm', 'Wulfstan', 'Godric', 'Rowena', 'Dietrich',
+    'Darius', 'Farhan', 'Cyrus', 'Soraya', 'Navid', 'Roxana', 'Bahram', 'Zal', 'Yasmin',
+    'Seraphina', 'Mirella', 'Vespera', 'Yvaine', 'Azrael', 'Malakor', 'Zephyrine', 'Solara', 'Balthazar'
   ];
 
-  private static SUBTITLE_PATTERNS = [
-    'An Archival Inquiry into the Principles of the First Age',
-    'A Comprehensive Discourse for Scribes and Masters',
-    'Transcribed from the Earliest Manuscripts of the High Vaults',
-    'With Observations on Sacred Geometry and Natural Law',
-    'Being a True and Faithful Account of Historic Revelations',
-    'Compiled in the Scriptorium of the Grand Cathedral Nave',
-    'A Systematic Treatise for Seekers of Illuminated Truth',
-    'With Commentary by the Venerable Keepers of the Archives'
+  private static SURNAMES_AND_EPITHETS = [
+    'of Oakhaven', 'of the Iron Quill', 'the Stargazer', 'of Sunken Alderia', 'the Sightless',
+    'of House Lionheart', 'the Elder', 'of the High Spire', 'Arch-Scholar of Veritas',
+    'Venerable Keeper of Scrolls', 'Master Artificer', 'of the Obsidian Gate', 'the Clockmaker of Val-Doran',
+    'of the Silver Crescent', 'Chronicler of Wessex', 'of the Whispering Sands', 'the Cartographer of Marid-Khar',
+    'the Alchemist of Caelum-Vara', 'of the Northern Marches', 'Keeper of the Solstice Vaults', 'of the Amber Coast',
+    'the Void-Weaver', 'of House Ravenshade', 'Master of the Gilded Chisel', 'the Silent Archimandrite',
+    'of St. Jude the Confessor', 'of the Seven Towers', 'the Geometer of Silverpeak', 'of the Aethelgard Scriptorium',
+    'the Astrolabist of Dun-Mora', 'the Epigrapher of Khorsabad', 'the Metallurgist of Iron-Spire', 'of House Vesperia',
+    'the Luminary of Thalassia', 'of the Frostholm Scriptorium', 'the Sovereign Exarch', 'of the Solstice Reach'
   ];
 
-  private static ADJECTIVES = [
-    'Arcane', 'Ancient', 'Celestial', 'Forgotten', 'Gilded', 'Immutable',
-    'Shadowed', 'Verdant', 'Astral', 'Hallowed', 'Primordial', 'Luminescent',
-    'Forbidden', 'Eternal', 'Sacred', 'Subterranean', 'Obsidian', 'Iron-Bound'
+  private static ORGANIZATIONS = [
+    'The Guild of Master Astrolabists',
+    'The Order of the Silver Compass',
+    'The Brotherhood of the Obsidian Chisel',
+    'The Collegium of Celestial Mechanics',
+    'The Scriptorium of the Whispering Sands',
+    'The Conclave of Hermetic Philologists',
+    'The Society of Subterranean Antiquarians',
+    'The Academy of Lunar Pyromancy',
+    'The Fellowship of the Iron Clavicle',
+    'The Syndicate of Amber Cartographers',
+    'The Sovereign Synod of Veritas',
+    'The Covenant of the Seven Lanterns',
+    'The Guild of Master Mason-Artificers',
+    'The High Council of Caelum-Vara',
+    'The Monastic Order of St. Anselm',
+    'The Scholarly Circle of the Solstice Star',
+    'The Royal Society of Natural Philosophy',
+    'The Archival Scribes of Oakhaven',
+    'The Guild of Clockmakers and Horologists',
+    'The Sisterhood of the Silver Loom',
+    'The Alchemical Guild of the Crucible',
+    'The Cartographic Guild of Thalassia',
+    'The Cathedral Chapter of Marid-Khar',
+    'The Venerable Academy of Aethelgard',
+    'The Custodians of the Obsidian Vault'
   ];
 
-  private static NOUNS = [
-    'Wessex', 'Alderia', 'the Cathedral', 'the High Archons', 'the Starlight',
-    'the Nether Depths', 'the Golden Lion', 'the Sunken Kingdom', 'the Sacred Oak',
-    'the Astral Loom', 'the Silver Flame', 'the Whispering Vaults', 'the Seven Veils'
-  ];
-
-  private static CONCEPTS = [
-    'Etheric Geometry', 'Astral Pyromancy', 'Living Stone & Mortar',
-    'Celestial Harmonics', 'Temporal Flux', 'Alchemical Transmutation',
-    'Herbal Panaceas', 'Rhetorical Eloquence', 'Metaphysical Equilibrium',
-    'Dungeon Fortifications', 'Sacred Geometry', 'Linguistic Roots of the First Tongue'
-  ];
-
-  private static PROFESSIONS = [
-    'Cathedral Scribe', 'Royal Alchemist', 'Master Stonecutter', 'Astral Cartographer',
-    'Grand Inquisitor', 'Herbal Apothecary', 'Cryptographic Scholar', 'High Archon',
-    'Dungeon Architect', 'Knight Chronicler', 'Void Watcher', 'Master Clockmaker'
-  ];
-
-  private static PROPER_NAMES = [
-    'Valerius', 'Seraphina', 'Ignatius', 'Morvath', 'Aurelius', 'Zephyrus',
-    'Eleanor', 'Balthazar', 'Cassian', 'Mirella', 'Lucian', 'Theodosia',
-    'Eldred', 'Vespera', 'Gideon', 'Roderick', 'Bramwell', 'Yvaine'
-  ];
-
-  private static AUTHORS_SUFFIX = [
-    'of Oakhaven', 'of the Iron Quill', 'the Stargazer', 'of Sunken Alderia',
-    'the Sightless', 'of House Lionheart', 'the Elder', 'of the High Spire',
-    'Arch-Scholar of Veritas', 'Venerable Keeper of Scrolls', 'Master Artificer'
+  private static REALMS_AND_CITIES = [
+    'Alderia', 'Caelum-Vara', 'Thalassia', 'Silverpeak', 'Oakhaven', 'Nether-Ghyll', 'Solstice Reach',
+    'Val-Doran', 'Aethelgard', 'Marid-Khar', 'Vesperia', 'Lunaria', 'Wessex', 'Ravenhall', 'Dun-Mora',
+    'Myth-Drannor', 'Khorsabad', 'Al-Zafira', 'Zephyrion', 'Astragard', 'Iron-Spire', 'Sunken Alderia',
+    'The High Barrows', 'Frostholm', 'Amber-Glen', 'Elyria', 'Veridiana', 'Crescent Isle', 'Barrow-Downs'
   ];
 
   private static ERAS = [
@@ -212,23 +216,78 @@ export class LibraryLoreGenerator {
     'Reign of Archon Aurelius IX (Year 1415)',
     'The Silent Interregnum (Year 988)',
     'Dawn of the Cathedral Archives (Year 1204)',
-    'The Third Solstice Reformation (Year 1520)'
+    'The Third Solstice Reformation (Year 1520)',
+    'Era of the Clockwork Spire (Year 1288)',
+    'Age of the Silver Armada (Year 1056)',
+    'The Great Deluge of Nether-Ghyll (Year 640)',
+    'The Council of Seven Crowns (Year 1392)',
+    'The Solstice Concordat (Year 1478)',
+    'Reign of Grand Magister Valerius (Year 892)',
+    'The High Renaissance of Caelum-Vara (Year 1560)'
+  ];
+
+  private static TITLE_TEMPLATES = [
+    'The Codex of [Adjective] [Noun]',
+    'Treatise on [Concept]',
+    'The Principles of [Concept] in [Realm]',
+    'Chronicles of [Noun]',
+    'A Scholar\'s Guide to [Concept]',
+    'The Architecture of [Noun]',
+    'Observations on [Adjective] [Concept]',
+    'Discourses on [Adjective] [Noun]',
+    'Calculations and Geometries of [Concept]',
+    'The Seven Pillars of [Concept]',
+    'Meditations upon [Adjective] [Noun]',
+    'Compendium of [Concept] and [Concept2]',
+    'The Hermetic Secrets of [Realm]',
+    'The Natural History of [Realm]',
+    'Foundations of [Adjective] [Concept]',
+    'The Annals of [Realm]',
+    'Axioms of [Concept] and [Noun]',
+    'The Ephemeris of [Adjective] Spheres'
+  ];
+
+  private static SUBTITLE_TEMPLATES = [
+    'An Archival Inquiry into the Foundational Principles of [Realm]',
+    'A Comprehensive Discourse for the Masters of [Organization]',
+    'Transcribed from the Earliest Manuscripts of [Realm]',
+    'With Mathematical Proofs, Sacred Geometry, and Generative Vector Diagrams',
+    'Being a Faithful Record Preserved in [Realm] during [Era]',
+    'Compiled in the High Scriptorium of [Organization]',
+    'A Systematic Treatise for Seekers of Illuminated Truth across [Realm]'
+  ];
+
+  private static ADJECTIVES = [
+    'Arcane', 'Ancient', 'Celestial', 'Forgotten', 'Gilded', 'Immutable',
+    'Shadowed', 'Verdant', 'Astral', 'Hallowed', 'Primordial', 'Luminescent',
+    'Forbidden', 'Eternal', 'Sacred', 'Subterranean', 'Obsidian', 'Iron-Bound',
+    'Ethereal', 'Sovereign', 'Resonant', 'Chrono-Spatial', 'Meridian', 'Vitreous'
+  ];
+
+  private static NOUNS = [
+    'the High Spire', 'the Iron Vault', 'the Astral Loom', 'the Sacred Oak',
+    'the Silver Flame', 'the Whispering Crypts', 'the Seven Veils', 'the Golden Lion',
+    'the Celestial Horizon', 'the Great Meridian', 'the Monolith', 'the Clockwork Heavens',
+    'the Living Granite', 'the Sunken Kingdom', 'the Silver Raven', 'the Prismatic Arch'
+  ];
+
+  private static CONCEPTS = [
+    'Biaxial Vault Stress', 'Celestial Precession', 'Etheric Wave Flow',
+    'Alchemical Transmutation', 'Sacred Geometry', 'Pointed Arch Buttresses',
+    'Modular Cryptography', 'Prism Refraction Optics', 'Living Stone Mortar',
+    'Aristotelian Logic', 'Cardinal Matrix Eigenvalues', 'Thermal Damascus Smelting',
+    'Astrolabe Calibration', 'Zodiac Orbital Mechanics', 'Linguistic Roots of the First Tongue'
   ];
 
   private static COVER_COLORS = [
-    '#82181e', '#9e1c25', '#631317',
-    '#1c3761', '#14294a', '#26497d',
-    '#1d5334', '#133d25', '#2b6942',
-    '#542d17', '#6b3a1e', '#7a4422',
-    '#521c63', '#6a2280', '#3e134d',
-    '#184e57', '#206670',
-    '#222226', '#18181b',
-    '#8c6227', '#a3722e',
-    '#8c3823', '#732b1a'
+    '#82181e', '#9e1c25', '#631317', '#1c3761', '#14294a', '#26497d',
+    '#1d5334', '#133d25', '#2b6942', '#542d17', '#6b3a1e', '#7a4422',
+    '#521c63', '#6a2280', '#3e134d', '#184e57', '#206670', '#222226',
+    '#18181b', '#8c6227', '#a3722e', '#8c3823', '#732b1a', '#2c3e50'
   ];
 
   private static ACCENT_COLORS = [
-    '#ffd700', '#e5b84c', '#9a7838', '#d1d7e3', '#c86d49', '#1a1614', '#dfd2b5'
+    '#ffd700', '#e5b84c', '#9a7838', '#d1d7e3', '#c86d49', '#dfd2b5', '#c09853'
   ];
 
   public static createPrng(seed: number): () => number {
@@ -241,9 +300,6 @@ export class LibraryLoreGenerator {
     };
   }
 
-  /**
-   * Generates a complete book with varied fonts, sizes, writing styles, formats, and equations
-   */
   public static generateBook(seed: number, overrideTitle?: string): BookData {
     const prng = this.createPrng(seed);
 
@@ -252,85 +308,60 @@ export class LibraryLoreGenerator {
     const subgenres = this.CLASSIFICATIONS[classification];
     const subgenre = subgenres[Math.floor(prng() * subgenres.length)];
 
+    const realm = this.REALMS_AND_CITIES[Math.floor(prng() * this.REALMS_AND_CITIES.length)];
+    const organization = this.ORGANIZATIONS[Math.floor(prng() * this.ORGANIZATIONS.length)];
+    const era = this.ERAS[Math.floor(prng() * this.ERAS.length)];
+
     let title = overrideTitle;
     if (!title) {
-      if (prng() < 0.35) {
-        const list = this.CLASSIC_TITLES[classification];
-        title = list[Math.floor(prng() * list.length)];
-      } else {
-        title = this.generateTitle(prng, classification);
-      }
+      title = this.generateGenerativeTitle(prng, realm, subgenre);
     }
 
-    const subtitle = this.SUBTITLE_PATTERNS[Math.floor(prng() * this.SUBTITLE_PATTERNS.length)];
+    const subtitleTemplate = this.SUBTITLE_TEMPLATES[Math.floor(prng() * this.SUBTITLE_TEMPLATES.length)];
+    const subtitle = subtitleTemplate
+      .replace('[Realm]', realm)
+      .replace('[Organization]', organization)
+      .replace('[Era]', era);
 
-    const authorFirstName = this.PROPER_NAMES[Math.floor(prng() * this.PROPER_NAMES.length)];
-    const authorSuffix = this.AUTHORS_SUFFIX[Math.floor(prng() * this.AUTHORS_SUFFIX.length)];
-    const author = `${authorFirstName} ${authorSuffix}`;
-    const era = this.ERAS[Math.floor(prng() * this.ERAS.length)];
+    const authorFirst = this.FIRST_NAMES[Math.floor(prng() * this.FIRST_NAMES.length)];
+    const authorSuffix = this.SURNAMES_AND_EPITHETS[Math.floor(prng() * this.SURNAMES_AND_EPITHETS.length)];
+    const author = `${authorFirst} ${authorSuffix}`;
 
     const coverColor = this.COVER_COLORS[Math.floor(prng() * this.COVER_COLORS.length)];
     const accentColor = this.ACCENT_COLORS[Math.floor(prng() * this.ACCENT_COLORS.length)];
 
-    // 1. Assign Book Typography & Format Characteristics
+    const isSTEM = this.isStemSubject(classification, subgenre, title, subtitle);
+
     const fontFamilies: BookFontFamily[] = ['garamond', 'gothic', 'scriptorium', 'crimson', 'mystic'];
     const fontSizes: BookFontSize[] = ['compact', 'regular', 'relaxed'];
-    
-    // Choose font family based on genre & style
-    let fontFamily: BookFontFamily = 'garamond';
-    if (classification === 'Breakthroughs & Theories' || classification === 'Academic Texts & Grammar') {
-      fontFamily = prng() < 0.5 ? 'crimson' : 'garamond';
-    } else if (classification === 'Mysticism & Magic') {
-      fontFamily = prng() < 0.6 ? 'mystic' : 'gothic';
-    } else if (classification === 'Dissertations' || classification === 'Professional Manuals') {
-      fontFamily = prng() < 0.5 ? 'scriptorium' : 'garamond';
-    } else {
-      fontFamily = fontFamilies[Math.floor(prng() * fontFamilies.length)];
-    }
 
-    // Choose font size (never too big, never too small: 13.5px - 15.5px)
-    let fontSize: BookFontSize = 'regular';
-    if (classification === 'Academic Texts & Grammar' || classification === 'Breakthroughs & Theories') {
-      fontSize = prng() < 0.5 ? 'compact' : 'regular';
-    } else if (classification === 'Tales & Mythology' || classification === 'Fiction') {
-      fontSize = prng() < 0.5 ? 'relaxed' : 'regular';
-    } else {
-      fontSize = fontSizes[Math.floor(prng() * fontSizes.length)];
-    }
+    let fontFamily: BookFontFamily = isSTEM ? (prng() < 0.6 ? 'crimson' : 'garamond') : fontFamilies[Math.floor(prng() * fontFamilies.length)];
+    let fontSize: BookFontSize = isSTEM ? (prng() < 0.5 ? 'compact' : 'regular') : fontSizes[Math.floor(prng() * fontSizes.length)];
 
-    // Choose layout format & writing style
     let layoutFormat: BookLayoutFormat = 'standard';
     let writingStyle: BookWritingStyle = 'academic-treatise';
 
-    if (subgenre === 'Epic Poetry' || subgenre === 'Fables & Parables') {
+    if (subgenre.includes('Poetry') || subgenre.includes('Ballads')) {
       layoutFormat = 'verse';
       writingStyle = 'epic-verse';
-    } else if (subgenre.includes('Lexicons') || subgenre.includes('Grammar') || classification === 'Academic Texts & Grammar') {
-      layoutFormat = prng() < 0.6 ? 'two-column' : 'standard';
+    } else if (subgenre.includes('Lexicons') || subgenre.includes('Philology')) {
+      layoutFormat = prng() < 0.5 ? 'two-column' : 'standard';
       writingStyle = 'academic-treatise';
     } else if (classification === 'Professional Manuals') {
       layoutFormat = prng() < 0.4 ? 'marginalia' : 'standard';
       writingStyle = 'technical-manual';
     } else if (classification === 'Mysticism & Magic') {
-      layoutFormat = prng() < 0.5 ? 'illuminated' : 'standard';
+      layoutFormat = prng() < 0.45 ? 'illuminated' : 'standard';
       writingStyle = 'mystic-grimoire';
     } else if (classification === 'Dissertations') {
-      layoutFormat = prng() < 0.4 ? 'marginalia' : 'standard';
-      writingStyle = prng() < 0.5 ? 'philosophical-dialogue' : 'academic-treatise';
+      layoutFormat = prng() < 0.35 ? 'marginalia' : 'standard';
+      writingStyle = prng() < 0.4 ? 'philosophical-dialogue' : 'academic-treatise';
     } else if (classification === 'Non-Fiction') {
-      layoutFormat = 'standard';
-      writingStyle = 'chronicle-history';
-    } else {
-      layoutFormat = 'standard';
-      writingStyle = 'academic-treatise';
+      writingStyle = isSTEM ? 'academic-treatise' : 'chronicle-history';
     }
 
-    // Determine Chapter count (4 to 7 chapters, each spanning 2 to 3 pages)
-    const numChapters = 4 + Math.floor(prng() * 4);
+    const numChapters = 4 + Math.floor(prng() * 3);
     const pages: BookPage[] = [];
-
-    // Check if this book qualifies for scientific/mathematical formulas & proofs
-    const isMathScienceBook = this.shouldIncludeMathScience(classification, subgenre, prng);
 
     // -------------------------------------------------------------
     // 1. FRONT MATTER (Pages 1 to 8)
@@ -339,40 +370,40 @@ export class LibraryLoreGenerator {
       pageType: 'half-title',
       chapterTitle: '',
       pageNumber: 1,
-      content: `\n\n\n\n\n\n\n\n\n\n${title.toUpperCase()}\n\n❦`
+      content: `\n\n\n\n\n\n${title.toUpperCase()}\n\n❦`
     });
 
     pages.push({
       pageType: 'frontispiece',
       chapterTitle: 'FRONTISPIECE',
       pageNumber: 2,
-      content: this.generateFrontispieceText(classification, prng)
+      content: this.generateFrontispieceText(classification, realm, organization, prng)
     });
 
     pages.push({
       pageType: 'title-page',
       chapterTitle: 'TITLE PAGE',
       pageNumber: 3,
-      content: `${title.toUpperCase()}\n\n— ${subtitle} —\n\n\nBY\n${author.toUpperCase()}\n\n\nARCHIVAL CLASSIFICATION: ${classification.toUpperCase()}\nSUBGENRE: ${subgenre.toUpperCase()}\n\n\n❦ ══════════════════ ❧\nPUBLISHED BY THE HIGH CATHEDRAL SCRIPTORIUM\nARCHIVES OF ALDERIA • ANNO DOMINI`
+      content: `${title.toUpperCase()}\n\n— ${subtitle} —\n\n\nBY\n${author.toUpperCase()}\n\n\nARCHIVAL CLASSIFICATION: ${classification.toUpperCase()}\nACADEMIC DISCIPLINE: ${subgenre.toUpperCase()}\n\n\n❦ ══════════════════ ❧\nPUBLISHED UNDER THE AEGIS OF ${organization.toUpperCase()}\nARCHIVES OF ${realm.toUpperCase()} • ${era.toUpperCase()}`
     });
 
-    const isbn = `MS-${(1000 + Math.floor(prng() * 9000))}-CATH-${(10 + Math.floor(prng() * 90))}`;
+    const isbn = `MS-${1000 + Math.floor(prng() * 9000)}-${realm.slice(0, 4).toUpperCase()}-${10 + Math.floor(prng() * 90)}`;
     pages.push({
       pageType: 'copyright',
       chapterTitle: 'ARCHIVAL NOTICE',
       pageNumber: 4,
-      content: `GRAND CATHEDRAL ARCHIVAL REPOSITORY\nPreserved under the Perpetual Edict of the High Council.\n\nManuscript Identification Code: ${isbn}\nArchival Classification: ${classification}\nCatalog Shelf ID: Bay ${1 + (seed % 6)}, Tier ${1 + (seed % 5)}\nHistorical Era: ${era}\n\nTranscribed by hand upon 100% Linen Rag Vellum with Iron-Gall Ink.\nBound in Tanned Calfskin with Hand-Cast Brass Furniture.\n\nAll rights reserved. No part of this codex may be transmuted, void-scribed, or excised without express consent of the Keeper of Scrolls.\n\nPrinted and Illuminated in the High Nave Scriptorium.`
+      content: `ARCHIVAL REPOSITORY OF ${realm.toUpperCase()}\nPreserved under the Perpetual Edict of ${organization}.\n\nManuscript Registry Code: ${isbn}\nAcademic Discipline: ${subgenre}\nCatalog Location: Bay ${1 + (seed % 6)}, Tier ${1 + (seed % 5)}\nHistorical Era: ${era}\n\nHand-transcribed upon Linen Vellum with Iron-Gall Ink.\nBound in Calfskin with Cast Brass Hardware.\n\nAll rights reserved. Inscribed by the Scribes of ${realm}.`
     });
 
     pages.push({
       pageType: 'dedication',
       chapterTitle: 'DEDICATION',
       pageNumber: 5,
-      content: this.generateDedication(prng)
+      content: this.generateDedication(authorFirst, realm, prng)
     });
 
-    const forewordText1 = this.generateForeword(classification, title, author, 1, prng);
-    const forewordText2 = this.generateForeword(classification, title, author, 2, prng);
+    const forewordText1 = this.generateForeword(classification, title, author, realm, organization, 1, prng);
+    const forewordText2 = this.generateForeword(classification, title, author, realm, organization, 2, prng);
 
     pages.push({
       pageType: 'toc',
@@ -400,9 +431,9 @@ export class LibraryLoreGenerator {
     // -------------------------------------------------------------
     pages.push({
       pageType: 'prologue',
-      chapterTitle: 'PROLOGUE: THE FOUNDATIONAL AXIOMS',
+      chapterTitle: 'PROLOGUE: FOUNDATIONAL PREMISES',
       pageNumber: 9,
-      content: this.generatePrologue(classification, subgenre, title, prng)
+      content: this.generatePrologue(classification, subgenre, title, realm, organization, isSTEM, prng)
     });
 
     const tocEntries: { title: string; page: number }[] = [
@@ -411,7 +442,7 @@ export class LibraryLoreGenerator {
       { title: 'Prologue', page: 9 }
     ];
 
-    const chapterTitles = this.getChapterTitlesForBook(classification, numChapters, prng);
+    const chapterTitles = this.getChapterTitlesForBook(classification, subgenre, numChapters, prng);
 
     let curPageNum = 10;
     for (let c = 0; c < numChapters; c++) {
@@ -420,7 +451,7 @@ export class LibraryLoreGenerator {
 
       const pagesInChapter = 2 + Math.floor(prng() * 2);
       for (let cp = 1; cp <= pagesInChapter; cp++) {
-        const pageContent = this.generateChapterPageContent(
+        const pageContent = this.generateFittedChapterPageContent(
           classification,
           subgenre,
           writingStyle,
@@ -429,7 +460,10 @@ export class LibraryLoreGenerator {
           pagesInChapter,
           title,
           cTitle,
-          isMathScienceBook,
+          realm,
+          organization,
+          isSTEM,
+          seed + c * 1013 + cp * 97,
           prng
         );
 
@@ -439,8 +473,8 @@ export class LibraryLoreGenerator {
           pageNumber: curPageNum,
           content: pageContent,
           headerText: `${title.toUpperCase()} • CHAPTER ${this.toRoman(c + 1)}`,
-          hasMathProof: isMathScienceBook && cp === 2,
-          marginalNote: layoutFormat === 'marginalia' && cp === 1 ? `Glosa ${this.toRoman(c + 1)}: Vide folium vetus.` : undefined
+          hasMathProof: isSTEM && cp === 2,
+          marginalNote: layoutFormat === 'marginalia' && cp === 1 ? `Glosa ${this.toRoman(c + 1)}: Inscriptum in ${realm}.` : undefined
         });
         curPageNum++;
       }
@@ -452,7 +486,7 @@ export class LibraryLoreGenerator {
       pageType: 'epilogue',
       chapterTitle: 'EPILOGUE: THE ETERNAL HORIZON',
       pageNumber: curPageNum,
-      content: this.generateEpilogue(classification, title, author, prng),
+      content: this.generateEpilogue(classification, title, author, realm, organization, prng),
       headerText: `${title.toUpperCase()} • EPILOGUE`
     });
     curPageNum++;
@@ -465,20 +499,20 @@ export class LibraryLoreGenerator {
       pageType: 'acknowledgments',
       chapterTitle: 'ACKNOWLEDGMENTS',
       pageNumber: curPageNum,
-      content: this.generateAcknowledgments(author, prng)
+      content: this.generateAcknowledgments(author, realm, organization, prng)
     });
     curPageNum++;
 
-    tocEntries.push({ title: 'Appendix: Historical Notes & Citations', page: curPageNum });
+    tocEntries.push({ title: 'Appendix: Scholarly Notes', page: curPageNum });
     pages.push({
       pageType: 'appendix',
       chapterTitle: 'APPENDIX & SCHOLARLY NOTES',
       pageNumber: curPageNum,
-      content: this.generateAppendix(classification, prng)
+      content: this.generateAppendix(classification, realm, prng)
     });
     curPageNum++;
 
-    tocEntries.push({ title: 'Glossary of Ancient Terms', page: curPageNum });
+    tocEntries.push({ title: 'Glossary of Terms', page: curPageNum });
     pages.push({
       pageType: 'glossary',
       chapterTitle: 'GLOSSARY OF TERMS',
@@ -487,15 +521,14 @@ export class LibraryLoreGenerator {
     });
     curPageNum++;
 
-    tocEntries.push({ title: 'Author Biography & Index', page: curPageNum });
+    tocEntries.push({ title: 'Author Biography', page: curPageNum });
     pages.push({
       pageType: 'author-bio',
       chapterTitle: 'ABOUT THE AUTHOR',
       pageNumber: curPageNum,
-      content: this.generateAuthorBio(author, era, classification, prng)
+      content: this.generateAuthorBio(author, era, realm, organization, classification, prng)
     });
 
-    // Populate Table of Contents on Page 6
     pages[5].content = this.formatTableOfContents(tocEntries);
 
     return {
@@ -512,21 +545,67 @@ export class LibraryLoreGenerator {
       fontFamily,
       fontSize,
       layoutFormat,
-      writingStyle
+      writingStyle,
+      isSTEM
     };
   }
 
-  private static shouldIncludeMathScience(
+  private static isStemSubject(
     classification: MainBookClassification,
     subgenre: string,
-    prng: () => number
+    title: string,
+    subtitle: string
   ): boolean {
     if (classification === 'Breakthroughs & Theories') return true;
-    if (classification === 'Academic Texts & Grammar' && (subgenre.includes('Geometry') || subgenre.includes('Logic'))) return true;
+    if (classification === 'Academic Texts & Grammar' && (subgenre.includes('Geometry') || subgenre.includes('Logic') || subgenre.includes('Arithmetic'))) return true;
+    if (classification === 'Professional Manuals' && (subgenre.includes('Architecture') || subgenre.includes('Stonemasonry') || subgenre.includes('Metallurgy') || subgenre.includes('Clockmaking'))) return true;
     if (classification === 'Dissertations' && (subgenre.includes('Cryptographic') || subgenre.includes('Metaphysical'))) return true;
-    if (classification === 'Professional Manuals' && (subgenre.includes('Architecture') || subgenre.includes('Metallurgy') || subgenre.includes('Stonemasonry'))) return true;
-    if (classification === 'Mysticism & Magic' && (subgenre.includes('Runic') || subgenre.includes('Astral')) && prng() < 0.45) return true;
-    return false;
+    if (subgenre.includes('Science') || subgenre.includes('Natural Philosophy') || subgenre.includes('Celestial') || subgenre.includes('Resonance')) return true;
+
+    const combined = `${title} ${subtitle} ${subgenre}`.toLowerCase();
+    const stemKeywords = [
+      'geometry', 'geometria', 'astronomia', 'mechanics', 'optics', 'calculus', 'ratio',
+      'theory', 'architecture', 'stonemasonry', 'metallurgy', 'alchemy',
+      'principles', 'cipher', 'cryptographic', 'harmonic', 'sphere',
+      'equations', 'vectors', 'flux', 'clockwork', 'astrolabe', 'proofs'
+    ];
+    return stemKeywords.some((kw) => combined.includes(kw));
+  }
+
+  private static generateGenerativeTitle(prng: () => number, realm: string, subgenre: string): string {
+    if (subgenre.includes('Linguistics') || subgenre.includes('Philology')) {
+      const titles = [
+        `Lexicon of Classical Dialects in ${realm}`,
+        `Morphology and Syntax of the Ancient Tongue`,
+        `Etymological Roots of Ancient ${realm}`,
+        `Grammatica Antiqua of the High Scriptorium`,
+        `The Phonetics of the First Inscriptions`
+      ];
+      return titles[Math.floor(prng() * titles.length)];
+    }
+    if (subgenre.includes('Logic') || subgenre.includes('Rhetoric')) {
+      const titles = [
+        `The Canon of Dialectic and Syllogistic Inference`,
+        `Treatise on Modal Logic in ${realm}`,
+        `Discourses on Formal Demonstration`,
+        `The Organon of Veritas and Proof`,
+        `Axiomatic Structures of Classical Thought`
+      ];
+      return titles[Math.floor(prng() * titles.length)];
+    }
+
+    const template = this.TITLE_TEMPLATES[Math.floor(prng() * this.TITLE_TEMPLATES.length)];
+    const adj = this.ADJECTIVES[Math.floor(prng() * this.ADJECTIVES.length)];
+    const noun = this.NOUNS[Math.floor(prng() * this.NOUNS.length)];
+    const concept = this.CONCEPTS[Math.floor(prng() * this.CONCEPTS.length)];
+    const concept2 = this.CONCEPTS[(Math.floor(prng() * this.CONCEPTS.length) + 1) % this.CONCEPTS.length];
+
+    return template
+      .replace('[Adjective]', adj)
+      .replace('[Noun]', noun)
+      .replace('[Concept]', concept)
+      .replace('[Concept2]', concept2)
+      .replace('[Realm]', realm);
   }
 
   private static formatTableOfContents(entries: { title: string; page: number }[]): string {
@@ -538,7 +617,12 @@ export class LibraryLoreGenerator {
     return text;
   }
 
-  private static generateFrontispieceText(classification: MainBookClassification, _prng: () => number): string {
+  private static generateFrontispieceText(
+    classification: MainBookClassification,
+    realm: string,
+    organization: string,
+    _prng: () => number
+  ): string {
     const mottos: Record<MainBookClassification, string> = {
       'Fiction': 'IN TENEBRIS LUX LUCET • IN SHADOWS THE LIGHT SHINES',
       'Non-Fiction': 'HISTORIA MAGISTRA VITAE • HISTORY IS THE TEACHER OF LIFE',
@@ -564,83 +648,112 @@ export class LibraryLoreGenerator {
        ╚══════════════════════════════════╝
     `;
 
-    return `${emblemAscii}\n\n"${mottos[classification] || mottos['Fiction']}"\n\nEngraved by the Master Guild of Illuminators in the Grand Nave of Alderia.`;
+    return `${emblemAscii}\n\n"${mottos[classification] || mottos['Fiction']}"\n\nIlluminated under the Authority of ${organization} in ${realm}.`;
   }
 
-  private static generateDedication(prng: () => number): string {
+  private static generateDedication(authorFirst: string, realm: string, prng: () => number): string {
     const dedications = [
-      `To the stonemasons and architects of the First Age, who raised these vaulted arches without fear of the abyss, and whose chisel marks still guide our hands.`,
-      `For Seraphina, who tended the hearth and replenished the midnight oil when the winter tempests besieged the high mountain pass.`,
-      `To the seekers of truth who walk through the shadowed nave, holding a solitary candle against the encroaching darkness.`,
-      `Dedicated to the Venerable Archon Aurelius, who preserved the sacred scrolls from the great flood of the lower crypts.`,
-      `For those who dare to decipher the starlight, and who understand that every stone in this cathedral bears a secret memory.`
+      `To the master craftsmen and architects of ${realm}, whose chisel marks and geometrical canons remain our eternal guide.`,
+      `For Lady ${this.FIRST_NAMES[Math.floor(prng() * this.FIRST_NAMES.length)]}, who preserved the midnight oil and defended these manuscripts during the winter tempests of ${realm}.`,
+      `To the seekers of empirical truth across the cloisters of ${realm}, holding a solitary candle against the darkness.`,
+      `Dedicated to Chancellor ${authorFirst} of the High Council, who sheltered these scrolls in the stone vaults.`,
+      `For those who dare to decipher the starlight, and who recognize the divine geometry underlying every stone.`
     ];
-    return `\n\n\n\n\n\n\n\n\n\n"${dedications[Math.floor(prng() * dedications.length)]}"\n\n— The Author`;
+    return `\n\n\n\n\n\n"${dedications[Math.floor(prng() * dedications.length)]}"\n\n— The Author`;
   }
 
   private static generateForeword(
     classification: MainBookClassification,
     bookTitle: string,
     author: string,
+    realm: string,
+    organization: string,
     part: number,
-    _prng: () => number
+    prng: () => number
   ): string {
+    const prefectName = `${this.FIRST_NAMES[Math.floor(prng() * this.FIRST_NAMES.length)]} ${this.SURNAMES_AND_EPITHETS[Math.floor(prng() * this.SURNAMES_AND_EPITHETS.length)]}`;
+
     if (part === 1) {
-      return `It is with profound reverence that we present this restored edition of ${bookTitle}. For three centuries, the original manuscript lay undisturbed within the iron-bound chests of the High Apse, shielded from both the damp air of the lower vaults and the turmoil of the Interregnum.\n\nThe author, ${author}, was not merely a chronicler, but an initiate of the highest order. Their mastery of ${classification} remains unmatched throughout the historical record. In an era when lesser scribes surrendered to superstition, ${author} applied rigorous observation, sacred geometry, and metaphysical clarity to every page.\n\nAs the reader prepares to turn these parchment leaves, let it be remembered that wisdom is not a passive treasure, but an active covenant between the past and the present.`;
+      return `It is with profound reverence that ${organization} presents this archival edition of ${bookTitle}. For generations, the original parchment folios lay securely preserved within the stone chests of ${realm}, shielded from the elements and the turbulence of forgotten wars.\n\nThe author, ${author}, was a celebrated authority in ${classification.toLowerCase()}. Applying rigorous observation, sacred proportion, and empirical discipline, their conclusions continue to illuminate scholars across the civilized realms.\n\nAs the reader turns these leaves, remember that wisdom is not a passive heirloom, but an active covenant between past and present.`;
     }
-    return `In preparing this definitive archival codex, the Guild of Illuminators has carefully verified every citation against the original calfskin folios. Minor glosses in the margins have been preserved, for they reveal the living debate that surrounded this work during the Solstice Reformation.\n\nMay this treatise illuminate the minds of scholars who walk these silent cloisters. Let the candle burn bright upon the study desk, and let no word of truth be forgotten.\n\n— Archon Theodosia of the High Scriptorium\nPrefect of the Cathedral Archives, Anno Domini`;
+    return `In preparing this definitive codex, the scribes of ${organization} have carefully verified every citation against the original calfskin folios. Minor annotations in the margins have been preserved, for they reveal the living intellectual debate that surrounded this work.\n\nMay this treatise inspire all scholars who walk these silent cloisters. Let the candle burn bright upon the study desk, and let no word of truth be forgotten.\n\n— Prefect ${prefectName}\nCustodian of the Archives of ${realm}`;
   }
 
   private static generatePrologue(
     classification: MainBookClassification,
     subgenre: string,
     bookTitle: string,
+    realm: string,
+    organization: string,
+    isSTEM: boolean,
     _prng: () => number
   ): string {
-    return `Before the first keystone was locked into place beneath the cathedral dome, the foundations of ${subgenre} had already been decreed by the ancient scholars. It is written that the universe speaks in a language of resonance, proportion, and light.\n\nWithin this volume of ${bookTitle}, we endeavor to bridge the vast chasm between ancient lore and empirical truth. Every observation recorded herein has been verified within the consecrated halls of the Grand Nave, under the watchful gaze of the stone archons.\n\nLet the reader cast aside trivial distractions and step across the threshold into the deeper mysteries of ${classification}.`;
+    const stemAddon = isSTEM
+      ? `\n\nThe mathematical derivations and technical figures contained within these pages have been verified using the calibrated instruments of ${organization}. Let no reader assume that geometry is detached from reality; for every equation inscribed upon these leaves reflects the exact physical laws governing keystones, etheric resonance, and planetary orbits.`
+      : `\n\nLet the reader cast aside trivial distractions and step across the threshold into the deeper mysteries of ${classification.toLowerCase()}. May the illuminated wisdom of the past grant insight into the unfolding destiny of ${realm}.`;
+
+    return `Before the first cornerstone was laid in the ancient city of ${realm}, the principles of ${subgenre.toLowerCase()} had already been decreed by the first masters. It is written that the cosmos speaks in a language of resonance, proportion, and light.\n\nWithin this volume of ${bookTitle}, we endeavor to bridge the chasm between ancient lore and empirical truth. Every observation recorded herein has been verified within the consecrated halls of ${organization}.${stemAddon}`;
   }
 
-  private static getChapterTitlesForBook(classification: MainBookClassification, count: number, _prng: () => number): string[] {
+  private static getChapterTitlesForBook(
+    classification: MainBookClassification,
+    subgenre: string,
+    count: number,
+    _prng: () => number
+  ): string[] {
+    if (subgenre.includes('Linguistics') || subgenre.includes('Philology')) {
+      return [
+        'Morphology of Ancient Dialects',
+        'Rules of Classical Syntax',
+        'Etymological Transpositions',
+        'Orthography of Sacred Inscriptions',
+        'Phonetic Inflections in the First Tongue',
+        'Syntactical Syntheses'
+      ].slice(0, count);
+    }
+    if (subgenre.includes('Logic') || subgenre.includes('Rhetoric')) {
+      return [
+        'The Canon of Syllogistic Inference',
+        'Modus Barbara and Modal Validity',
+        'Dialectical Refutation of Paradox',
+        'Axiomatic Foundations of Truth',
+        'The Structure of Sound Propositions',
+        'Formal Deductions'
+      ].slice(0, count);
+    }
+
     const chapterPools: Record<MainBookClassification, string[]> = {
       'Fiction': [
         'The Threshold of Twilight', 'The Shadow in the Cloister', 'The Oath of Iron and Ash',
-        'The Awakening of the High Tower', 'Song of the Wounded Stag', 'The Battle of the North Gate',
-        'Whispers in the Crypt', 'The Return of the Sovereign'
+        'The Awakening of the High Tower', 'Song of the Wounded Stag', 'The Battle of the North Gate'
       ],
       'Non-Fiction': [
-        'Chronological Foundations', 'The Siege of the Outer Walls', 'Cultural Artifacts of Alderia',
-        'Anatomy of Statecraft', 'The Great Reconstruction', 'Trade Across the Southern Straits',
-        'The Reformation of the Guilds', 'The Legacy of the Archons'
+        'Chronological Foundations', 'The Siege of the Outer Walls', 'Cultural Artifacts of Antiquity',
+        'Anatomy of Statecraft', 'The Great Reconstruction', 'Trade Across the Southern Straits'
       ],
       'Academic Texts & Grammar': [
         'Morphology of Ancient Dialects', 'Rules of Classical Syntax', 'Etymological Transpositions',
-        'Orthography of Sacred Runes', 'The Canon of Dialectic', 'Rhetorical Figures in Formal Discourse',
-        'The Metric System of Epic Poetry', 'Syntactical Syntheses'
+        'Orthography of Sacred Runes', 'The Canon of Dialectic', 'Rhetorical Figures in Formal Discourse'
       ],
       'Professional Manuals': [
         'Preparation of Mortar & Keystones', 'Thermal Tempering of Knight Blades', 'Harvesting Lunar Nightshade',
-        'Foundations of Arch Buttresses', 'Standard Operating Protocols', 'Purification of Heavy Metals',
-        'Calculations of Load Bearing Columns', 'Preservation of Archival Vellum'
+        'Foundations of Arch Buttresses', 'Standard Operating Protocols', 'Purification of Heavy Metals'
       ],
       'Breakthroughs & Theories': [
         'The Hypothesis of Etheric Flow', 'Mathematical Geometries of Astral Spheres', 'Observation of Particle Flux',
-        'Harmonic Resonance Theorems', 'Empirical Corroborations', 'The Prism Refraction Axiom',
-        'Calculus of Celestial Spheres', 'The Unified Field of Light'
+        'Harmonic Resonance Theorems', 'Empirical Corroborations', 'The Prism Refraction Axiom'
       ],
       'Dissertations': [
         'Theological Axioms of the Light', 'Epistemology of the Subterranean Mind', 'Excavation Findings at Level VII',
-        'Cryptographic Analysis of the Vault Seal', 'Synthesis & Concluding Theses', 'The Doctrine of Causality',
-        'Metaphysical Proofs of Order', 'The Dialectic of the Archons'
+        'Cryptographic Analysis of the Vault Seal', 'Synthesis & Concluding Theses', 'The Doctrine of Causality'
       ],
       'Mysticism & Magic': [
         'Igniting the Inner Hearth Flame', 'Invocations to the Starlight Wardens', 'Weaving the Wards of Protection',
-        'The Seven Veils of the Void', 'Rituals of Ascension', 'Alchemical Transmutation of the Spirit',
-        'The Sigils of the Four Winds', 'The Rites of the Midnight Solstice'
+        'The Seven Veils of the Void', 'Rituals of Ascension', 'Alchemical Transmutation of the Spirit'
       ],
       'Tales & Mythology': [
         'The Primordial Slumber of the Earth', 'When the Lion Roared Over Silverpeak', 'The Tragedy of the Sunken Spires',
-        'The Celestial Falcon and the Wyrm', 'Legends of the High Barrows', 'The Song of the First King',
-        'The Wandering Star of Alderia', 'The Great Vigil of the Watchers'
+        'The Celestial Falcon and the Wyrm', 'Legends of the High Barrows', 'The Song of the First King'
       ]
     };
 
@@ -648,217 +761,143 @@ export class LibraryLoreGenerator {
     return pool.slice(0, count);
   }
 
-  private static generateChapterPageContent(
-    classification: MainBookClassification,
+  private static generateFittedChapterPageContent(
+    _classification: MainBookClassification,
     subgenre: string,
     writingStyle: BookWritingStyle,
     chapterIdx: number,
     pageInChapter: number,
     totalPagesInChapter: number,
-    bookTitle: string,
+    _bookTitle: string,
     chapterTitle: string,
-    isMathScienceBook: boolean,
+    realm: string,
+    organization: string,
+    isSTEM: boolean,
+    pageSeed: number,
     prng: () => number
   ): string {
-    // 1. Epic Verse Formatting (Poetic Stanzas)
+    // 1. Epic Verse Formatting
     if (writingStyle === 'epic-verse') {
       const verseStanzas = [
         `When shadows lengthen o'er the silent stone,\nAnd solemn winds through empty cloisters moan,\nThe ancient guardians take their vigilant stand,\nWith silver blades unsheathed in righteous hand.`,
-        `Behold the golden sun across the nave,\nWhere once the banner of the Lion gave\nIts proud salute unto the vaulted skies,\nBefore the stars in silent slumber rise.`,
-        `No mortal iron can break the sacred seal,\nNor turn aside the truth that stones reveal;\nFrom deep foundations to the spire on high,\nThe bells of Alderia shall never die.`
+        `Behold the golden sun across the nave,\nWhere once the banner of the sovereign gave\nIts proud salute unto the vaulted skies,\nBefore the stars in silent slumber rise.`,
+        `No mortal iron can break the sacred seal,\nNor turn aside the truth that stones reveal;\nFrom deep foundations to the spire on high,\nThe bells of ${realm} shall never die.`,
+        `Through iron gates where ancient monarchs trod,\nBeneath the vaulted firmament of God,\nThe silent scrolls their mystic light bestow,\nWhile centuries in solemn cadence flow.`
       ];
       const s1 = verseStanzas[chapterIdx % verseStanzas.length];
       const s2 = verseStanzas[(chapterIdx + 1) % verseStanzas.length];
-      return `[VERSE CANTO ${chapterIdx + 1}]\n\n${s1}\n\n${s2}\n\n❦ ════════ ❧\n\n*Refrain: "Hark to the chime that echoes in the deep,\nWhere forgotten kings their ancient vigil keep."*`;
+
+      return `[VERSE CANTO ${chapterIdx + 1}]\n\n${s1}\n\n${s2}\n\n❦ ════════════════════ ❧\n\n*Refrain: "Hark to the chime that echoes in the deep, where forgotten kings their ancient vigil keep."*`;
     }
 
-    // 2. Technical Manual Formatting
-    if (writingStyle === 'technical-manual') {
+    // 2. Discipline-Specific STEM / Science / Math / Logic Generation
+    if (isSTEM) {
       if (pageInChapter === 1) {
-        return `[SECTION ${chapterIdx + 1}.0 — OPERATIONAL SPECIFICATION]\n\n` +
-          `Master Craftsman Protocol for: ${chapterTitle.toUpperCase()}.\n\n` +
-          `• Required Workshop Tools: Chiseled Granite Anvil, High-Temperature Bellows, Calibrated Plumb Bob.\n` +
-          `• Safe Working Temperature: 820°C to 1140°C (Orange to Bright Yellow Heat).\n` +
-          `• Standard Tolerance: ±0.05 cubits per architectural bay.\n\n` +
-          `Before commencing operations, the apprentice shall verify that the foundation mortar has cured for no fewer than seven full solar cycles. Any deviation in moisture content will induce shear cracking along the diagonal compressive line.`;
+        // Dynamically select varied diagram for this chapter
+        const diagramList = ['GOTHIC_ARCH', 'ASTROLABE_MERIDIAN', 'OPTICAL_PRISM', 'ALCHEMICAL_CRUCIBLE', 'CIPHER_LATTICE', 'WAVE_DISPERSION', 'VAULT_FLOORPLAN', 'SYLLOGISM_EULER'];
+        
+        let chosenType = diagramList[(pageSeed + chapterIdx) % diagramList.length];
+        if (chapterIdx === 0) {
+          if (subgenre.includes('Linguistics') || subgenre.includes('Logic')) chosenType = 'SYLLOGISM_EULER';
+          else if (subgenre.includes('Celestial') || subgenre.includes('Astral')) chosenType = 'ASTROLABE_MERIDIAN';
+          else if (subgenre.includes('Optics') || subgenre.includes('Light')) chosenType = 'OPTICAL_PRISM';
+          else if (subgenre.includes('Metallurgy') || subgenre.includes('Smelting')) chosenType = 'ALCHEMICAL_CRUCIBLE';
+          else if (subgenre.includes('Cryptographic') || subgenre.includes('Runic')) chosenType = 'CIPHER_LATTICE';
+          else if (subgenre.includes('Wave') || subgenre.includes('Resonance')) chosenType = 'WAVE_DISPERSION';
+          else chosenType = 'GOTHIC_ARCH';
+        }
+
+        const diagramTitle = `${chosenType.replace(/_/g, ' ')} IN ${realm.toUpperCase()}`;
+        const diagramCaption = `Fig ${chapterIdx + 1}.1 — Verified in the Scriptorium of ${organization}.`;
+
+        const leadIntros = [
+          `To establish the empirical foundations of ${chapterTitle.toLowerCase()}, the scholars of ${organization} conducted precise measurements across the observatories of ${realm}. Every structural and mathematical relation observed conforms strictly to invariant physical laws:`,
+          `When analyzing the primary harmonics of ${chapterTitle.toLowerCase()}, natural philosophers at ${organization} demonstrated that continuous equilibrium is preserved along all boundary surfaces in ${realm}:`,
+          `An investigation into the foundational axioms of ${chapterTitle.toLowerCase()} reveals that empirical observations recorded in ${realm} match theoretical predictions within an experimental variance of less than $0.05\\%$:`
+        ];
+        const leadText = leadIntros[chapterIdx % leadIntros.length];
+        const diagramToken = `[SVG_DIAGRAM:${chosenType}:${diagramTitle}:${diagramCaption}:${pageSeed}]`;
+
+        return `${leadText}\n\n${diagramToken}`;
+      } else if (pageInChapter === 2) {
+        // Procedurally generated unique mathematical proof & equation
+        const proof = GenerativeMathEngine.generateUniqueProof(subgenre, chapterIdx, pageInChapter, realm, organization, pageSeed);
+
+        let proofContent = `[${proof.theoremHeader}]\n\n${proof.premiseText}\n\n${proof.primaryEquation}\n\n${proof.stepHeader}\n\n${proof.stepLines.join('\n\n')}`;
+        if (proof.matrixEquation) {
+          proofContent += `\n\n${proof.matrixEquation}`;
+        }
+        if (proof.secondaryEquation) {
+          proofContent += `\n\n${proof.secondaryEquation}`;
+        }
+        proofContent += `\n\n${proof.conclusionText}\n\n[${proof.qedText}]`;
+
+        return proofContent;
+      } else {
+        const observationData = [
+          `Table of Verified Empirical Constants (${realm})\n• Primary Harmonic Modulus: ${(1.24 + chapterIdx * 0.18).toFixed(2)} GPa\n• Critical Boundary Flux: ${(48.2 + chapterIdx * 3.5).toFixed(1)} N/m²\n• Resonant Wave Velocity: ${(312 + chapterIdx * 45)} m/s\n• Temperature Threshold: ${(850 + chapterIdx * 125)}°C`,
+          `Table of Observational Ephemerides (${organization})\n• Radial Meridian Offset: +${(0.042 + chapterIdx * 0.008).toFixed(3)} rad\n• Angular Precession Index: ${(24.5 + chapterIdx * 2.1).toFixed(1)} arcsec\n• Gravitational Curvature: ${(9.806 + chapterIdx * 0.012).toFixed(3)} m/s²\n• Optical Transmittance: ${(98.4 - chapterIdx * 0.6).toFixed(1)}%`
+        ];
+        const tableText = observationData[chapterIdx % observationData.length];
+        const desc = `Following the mathematical validation derived in the preceding section, the data recorded above verifies that the physical systems of ${realm} remain in steady-state equilibrium throughout all operational cycles.`;
+
+        return `${tableText}\n\n${desc}`;
       }
     }
 
-    // 3. Philosophical Dialogue Formatting
-    if (writingStyle === 'philosophical-dialogue') {
-      if (pageInChapter === 1) {
-        return `[DISPUTATIO: ON THE NATURE OF ${chapterTitle.toUpperCase()}]\n\n` +
-          `MASTER AURELIUS: Tell me, Brother Cassian, when you observe the keystone suspended fifty cubits above the marble floor, what force prevents its descent into the dust?\n\n` +
-          `CASSIAN: Surely, Master, it is the mortar that binds it to the adjoining voussoirs.\n\n` +
-          `AURELIUS: Nay, for even if the mortar were turned to sand, the arch would stand so long as the lateral thrust meets the opposing buttress with equal and opposite force. Thus, balance is not born of adhesion, but of dynamic opposition.`;
-      }
-    }
-
-    // 4. Mathematical & Scientific Proof Page (Page 2 of eligible books)
-    if (pageInChapter === 2 && isMathScienceBook) {
-      return this.generateMathProofPage(classification, subgenre, chapterIdx, prng);
-    }
-
-    // 5. Standard Scholarly Prose
+    // 3. Narrative & Historical Balanced Page Generation (Non-STEM)
+    const authorName = `${this.FIRST_NAMES[Math.floor(prng() * this.FIRST_NAMES.length)]} ${this.SURNAMES_AND_EPITHETS[Math.floor(prng() * this.SURNAMES_AND_EPITHETS.length)]}`;
+    
     if (pageInChapter === 1) {
-      const p1Openers = [
-        `To understand the essence of ${chapterTitle.toLowerCase()}, one must first examine the historical records preserved in the scriptorium. As noted in the annals of ${subgenre}, the earliest masters observed that every phenomenon carries an underlying symmetry.\n\nWhen we examine the stone arches and fluted pillars of our own cathedral, we see this principle made manifest in granite and mortar. Nothing is arbitrary; every measurement corresponds to a higher geometric harmony.`,
-        `The records of the third century make frequent mention of ${chapterTitle.toLowerCase()}. In those days, before the great reformation, scholars debated whether such knowledge should remain sequestered within the high vaults or shared among the guild masters.\n\nIt was through rigorous experimentation that the truth was finally demonstrated, forever altering our understanding of ${subgenre}.`,
-        `Consider the profound implications of ${chapterTitle.toLowerCase()} upon the development of modern statecraft and philosophy. As the high scribe wrote in his personal journals: "He who masters the foundational elements shall find the doors of the library open before him."\n\nLet us proceed to examine the specific proofs and methodologies that substantiate this claim.`
-      ];
-      return p1Openers[chapterIdx % p1Openers.length];
+      const p1 = `The historical records preserved within the archives of ${organization} provide an extraordinary perspective upon ${chapterTitle.toLowerCase()}. In the chronicles of ${realm}, it is recorded that during Chapter ${this.toRoman(chapterIdx + 1)}, the council addressed key reforms.\n\nScholars and statecraft masters gathered within the stone cloisters to draft foundational edicts that would preserve order for centuries to come. Each decree was sealed with the signet of the High Chapter.`;
+      const p2 = `Eyewitness accounts describe how delegates from every guild assembled to resolve the great debate. As Arch-Scholar ${authorName} noted: "A crown may pass in a single night of battle, but the enduring truth carved into stone remains eternal."\n\nLet us proceed to examine the specific articles of agreement.`;
+
+      return `${p1}\n\n${p2}`;
+    } else if (pageInChapter === totalPagesInChapter) {
+      const pEnd1 = `In concluding this analysis of ${chapterTitle.toLowerCase()}, we recognize the enduring legacy left by the chroniclers of ${realm}. The peace established during this era allowed philosophy and architecture to flourish across the provinces.\n\nThe monuments and archival codices that survive stand as silent witnesses to the triumph of wisdom over discord.`;
+      const pEnd2 = `As the midnight bell strikes across the cloisters of ${organization}, we bring this chapter to a close. In the subsequent section, we shall examine the secondary sources and correspondence preserved in the vault.\n\nFinis Sectionis • May the light of truth never fade in ${realm}.`;
+
+      return `${pEnd1}\n\n${pEnd2}`;
+    } else {
+      const pMid1 = `Furthermore, an examination of the secondary artifacts discovered during excavations in ${realm} reveals fascinating cultural nuances. The ceremonial bronze chalices demonstrate that the craftsmen of ${organization} possessed advanced metallurgical casting techniques.\n\nEach inscription was carefully rendered in the classical script of the First Tongue, utilizing poetic meter that celebrated vigilance and duty.`;
+      const pMid2 = `Comparative studies conducted across neighboring archives further corroborate these findings, revealing an exchange of illuminated folios that bound the northern and southern realms in mutual prosperity.`;
+
+      return `${pMid1}\n\n${pMid2}`;
     }
-
-    if (pageInChapter === totalPagesInChapter) {
-      const pEndTexts = [
-        `In concluding this discussion of ${chapterTitle.toLowerCase()}, we must emphasize that theoretical knowledge without practical application remains barren. The true scholar must test these principles within the laboratory and the workshop.\n\nAs we prepare to enter the subsequent chapter, hold fast to these foundational insights, for they shall serve as your compass through the intricate labyrinth of ${bookTitle}.`,
-        `Thus we bring to a close our examination of this vital subject. Let the student transcribe these axioms into their personal commonplace book, that the light of understanding may never be extinguished by forgetfulness.\n\nThe subsequent chapter will expand upon these conclusions, delving into advanced formulations and practical demonstrations.`
-      ];
-      return pEndTexts[chapterIdx % pEndTexts.length];
-    }
-
-    const pMidTexts = [
-      `Furthermore, let us analyze the secondary characteristics that distinguish these phenomena. When light passes through the stained-glass windows of the northern apse, the spectrum breaks into distinct harmonic bands. Each band corresponds directly to the vibrational frequencies outlined in our earlier axioms.\n\nTable of Observational Values:\n• Primary Resonance: 432 Cycles per Solstice\n• Secondary Harmonic: 864 Cycles\n• Refractive Index: 1.618 (Golden Mean)\n\nThese numerical ratios demonstrate beyond all doubt that nature conforms to the mathematical canon established by the first architects.`,
-      `In the accompanying illustrations drawn upon the facing parchment, the scholar will observe the structural configuration of the keystone. Notice how the mortise joint interlocks with the diagonal thrust vector of the rib vault.\n\nWithout this precise angle of 45 degrees, the entire weight of the clerestory wall would collapse inward upon the nave. Thus, sacred geometry is not merely an aesthetic pursuit, but the absolute guarantor of physical stability.`,
-      `During the excavations conducted beneath the fourth subterranean level, several brass astrolabes were unearthed bearing inscriptions identical to those cited in this chapter. The alignment of the gimbal rings matches the celestial precession recorded during the reign of Archon Aurelius IX.`
-    ];
-    return pMidTexts[chapterIdx % pMidTexts.length];
-  }
-
-  private static generateMathProofPage(
-    classification: MainBookClassification,
-    subgenre: string,
-    chapterIdx: number,
-    prng: () => number
-  ): string {
-    const mathTemplates = [
-      // 1. Celestial Orbital Mechanics & Harmonic Integration
-      `[THEOREM III: ORBITAL HARMONIC PRECESSION OF ${subgenre.toUpperCase()}]\n\n` +
-      `Let $\\Psi(t)$ denote the instantaneous angular displacement of the third celestial meridian ring.\n\n` +
-      `$$\\oint_{\\mathcal{S}} \\nabla \\Psi \\cdot d\\vec{A} = \\frac{4\\pi G \\cdot \\mathcal{M}_{\\odot}}{\\sqrt{1 - \\frac{2GM}{r c_e^2}}} \\cdot \\cos\\left(\\frac{k \\pi}{12}\\right)$$\n\n` +
-      `[MATHEMATICAL DERIVATION & PROOF]:\n\n` +
-      `1. Define the radial gravitational flux vector $\\vec{\\Phi}_r = -\\frac{G \\mathcal{M}}{r^2} \\hat{r}$.\n\n` +
-      `2. By applying the divergence theorem across the closed celestial sphere $\\Omega$:\n\n` +
-      `$$\\iiint_{\\Omega} (\\nabla^2 \\Psi + \\omega_0^2 \\Psi) \\, dV = \\kappa \\sum_{n=1}^{7} \\frac{\\alpha_n}{n^2} \\sin(n \\theta)$$\n\n` +
-      `3. For all integer solstices $k \\in \\mathbb{Z}$, the boundary traction vanishes: $\\tau_{\\text{boundary}} = 0$.\n\n` +
-      `$$\\Delta \\Psi_{\\text{precession}} = \\frac{6 \\pi G \\mathcal{M}}{c^2 a (1 - e^2)} \\equiv 42.98'' \\text{ per century}$$\n\n` +
-      `[Q.E.D. • Quod Erat Demonstrandum]`,
-
-      // 2. Cathedral Vault Keystone Vector Equilibrium
-      `[LEMMA II: DUAL-VECTOR EQUILIBRIUM OF THE POINTED ARCH]\n\n` +
-      `To prevent shear failure at the crown keystone, the diagonal compressive thrust must satisfy:\n\n` +
-      `$$\\sigma_{\\text{keystone}} = \\frac{\\gamma_{\\text{stone}} \\cdot V_{\\text{vault}}}{2 \\sin(\\alpha) \\cdot d_{\\text{buttress}}} \\le [\\sigma_{\\text{granite}}] = 48.5 \\ \\text{MPa}$$\n\n` +
-      `[STRUCTURAL RESOLUTION MATRIX]:\n\n` +
-      `$$\\begin{bmatrix} \\cos(45^\\circ) & -\\sin(45^\\circ) \\\\ \\sin(45^\\circ) & \\cos(45^\\circ) \\end{bmatrix} \\begin{bmatrix} F_{\\text{vertical}} \\\\ F_{\\text{lateral}} \\end{bmatrix} = \\begin{bmatrix} 0 \\\\ \\frac{\\rho g R^2}{2} \\end{bmatrix}$$\n\n` +
-      `Integrating along the curvature arc from impost to apex:\n\n` +
-      `$$T_{\\text{horizontal}} = \\int_{0}^{\\pi/4} \\rho g R^2 \\cos(\\theta) \\, d\\theta = \\rho g R^2 \\left(1 - \\frac{\\sqrt{2}}{2}\\right)$$\n\n` +
-      `This establishes that a 45-degree pointed Gothic arch reduces lateral wall thrust by exactly 29.3% compared to a semi-circular Roman barrel vault.\n\n` +
-      `[Q.E.D. • Quod Erat Demonstrandum]`,
-
-      // 3. Etheric Wave Dispersion Tensor
-      `[AXIOM V: ETHERIC CONTINUITY & ENERGY CONSERVATION]\n\n` +
-      `In a non-dispersive etheric medium, the complex scalar field $\\Phi(x,t)$ satisfies the second-order wave equation:\n\n` +
-      `$$\\frac{\\partial^2 \\Phi}{\\partial t^2} - c_e^2 \\nabla^2 \\Phi + \\mu_0^2 \\Phi^3 = 0$$\n\n` +
-      `[PROOF OF FREQUENCY HARMONICS]:\n\n` +
-      `Let $\\Phi(x,t) = A_0 e^{i(k x - \\omega t)}$. Substituting into the differential operator:\n\n` +
-      `$$\\omega(k) = \\sqrt{c_e^2 k^2 + \\mu_0^2 A_0^2}$$\n\n` +
-      `$$\\text{Phase Velocity } v_p = \\frac{\\omega}{k} = c_e \\sqrt{1 + \\frac{\\mu_0^2 A_0^2}{c_e^2 k^2}} > c_e$$\n\n` +
-      `$$\\text{Group Velocity } v_g = \\frac{d\\omega}{dk} = \\frac{c_e^2 k}{\\sqrt{c_e^2 k^2 + \\mu_0^2 A_0^2}} < c_e$$\n\n` +
-      `$$\\therefore v_p \\cdot v_g = c_e^2 \\quad [\\text{Verified by Astrolabe Interferometry}]$$\n\n` +
-      `[Q.E.D. • Quod Erat Demonstrandum]`,
-
-      // 4. Cryptographic Vault Cipher & Modular Prime Factorization
-      `[PROPOSITION VII: RECURSIVE ARCHIVAL CIPHER INVERSION]\n\n` +
-      `Let the cryptographic inscription on Vault Door VII be defined by the modular exponentiation:\n\n` +
-      `$$C \\equiv M^{e} \\pmod{N}, \\quad \\text{where } N = p \\cdot q \\text{ and } \\gcd(e, \\phi(N)) = 1$$\n\n` +
-      `[PROOF OF UNIQUE DECIPHERABILITY]:\n\n` +
-      `1. By Euler's Totient Theorem, for any integer $M$ coprime to $N$:\n\n` +
-      `$$M^{\\phi(N)} \\equiv M^{(p-1)(q-1)} \\equiv 1 \\pmod{N}$$\n\n` +
-      `2. Construct the private deciphering exponent $d$ such that:\n\n` +
-      `$$e \\cdot d \\equiv 1 \\pmod{\\phi(N)} \\implies e \\cdot d = 1 + k \\phi(N)$$\n\n` +
-      `3. Raising the ciphertext $C$ to the power of $d$:\n\n` +
-      `$$C^d \\equiv (M^e)^d \\equiv M^{1 + k \\phi(N)} \\equiv M \\cdot (M^{\\phi(N)})^k \\equiv M \\pmod{N}$$\n\n` +
-      `$$\\therefore M \\equiv C^d \\pmod{N} \\quad [\\text{The Vault Seal is Unconditionally Invertible}]$$\n\n` +
-      `[Q.E.D. • Quod Erat Demonstrandum]`,
-
-      // 5. Alchemical Metallurgy & Adamantine Alloy Stoichiometry
-      `[FORMULA IV: STOICHIOMETRIC TRANSFORMATION OF CRUCIBLE STEEL]\n\n` +
-      `Under an inert carbon-rich flame at $\\Delta T = 1450^\\circ \\text{C}$, the crystalline precipitation follows:\n\n` +
-      `$$3\\text{Fe}_{(\\alpha)} + 2\\text{C}_{(\\text{graphite})} + \\text{W} \\xrightarrow{\\Delta H = -342 \\ \\text{kJ/mol}} \\text{Fe}_3\\text{W}\\text{C}_2 \\downarrow \\ (\\text{Adamantine Matrix})$$\n\n` +
-      `[CRYSTALLINE GIBBS FREE ENERGY DERIVATION]:\n\n` +
-      `$$\\Delta G^\\circ(T) = \\Delta H^\\circ - T \\Delta S^\\circ = -342{,}000 + 118.4 \\cdot T \\ \\text{J/mol}$$\n\n` +
-      `Setting $\\Delta G^\\circ = 0$ reveals the critical threshold temperature:\n\n` +
-      `$$T_{\\text{critical}} = \\frac{342{,}000}{118.4} = 2888.5 \\ \\text{K} \\equiv 2615.3^\\circ\\text{C}$$\n\n` +
-      `Since the forge operates at $1450^\\circ\\text{C} < T_{\\text{critical}}$, $\\Delta G < 0$, proving spontaneous crystallization of indestructible Damascus grain boundaries.\n\n` +
-      `[Q.E.D. • Quod Erat Demonstrandum]`,
-
-      // 6. Sacred Runic Matrix & Cardinal Element Eigenvalues
-      `[THEOREM I: CARDINAL ELEMENTAL EIGENVALUE MATRIX]\n\n` +
-      `Let the warding field be represented by the symmetric 2x2 elemental matrix $\\mathbf{E}$:\n\n` +
-      `$$\\mathbf{E} = \\begin{bmatrix} \\text{Ignis} & \\text{Aer} \\\\ \\text{Terra} & \\text{Aqua} \\end{bmatrix} = \\begin{bmatrix} 7 & 3 \\\\ 3 & 7 \\end{bmatrix}$$\n\n` +
-      `[EIGENVALUE DECOMPOSITION]:\n\n` +
-      `$$\\det(\\mathbf{E} - \\lambda \\mathbf{I}) = \\begin{vmatrix} 7 - \\lambda & 3 \\\\ 3 & 7 - \\lambda \\end{vmatrix} = (7 - \\lambda)^2 - 9 = 0$$\n\n` +
-      `$$\\implies (7 - \\lambda) = \\pm 3 \\implies \\lambda_1 = 10, \\quad \\lambda_2 = 4$$\n\n` +
-      `Corresponding Principal Ward Vectors:\n\n` +
-      `$$\\vec{v}_1 = \\frac{1}{\\sqrt{2}} \\begin{pmatrix} 1 \\\\ 1 \\end{pmatrix} \\ (\\text{Harmonic Resonance}), \\quad \\vec{v}_2 = \\frac{1}{\\sqrt{2}} \\begin{pmatrix} 1 \\\\ -1 \\end{pmatrix} \\ (\\text{Anti-Ward})$$\n\n` +
-      `Maximum field luminescence corresponds to the dominant eigenvalue $\\lambda_{\\max} = 10$.\n\n` +
-      `[Q.E.D. • Quod Erat Demonstrandum]`
-    ];
-
-    const templateIndex = (chapterIdx + Math.floor(prng() * 2) + (classification.length % 3)) % mathTemplates.length;
-    return mathTemplates[templateIndex];
   }
 
   private static generateEpilogue(
     classification: MainBookClassification,
     bookTitle: string,
     author: string,
+    realm: string,
+    organization: string,
     _prng: () => number
   ): string {
-    return `Here terminates the core narrative and exposition of ${bookTitle}.\n\n"The candle flame upon the reading desk may flicker and fade as the night deepens, but the illuminated word inscribed upon parchment remains forever impervious to the decay of time."\n\nThrough wars, schisms, and the silent passage of centuries, the insights of ${author} have endured within these vaulted walls. May those who walk the stone aisles of the Grand Cathedral Library continue to seek, to question, and to preserve the sacred heritage of ${classification.toLowerCase()}.\n\nFinis Coronat Opus • The End Crowns the Work.`;
+    return `Here terminates the core exposition of ${bookTitle}.\n\n"The candle flame upon the reading desk may flicker and fade as the night deepens, but the illuminated word inscribed upon parchment remains forever impervious to the decay of time."\n\nThrough wars, schisms, and the silent passage of centuries, the insights of ${author} have endured within ${realm}. May those who walk the halls of ${organization} continue to seek, to question, and to preserve the heritage of ${classification.toLowerCase()}.\n\nFinis Coronat Opus • The End Crowns the Work.`;
   }
 
-  private static generateAcknowledgments(_author: string, _prng: () => number): string {
-    return `The author wishes to express profound gratitude to:\n\n• The High Archons of the Cathedral Library for granting access to the sequestered iron-bound vaults of the North Apse.\n\n• Master Scribe Roderick of the Iron Quill, whose tireless transcription and correction of the draft leaves ensured the purity of the text.\n\n• The Guild of Illuminators for the exquisite gold-leaf drop caps, frontispiece engraving, and hand-tooled leather bindings.\n\n• Fellow scholars and acolytes of the Scriptorium, whose rigorous debates provided the intellectual crucible in which these ideas were refined.\n\nTranscribed in the year of our Lord, in the scriptorium of the Grand Nave.`;
+  private static generateAcknowledgments(author: string, realm: string, organization: string, _prng: () => number): string {
+    return `The author wishes to express gratitude to:\n\n• The High Chapter of ${organization} for granting access to the sequestered vaults of ${realm}.\n\n• Master Scribe ${author} of the Iron Quill for meticulous transcription and correction of the draft leaves.\n\n• The Guild of Illuminators for the gold-leaf drop caps, frontispiece engraving, and hand-tooled binding.\n\n• Fellow scholars of ${realm}, whose rigorous debates provided the intellectual crucible in which these ideas were refined.`;
   }
 
-  private static generateAppendix(_classification: MainBookClassification, _prng: () => number): string {
-    return `APPENDIX: HISTORICAL CITATIONS & COMPARATIVE CHRONOLOGY\n\n1. Codex Alderia (Vol. IV, fol. 112r) — Primary source for the architectural dimensions of the first cathedral nave.\n\n2. The Solstice Ephemeris (Year 1104) — Astronomical tables recording the celestial alignment of the celestial globe.\n\n3. Liber Alchimia (MS-842) — Reference formulas for the preservation of oak gall ink and calfskin vellum.\n\n4. Edict of the High Council (Year 1340) — Decreeing the perpetual preservation of all manuscripts within the Cathedral Library.\n\nAll documents are held in the secure archives of the Grand Nave and may be inspected by petition to the Prefect.`;
+  private static generateAppendix(_classification: MainBookClassification, realm: string, _prng: () => number): string {
+    return `APPENDIX: HISTORICAL CITATIONS & COMPARATIVE CHRONOLOGY\n\n1. Codex ${realm} (Vol. IV, fol. 112r) — Primary source for the architectural dimensions of the first cathedral.\n\n2. The Solstice Ephemeris (Year 1104) — Astronomical tables recording the celestial alignment of the meridian rings.\n\n3. Liber Alchimia (MS-842) — Reference formulas for the preservation of oak gall ink and calfskin vellum.\n\n4. Edict of the High Council of ${realm} — Decreeing the perpetual preservation of all manuscripts.\n\nAll documents are held in the secure archives and may be inspected by petition.`;
   }
 
   private static generateGlossary(_classification: MainBookClassification, _prng: () => number): string {
-    return `GLOSSARY OF ANCIENT TERMS\n\n• Alembic: A classical alchemical distillation apparatus consisting of a cucurbit and helm.\n\n• Apse: The semicircular vaulted recess at the eastern sanctuary of the cathedral.\n\n• Clerestory: The high upper tier of cathedral walls pierced with stained-glass lancet windows.\n\n• Drop-Cap: An oversized, illuminated initial capital letter at the opening of a chapter.\n\n• Keystones: The central wedge-shaped stone at the crown of an arch that locks the vault into place.\n\n• Vellum: Fine parchment prepared from calfskin, noted for its extreme durability and smooth texture.\n\n• Wainscot: Polished dark oak paneling lining the lower portion of interior stone walls.`;
+    return `GLOSSARY OF TERMS\n\n• Alembic: A classical distillation apparatus consisting of a cucurbit and helm.\n\n• Apse: The semicircular vaulted recess at the eastern sanctuary of the cathedral.\n\n• Clerestory: The upper tier of walls pierced with stained-glass lancet windows.\n\n• Drop-Cap: An oversized, illuminated initial capital letter opening a chapter.\n\n• Keystones: The central wedge-shaped stone locking an arch into place.\n\n• Vellum: Fine parchment prepared from calfskin, noted for its durability.\n\n• Wainscot: Polished dark oak paneling lining the lower interior stone walls.`;
   }
 
-  private static generateAuthorBio(author: string, era: string, classification: MainBookClassification, _prng: () => number): string {
-    return `ABOUT THE AUTHOR\n\n${author} was one of the most distinguished scholars of ${era}. Appointed Senior Chronicler of the Cathedral Archives at the age of thirty-two, they authored over twenty authoritative treatises on ${classification.toLowerCase()}, architecture, and natural philosophy.\n\nTheir pioneering work in archival preservation and manuscript illumination established the standards still practiced in the scriptorium today. When not writing in their private cell overlooking the cloister garden, they could be found lecturing before the Guild of Architects in the High Nave.\n\nTheir memory is preserved in the marble inscription plaque upon the southern ambulatory: "Sapientia Aeterna" (Eternal Wisdom).`;
-  }
-
-  private static generateTitle(prng: () => number, classification: MainBookClassification): string {
-    const pattern = this.TITLE_PATTERNS[Math.floor(prng() * this.TITLE_PATTERNS.length)];
-
-    const adj = this.ADJECTIVES[Math.floor(prng() * this.ADJECTIVES.length)];
-    const noun = this.NOUNS[Math.floor(prng() * this.NOUNS.length)];
-    const concept = this.CONCEPTS[Math.floor(prng() * this.CONCEPTS.length)];
-    const prof = this.PROFESSIONS[Math.floor(prng() * this.PROFESSIONS.length)];
-    const proper = this.PROPER_NAMES[Math.floor(prng() * this.PROPER_NAMES.length)];
-
-    let res = pattern
-      .replace('[Adjective]', adj)
-      .replace('[Noun]', noun)
-      .replace('[Concept]', concept)
-      .replace('[Profession]', prof)
-      .replace('[ProperName]', proper);
-
-    if (classification === 'Professional Manuals' && !res.includes('Manual') && !res.includes('Guide') && !res.includes('Treatise')) {
-      res = `Manual of ${concept}`;
-    } else if (classification === 'Academic Texts & Grammar' && !res.includes('Grammar') && !res.includes('Lexicon') && !res.includes('Guide')) {
-      res = `Lexicon of ${adj} Syntax`;
-    } else if (classification === 'Dissertations') {
-      res = `Dissertation: ${res}`;
-    }
-
-    return res;
+  private static generateAuthorBio(
+    author: string,
+    era: string,
+    realm: string,
+    organization: string,
+    classification: MainBookClassification,
+    _prng: () => number
+  ): string {
+    return `ABOUT THE AUTHOR\n\n${author} was one of the most distinguished scholars of ${era} within ${realm}. Appointed Senior Chronicler of ${organization} at the age of thirty-two, they authored over twenty treatises on ${classification.toLowerCase()}, architecture, and natural philosophy.\n\nTheir pioneering work in archival preservation established standards still practiced today. When not writing in their cell overlooking the cloisters of ${realm}, they could be found lecturing before the Guild of Architects.\n\nTheir memory is preserved in the marble inscription plaque upon the southern ambulatory: "Sapientia Aeterna" (Eternal Wisdom).`;
   }
 
   private static toRoman(num: number): string {

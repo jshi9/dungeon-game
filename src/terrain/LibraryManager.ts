@@ -319,8 +319,8 @@ export class LibraryManager {
           let bookIndexInRow = 0;
 
           while (currentZ < endZ) {
-            const seed = (side + 2) * 100000 + bay * 10000 + rowIdx * 1000 + bookIndexInRow * 19;
-            const prng = LibraryLoreGenerator.createPrng(seed);
+            const baseSeed = (side === -1 ? 1000000 : 2000000) + bay * 80000 + rowIdx * 10000 + bookIndexInRow * 109 + 31;
+            const prng = LibraryLoreGenerator.createPrng(baseSeed);
 
             const remainingSpace = endZ - currentZ;
             if (remainingSpace < 0.07) break;
@@ -335,7 +335,7 @@ export class LibraryManager {
               const stackZ = currentZ + stackWidth / 2;
 
               for (let s = 0; s < stackCount; s++) {
-                const bookSeed = seed + s * 37;
+                const bookSeed = baseSeed + s * 1013 + 7;
                 const bookData = LibraryLoreGenerator.generateBook(bookSeed);
 
                 const bY = shelfY + 0.04 + s * bookThick + bookThick / 2;
@@ -362,7 +362,8 @@ export class LibraryManager {
               const bZ = currentZ + bWidth / 2;
               const bY = shelfY + 0.04 + bHeight / 2;
 
-              const bookData = LibraryLoreGenerator.generateBook(seed);
+              const bookSeed = baseSeed + 43;
+              const bookData = LibraryLoreGenerator.generateBook(bookSeed);
 
               const mat4 = new THREE.Matrix4();
               const pos = new THREE.Vector3(side * 6.55, bY, bZ);
@@ -601,8 +602,8 @@ export class LibraryManager {
         let uBookIdx = 0;
 
         while (currentZ < endZ) {
-          const seed = (side + 5) * 200000 + uRowIdx * 10000 + uBookIdx * 23;
-          const prng = LibraryLoreGenerator.createPrng(seed);
+          const baseSeed = (side === -1 ? 3000000 : 4000000) + uRowIdx * 80000 + uBookIdx * 109 + 17;
+          const prng = LibraryLoreGenerator.createPrng(baseSeed);
 
           const remaining = endZ - currentZ;
           if (remaining < 0.07) break;
@@ -617,7 +618,7 @@ export class LibraryManager {
             const stackZ = currentZ + stackWidth / 2;
 
             for (let s = 0; s < stackCount; s++) {
-              const bookSeed = seed + s * 41;
+              const bookSeed = baseSeed + s * 1013 + 7;
               const bookData = LibraryLoreGenerator.generateBook(bookSeed);
 
               const bY = shelfY + 0.04 + s * bookThick + bookThick / 2;
@@ -642,7 +643,8 @@ export class LibraryManager {
             const bZ = currentZ + bWidth / 2;
             const bY = shelfY + 0.04 + bHeight / 2;
 
-            const bookData = LibraryLoreGenerator.generateBook(seed);
+            const bookSeed = baseSeed + 43;
+            const bookData = LibraryLoreGenerator.generateBook(bookSeed);
 
             const mat4 = new THREE.Matrix4();
             const pos = new THREE.Vector3(side * 6.58, bY, bZ);
@@ -666,15 +668,15 @@ export class LibraryManager {
 
     this.createInstancedBookMeshes(upperPendingBooks);
 
-    // -----------------------------------------------------------------
+    // -------------------------------------------------------------
     // GRAND SYMMETRICAL INTEGRATED STAIRCASES (LEFT & RIGHT)
-    // -----------------------------------------------------------------
-    this.buildGrandIntegratedStaircase(-5.4, -2.5, 3.5, balconyY, -1);
-    this.buildGrandIntegratedStaircase(5.4, -2.5, 3.5, balconyY, 1);
+    // -------------------------------------------------------------
+    this.buildGrandIntegratedStaircase(-5.2, -2.8, 3.5, balconyY, -1);
+    this.buildGrandIntegratedStaircase(5.2, -2.8, 3.5, balconyY, 1);
   }
 
   /**
-   * Builds an architecturally integrated straight grand staircase from Z_start to Z_end
+   * Builds an architecturally integrated grand staircase with flared curtail entry and pillar pier integration
    */
   private buildGrandIntegratedStaircase(
     centerX: number,
@@ -685,63 +687,114 @@ export class LibraryManager {
   ): void {
     const stairGroup = new THREE.Group();
     const numSteps = 18;
-    const totalLength = endZ - startZ; // 6.0
-    const stepDepth = totalLength / numSteps; // ~0.333
-    const stepHeight = targetY / numSteps; // ~0.25
-    const stairWidth = 1.35;
+    const totalLength = endZ - startZ; // 6.3
+    const stepDepth = totalLength / numSteps; // 0.35
+    const stepHeight = targetY / numSteps; // 0.25
+    const baseStairWidth = 1.35;
 
     for (let i = 0; i < numSteps; i++) {
       const zPos = startZ + (i + 0.5) * stepDepth;
       const yBottom = 0;
       const yTop = (i + 1) * stepHeight;
 
+      // Bottom steps flare gracefully outward towards the nave (curtail steps)
+      const flare = i < 4 ? (4 - i) * 0.12 : 0;
+      const stepWidth = baseStairWidth + flare;
+      const stepCenterX = centerX - side * (flare / 2);
+
       // Solid stone riser support underneath each step
-      const riserGeom = new THREE.BoxGeometry(stairWidth, yTop - yBottom, stepDepth);
+      const riserGeom = new THREE.BoxGeometry(stepWidth, yTop - yBottom, stepDepth);
       const riserMesh = new THREE.Mesh(riserGeom, this.atlas.materials.stoneBrick);
-      riserMesh.position.set(centerX, yTop / 2, zPos);
+      riserMesh.position.set(stepCenterX, yTop / 2, zPos);
       riserMesh.receiveShadow = true;
       stairGroup.add(riserMesh);
 
-      // Polished dark oak stair tread
-      const treadGeom = new THREE.BoxGeometry(stairWidth + 0.06, 0.06, stepDepth + 0.04);
+      // Polished dark oak stair tread with bullnose edge
+      const treadGeom = new THREE.BoxGeometry(stepWidth + 0.06, 0.06, stepDepth + 0.04);
       const treadMesh = new THREE.Mesh(treadGeom, this.atlas.materials.darkOak);
-      treadMesh.position.set(centerX, yTop - 0.03, zPos);
+      treadMesh.position.set(stepCenterX, yTop - 0.03, zPos);
       treadMesh.receiveShadow = true;
       stairGroup.add(treadMesh);
+
+      // Turned Wooden Baluster on inner banister line
+      const banisterInnerX = side * (4.70 - (i < 4 ? (4 - i) * 0.15 : 0));
+      if (i % 2 === 0) {
+        const balusterGeom = new THREE.CylinderGeometry(0.025, 0.025, 0.85, 6);
+        const baluster = new THREE.Mesh(balusterGeom, this.atlas.materials.darkOak);
+        baluster.position.set(banisterInnerX, yTop + 0.425, zPos);
+        stairGroup.add(baluster);
+      }
     }
 
-    // Sloping Banister Railing on the inner side (X = side * 4.7)
-    const banisterX = side * 4.70;
+    // Sloping Brass Handrail along the stair run
     const slopeLength = Math.hypot(totalLength, targetY);
     const slopeAngle = Math.atan2(targetY, totalLength);
 
-    const handrailGeom = new THREE.CylinderGeometry(0.035, 0.035, slopeLength + 0.2, 8);
+    const handrailGeom = new THREE.CylinderGeometry(0.035, 0.035, slopeLength, 8);
     const handrail = new THREE.Mesh(handrailGeom, this.atlas.materials.brassMetal);
-    handrail.position.set(banisterX, targetY / 2 + 0.88, (startZ + endZ) / 2);
-    handrail.rotation.x = slopeAngle;
+    handrail.position.set(side * 4.70, targetY / 2 + 0.88, (startZ + endZ) / 2);
+    handrail.rotation.x = Math.PI / 2 - slopeAngle;
     stairGroup.add(handrail);
 
-    // Turned Wooden Balusters along the stair run
-    for (let b = 0; b <= numSteps; b += 2) {
-      const bZ = startZ + b * stepDepth;
-      const bY = b * stepHeight;
-      const balusterGeom = new THREE.CylinderGeometry(0.025, 0.025, 0.85, 6);
-      const baluster = new THREE.Mesh(balusterGeom, this.atlas.materials.darkOak);
-      baluster.position.set(banisterX, bY + 0.425, bZ);
-      stairGroup.add(baluster);
-    }
-
-    // Grand Carved Newel Post at the bottom entrance
+    // Front Flared Newel Post at the welcoming bottom entrance
+    const frontNewelX = side * 4.10;
     const newelGeom = new THREE.BoxGeometry(0.20, 1.15, 0.20);
-    const newelPost = new THREE.Mesh(newelGeom, this.atlas.materials.darkOak);
-    newelPost.position.set(banisterX, 0.575, startZ);
+    const frontNewel = new THREE.Mesh(newelGeom, this.atlas.materials.darkOak);
+    frontNewel.position.set(frontNewelX, 0.575, startZ);
 
-    const newelFinial = new THREE.Mesh(
+    const frontFinial = new THREE.Mesh(
       new THREE.SphereGeometry(0.10, 8, 8),
       this.atlas.materials.brassMetal
     );
-    newelFinial.position.set(banisterX, 1.20, startZ);
-    stairGroup.add(newelPost, newelFinial);
+    frontFinial.position.set(frontNewelX, 1.20, startZ);
+
+    // Glowing Lantern on the entrance newel post to invite player
+    const newelLantern = new THREE.Mesh(
+      new THREE.BoxGeometry(0.18, 0.26, 0.18),
+      this.atlas.materials.brassMetal
+    );
+    newelLantern.position.set(frontNewelX, 1.42, startZ);
+
+    const lanternLight = new THREE.PointLight(0xffbe55, 3.2, 7.0, 1.4);
+    lanternLight.position.set(frontNewelX, 1.45, startZ);
+    this.animatedLights.push({
+      light: lanternLight,
+      baseIntensity: 3.2,
+      flickerSpeed: 4.2 + (side > 0 ? 0.5 : 0),
+      flickerPhase: side > 0 ? 1.0 : 0.0
+    });
+
+    stairGroup.add(frontNewel, frontFinial, newelLantern, lanternLight);
+
+    // Pillar Integration Stone Corbel & Bracket (At Z = 0, where stairs meet pillar at X = +/-4.3)
+    const pillarJunctionZ = 0.0;
+    const junctionY = ((-startZ) / totalLength) * targetY; // ~2.0
+
+    const bracketCorbel = new THREE.Mesh(
+      new THREE.BoxGeometry(0.70, 0.65, 0.85),
+      this.atlas.materials.carvedStonePillar
+    );
+    bracketCorbel.position.set(side * 4.30, junctionY - 0.25, pillarJunctionZ);
+    bracketCorbel.receiveShadow = true;
+
+    const ironTie = new THREE.Mesh(
+      new THREE.BoxGeometry(0.10, 0.12, 0.95),
+      this.atlas.materials.iron
+    );
+    ironTie.position.set(side * 4.30, junctionY + 0.15, pillarJunctionZ);
+
+    stairGroup.add(bracketCorbel, ironTie);
+
+    // Top Junction Newel Post at balcony landing
+    const topNewel = new THREE.Mesh(newelGeom, this.atlas.materials.darkOak);
+    topNewel.position.set(side * 4.70, targetY + 0.575, endZ);
+
+    const topFinial = new THREE.Mesh(
+      new THREE.SphereGeometry(0.10, 8, 8),
+      this.atlas.materials.brassMetal
+    );
+    topFinial.position.set(side * 4.70, targetY + 1.20, endZ);
+    stairGroup.add(topNewel, topFinial);
 
     this.ensureVisible(stairGroup);
     this.container.add(stairGroup);
@@ -1365,12 +1418,12 @@ export class LibraryManager {
    * Accurate Elevation calculation for ground floor, stairs, and upper balcony
    */
   public getElevation(x: number, z: number, currentY: number = 0): number {
-    const onLeftStairX = x >= -6.1 && x <= -4.6;
-    const onRightStairX = x >= 4.6 && x <= 6.1;
+    const onLeftStairX = x >= -6.1 && x <= -3.8;
+    const onRightStairX = x >= 3.8 && x <= 6.1;
 
-    // 1. Symmetrical Grand Staircases (Left and Right, from Z = -2.5 to 3.5)
-    if ((onLeftStairX || onRightStairX) && z >= -2.5 && z <= 3.5) {
-      const progress = (z - (-2.5)) / (3.5 - (-2.5));
+    // 1. Symmetrical Grand Staircases (Left and Right, from Z = -2.8 to 3.5)
+    if ((onLeftStairX || onRightStairX) && z >= -2.8 && z <= 3.5) {
+      const progress = (z - (-2.8)) / (3.5 - (-2.8));
       return Math.max(0, Math.min(4.5, progress * 4.5));
     }
 
@@ -1410,8 +1463,8 @@ export class LibraryManager {
     }
 
     // Ground Floor Rules (Y < 2.5)
-    // 1. Pillar Octagonal Plinths (6 pairs)
-    const pillarZ = [0, 6, 12, 18, 24, 30];
+    // 1. Freestanding Nave Pillar Plinths (pz = 6, 12, 18, 24, 30; pz = 0 is integrated into stair base)
+    const pillarZ = [6, 12, 18, 24, 30];
     for (const pz of pillarZ) {
       if (Math.abs(z - pz) < 0.65) {
         if (Math.abs(x - (-4.3)) < 0.65 || Math.abs(x - 4.3) < 0.65) {
