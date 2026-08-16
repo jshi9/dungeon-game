@@ -121,6 +121,7 @@ export class Engine {
 
     // 11. Mouse Raycaster for Click-to-Read Book Interaction
     this.interactionRaycaster = new InteractionRaycaster(
+      this.scene,
       this.cameraRig.camera,
       this.canvas,
       {

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { TextureAtlas } from './TextureAtlas';
-import { LibraryLoreGenerator } from '../lore/LibraryLoreGenerator';
+import { LibraryLoreGenerator, BookData } from '../lore/LibraryLoreGenerator';
 import { BookSpineGenerator } from './BookSpineGenerator';
 
 export interface ChandelierInfo {
@@ -18,6 +18,13 @@ export interface CandleSconceInfo {
   flickerPhase: number;
 }
 
+interface PendingBookInstance {
+  bookData: BookData;
+  matrix: THREE.Matrix4;
+  isHorizontal: boolean;
+  side: number;
+}
+
 export class LibraryManager {
   public scene: THREE.Scene;
   public atlas: TextureAtlas;
@@ -29,13 +36,16 @@ export class LibraryManager {
   public globeSphereMesh?: THREE.Mesh;
   public dustParticles?: THREE.Points;
 
-  // Raycastable interactive books (every single book on shelves and desks)
-  public raycastableBooks: THREE.Mesh[] = [];
+  // Raycastable interactive book targets (InstancedMeshes + desk meshes)
+  public raycastableBooks: THREE.Object3D[] = [];
 
   // Dimensions
   public width = 14; // X: -7 to +7
   public length = 40; // Z: -4 to +36
   public ceilingHeight = 13.0;
+
+  // Shared Unit Box Geometry for all instanced books
+  private unitBoxGeom: THREE.BoxGeometry;
 
   constructor(scene: THREE.Scene, atlas: TextureAtlas) {
     this.scene = scene;
@@ -44,8 +54,10 @@ export class LibraryManager {
     this.container.name = 'GrandCathedralLibrary';
     this.scene.add(this.container);
 
+    this.unitBoxGeom = new THREE.BoxGeometry(1, 1, 1);
+
     this.buildCathedralArchitecture();
-    this.buildModularBookshelfWalls();
+    this.buildModularBookshelfWallsAndInstancedBooks();
     this.buildRollingLadders();
     this.buildUpperBalconiesAndStairs();
     this.buildStudyDesksAndBenches();
@@ -55,31 +67,44 @@ export class LibraryManager {
     this.buildHeraldicBannersAndPlaques();
     this.buildStainedGlassAndVolumetricLightRays();
     this.buildFloatingDustParticles();
+
+    // Ensure all static matrices and child transforms are fully computed
+    this.container.updateMatrixWorld(true);
   }
 
   public setVisible(visible: boolean): void {
     this.container.visible = visible;
   }
 
+  /**
+   * Helper to finalize static meshes: ensures visibility and prevents false frustum culling
+   */
+  private freezeStatic(mesh: THREE.Object3D): void {
+    mesh.matrixAutoUpdate = false;
+    mesh.updateMatrix();
+    mesh.frustumCulled = false; // Never cull cathedral geometry
+  }
 
   /**
    * 1. Cathedral Floors, Vaulted Ribbed Ceiling & Stone Pillars
    */
   private buildCathedralArchitecture(): void {
     // 1. Polished Checkered Stone Tile Floor
-    const floorGeom = new THREE.PlaneGeometry(this.width, this.length, 14, 40);
+    const floorGeom = new THREE.PlaneGeometry(this.width, this.length);
     const floorMesh = new THREE.Mesh(floorGeom, this.atlas.materials.stoneTileFloor);
     floorMesh.rotation.x = -Math.PI / 2;
     floorMesh.position.set(0, 0, 16);
     floorMesh.receiveShadow = true;
+    this.freezeStatic(floorMesh);
     this.container.add(floorMesh);
 
-    // 2. Central Plush Crimson Runner Carpet (Elevated 0.02)
+    // 2. Central Plush Crimson Runner Carpet
     const carpetGeom = new THREE.PlaneGeometry(3.2, this.length - 2);
     const carpetMesh = new THREE.Mesh(carpetGeom, this.atlas.materials.carpetRed);
     carpetMesh.rotation.x = -Math.PI / 2;
     carpetMesh.position.set(0, 0.02, 16);
     carpetMesh.receiveShadow = true;
+    this.freezeStatic(carpetMesh);
     this.container.add(carpetMesh);
 
     // 3. Vaulted Stone Ceiling
@@ -87,6 +112,7 @@ export class LibraryManager {
     const ceilMesh = new THREE.Mesh(ceilGeom, this.atlas.materials.stoneBrick);
     ceilMesh.rotation.x = Math.PI / 2;
     ceilMesh.position.set(0, this.ceilingHeight, 16);
+    this.freezeStatic(ceilMesh);
     this.container.add(ceilMesh);
 
     // 4. Perimeter Stone Walls (North apse wall & South entrance wall)
@@ -95,11 +121,13 @@ export class LibraryManager {
     northWall.position.set(0, this.ceilingHeight / 2, 36);
     northWall.castShadow = true;
     northWall.receiveShadow = true;
+    this.freezeStatic(northWall);
 
     const southWall = new THREE.Mesh(endWallGeom, this.atlas.materials.stoneBrick);
     southWall.position.set(0, this.ceilingHeight / 2, -4);
     southWall.castShadow = true;
     southWall.receiveShadow = true;
+    this.freezeStatic(southWall);
 
     this.container.add(northWall, southWall);
 
@@ -107,6 +135,7 @@ export class LibraryManager {
     const pillarZ = [0, 6, 12, 18, 24, 30];
     const pillarHeight = this.ceilingHeight;
     const pillarGeom = new THREE.CylinderGeometry(0.55, 0.65, pillarHeight, 12);
+    const capGeom = new THREE.BoxGeometry(1.4, 0.6, 1.4);
 
     pillarZ.forEach((pz) => {
       // Left aisle pillar
@@ -114,29 +143,32 @@ export class LibraryManager {
       leftPillar.position.set(-4.3, pillarHeight / 2, pz);
       leftPillar.castShadow = true;
       leftPillar.receiveShadow = true;
+      this.freezeStatic(leftPillar);
 
       // Right aisle pillar
       const rightPillar = new THREE.Mesh(pillarGeom, this.atlas.materials.carvedStonePillar);
       rightPillar.position.set(4.3, pillarHeight / 2, pz);
       rightPillar.castShadow = true;
       rightPillar.receiveShadow = true;
+      this.freezeStatic(rightPillar);
 
       // Top capital blocks
-      const capGeom = new THREE.BoxGeometry(1.4, 0.6, 1.4);
       const leftCap = new THREE.Mesh(capGeom, this.atlas.materials.stoneBrick);
       leftCap.position.set(-4.3, pillarHeight - 0.3, pz);
+      this.freezeStatic(leftCap);
 
       const rightCap = new THREE.Mesh(capGeom, this.atlas.materials.stoneBrick);
       rightCap.position.set(4.3, pillarHeight - 0.3, pz);
+      this.freezeStatic(rightCap);
 
       this.container.add(leftPillar, rightPillar, leftCap, rightCap);
     });
   }
 
   /**
-   * 2. Modular Multi-Tier Bookshelf Bays with Latin Plaques & Densely Packed Books
+   * 2. Modular Multi-Tier Bookshelf Bays & Instanced Book Batching
    */
-  private buildModularBookshelfWalls(): void {
+  private buildModularBookshelfWallsAndInstancedBooks(): void {
     const bayPlaques = [
       this.atlas.materials.plaqueHistoria,
       this.atlas.materials.plaquePhilosophia,
@@ -151,6 +183,8 @@ export class LibraryManager {
     const shelfRowsY = [0.8, 1.6, 2.4, 3.2, 4.0];
     const shelfDepth = 0.65;
 
+    const pendingBooks: PendingBookInstance[] = [];
+
     // Build Left (X = -6.5) and Right (X = 6.5) Modular Bookshelves
     [-1, 1].forEach((side) => {
       const shelfX = side * 6.5;
@@ -164,6 +198,7 @@ export class LibraryManager {
         backMesh.position.set(shelfX + side * 0.28, 2.2, bayZ + bayLength / 2);
         backMesh.castShadow = true;
         backMesh.receiveShadow = true;
+        this.freezeStatic(backMesh);
         this.container.add(backMesh);
 
         // 2. Upright Timber Framing Columns for the bay
@@ -171,16 +206,19 @@ export class LibraryManager {
         const col1 = new THREE.Mesh(colGeom, this.atlas.materials.darkOak);
         col1.position.set(shelfX, 2.25, bayZ);
         col1.castShadow = true;
+        this.freezeStatic(col1);
 
         const col2 = new THREE.Mesh(colGeom, this.atlas.materials.darkOak);
         col2.position.set(shelfX, 2.25, bayZ + bayLength);
         col2.castShadow = true;
+        this.freezeStatic(col2);
         this.container.add(col1, col2);
 
         // 3. Ornate Carved Cornice Header with Latin Plaque
         const headerGeom = new THREE.BoxGeometry(0.4, 0.45, bayLength);
         const headerMesh = new THREE.Mesh(headerGeom, this.atlas.materials.darkOak);
         headerMesh.position.set(shelfX, 4.35, bayZ + bayLength / 2);
+        this.freezeStatic(headerMesh);
         this.container.add(headerMesh);
 
         // Category Plaque
@@ -189,15 +227,17 @@ export class LibraryManager {
         const plaqueMesh = new THREE.Mesh(plaqueGeom, plaqueMat);
         plaqueMesh.position.set(shelfX - side * 0.22, 4.35, bayZ + bayLength / 2);
         plaqueMesh.rotation.y = side === -1 ? Math.PI / 2 : -Math.PI / 2;
+        this.freezeStatic(plaqueMesh);
         this.container.add(plaqueMesh);
 
-        // 4. Horizontal Shelf Ledges & Densely Packed Individual Voxel Books
+        // 4. Horizontal Shelf Ledges & Continuous Book Matrix Computation
         shelfRowsY.forEach((shelfY, rowIdx) => {
           const ledgeGeom = new THREE.BoxGeometry(shelfDepth, 0.08, bayLength - 0.15);
           const ledgeMesh = new THREE.Mesh(ledgeGeom, this.atlas.materials.darkOak);
           ledgeMesh.position.set(shelfX, shelfY, bayZ + bayLength / 2);
           ledgeMesh.castShadow = true;
           ledgeMesh.receiveShadow = true;
+          this.freezeStatic(ledgeMesh);
           this.container.add(ledgeMesh);
 
           // Continuous dense packing from bay start to end with zero large gaps
@@ -213,75 +253,60 @@ export class LibraryManager {
             const remainingSpace = endZ - currentZ;
             if (remainingSpace < 0.07) break;
 
-            // 14% chance to spawn a horizontal stack of 2-3 books if there's enough space
             const isHorizontalStack = prng() < 0.14 && remainingSpace >= 0.38;
 
             if (isHorizontalStack) {
-              const stackCount = 2 + Math.floor(prng() * 2); // 2 or 3 books stacked flat
-              const stackWidth = 0.28 + prng() * 0.06;      // width along Z
-              const stackDepth = 0.38 + prng() * 0.05;      // depth along X
-              const bookThick = 0.08 + prng() * 0.02;       // thickness along Y
+              const stackCount = 2 + Math.floor(prng() * 2);
+              const stackWidth = 0.28 + prng() * 0.06;
+              const stackDepth = 0.38 + prng() * 0.05;
+              const bookThick = 0.08 + prng() * 0.02;
               const stackZ = currentZ + stackWidth / 2;
 
               for (let s = 0; s < stackCount; s++) {
                 const bookSeed = seed + s * 37;
                 const bookData = LibraryLoreGenerator.generateBook(bookSeed);
-                const bookMats = BookSpineGenerator.getBookMaterials(bookData, true, side);
 
-                const bookGeom = new THREE.BoxGeometry(stackDepth, bookThick, stackWidth);
-                const bookMesh = new THREE.Mesh(bookGeom, bookMats);
                 const bY = shelfY + 0.04 + s * bookThick + bookThick / 2;
-                bookMesh.position.set(shelfX - side * 0.06, bY, stackZ);
+                const mat4 = new THREE.Matrix4();
+                const pos = new THREE.Vector3(shelfX - side * 0.06, bY, stackZ);
+                const rot = new THREE.Euler(0, (prng() - 0.5) * 0.08, 0);
+                const scale = new THREE.Vector3(stackDepth, bookThick, stackWidth);
+                const quat = new THREE.Quaternion().setFromEuler(rot);
+                mat4.compose(pos, quat, scale);
 
-                // Slight twist for natural messy pile look
-                bookMesh.rotation.y = (prng() - 0.5) * 0.08;
-                bookMesh.castShadow = true;
-                bookMesh.receiveShadow = true;
-
-                bookMesh.userData = {
-                  isBook: true,
-                  bookData: bookData,
-                  originalColor: bookData.coverColor
-                };
-
-                this.raycastableBooks.push(bookMesh);
-                this.container.add(bookMesh);
+                pendingBooks.push({
+                  bookData,
+                  matrix: mat4,
+                  isHorizontal: true,
+                  side
+                });
               }
 
               currentZ += stackWidth + 0.015;
             } else {
-              // Standard Vertical Standing Book
-              const bWidth = 0.08 + prng() * 0.06;  // spine thickness along Z: 0.08 to 0.14
-              const bHeight = 0.52 + prng() * 0.20; // height along Y: 0.52 to 0.72 (fills shelf height)
-              const bDepth = 0.38 + prng() * 0.06;  // depth along X: 0.38 to 0.44
+              const bWidth = 0.08 + prng() * 0.06;
+              const bHeight = 0.52 + prng() * 0.20;
+              const bDepth = 0.38 + prng() * 0.06;
               const bZ = currentZ + bWidth / 2;
               const bY = shelfY + 0.04 + bHeight / 2;
 
               const bookData = LibraryLoreGenerator.generateBook(seed);
-              const bookMats = BookSpineGenerator.getBookMaterials(bookData, false, side);
 
-              const bookGeom = new THREE.BoxGeometry(bDepth, bHeight, bWidth);
-              const bookMesh = new THREE.Mesh(bookGeom, bookMats);
-              bookMesh.position.set(shelfX - side * 0.06, bY, bZ);
+              const mat4 = new THREE.Matrix4();
+              const pos = new THREE.Vector3(shelfX - side * 0.06, bY, bZ);
+              const rot = new THREE.Euler(prng() < 0.16 ? (prng() - 0.5) * 0.08 : 0, 0, 0);
+              const scale = new THREE.Vector3(bDepth, bHeight, bWidth);
+              const quat = new THREE.Quaternion().setFromEuler(rot);
+              mat4.compose(pos, quat, scale);
 
-              // Occasional natural tilt or lean against neighboring books
-              if (prng() < 0.16) {
-                bookMesh.rotation.x = (prng() - 0.5) * 0.08;
-              }
+              pendingBooks.push({
+                bookData,
+                matrix: mat4,
+                isHorizontal: false,
+                side
+              });
 
-              bookMesh.castShadow = true;
-              bookMesh.receiveShadow = true;
-
-              bookMesh.userData = {
-                isBook: true,
-                bookData: bookData,
-                originalColor: bookData.coverColor
-              };
-
-              this.raycastableBooks.push(bookMesh);
-              this.container.add(bookMesh);
-
-              currentZ += bWidth + 0.004; // packed tightly side-by-side!
+              currentZ += bWidth + 0.004;
             }
 
             bookIndexInRow++;
@@ -289,10 +314,53 @@ export class LibraryManager {
         });
       }
     });
+
+    // Build Batched Instanced Meshes
+    this.createInstancedBookMeshes(pendingBooks);
   }
 
   /**
-   * 3. Movable / Leaning Wooden Rolling Ladders (Matching Reference Image)
+   * Batches book instances into high-performance THREE.InstancedMesh objects grouped by material
+   */
+  private createInstancedBookMeshes(pendingList: PendingBookInstance[]): void {
+    const groups: Map<string, { materials: THREE.Material[]; instances: PendingBookInstance[] }> = new Map();
+
+    for (const item of pendingList) {
+      const key = `${item.side}_${item.isHorizontal ? 'H' : 'V'}_${item.bookData.coverColor}`;
+      if (!groups.has(key)) {
+        const materials = BookSpineGenerator.getBookMaterials(item.bookData, item.isHorizontal, item.side);
+        groups.set(key, { materials, instances: [] });
+      }
+      groups.get(key)!.instances.push(item);
+    }
+
+    groups.forEach(({ materials, instances }) => {
+      const count = instances.length;
+      const instMesh = new THREE.InstancedMesh(this.unitBoxGeom, materials, count);
+
+      const bookList: BookData[] = [];
+      for (let i = 0; i < count; i++) {
+        instMesh.setMatrixAt(i, instances[i].matrix);
+        bookList.push(instances[i].bookData);
+      }
+
+      instMesh.userData = {
+        isInstancedBooks: true,
+        books: bookList
+      };
+
+      instMesh.instanceMatrix.needsUpdate = true;
+      instMesh.castShadow = true;
+      instMesh.receiveShadow = true;
+      instMesh.frustumCulled = false; // Always render instanced library books
+
+      this.raycastableBooks.push(instMesh);
+      this.container.add(instMesh);
+    });
+  }
+
+  /**
+   * 3. Movable / Leaning Wooden Rolling Ladders
    */
   private buildRollingLadders(): void {
     const ladderPositions = [
@@ -303,7 +371,7 @@ export class LibraryManager {
     ladderPositions.forEach(({ side, z, height }) => {
       const ladderGroup = new THREE.Group();
       const ladderWidth = 0.65;
-      const leanAngle = 0.24; // ~14 degrees lean
+      const leanAngle = 0.24;
 
       // Rails
       const railGeom = new THREE.BoxGeometry(0.06, height, 0.1);
@@ -350,12 +418,13 @@ export class LibraryManager {
       ladderGroup.position.set(ladderX, 0, z);
       ladderGroup.rotation.z = side * leanAngle;
 
+      this.freezeStatic(ladderGroup);
       this.container.add(ladderGroup);
     });
   }
 
   /**
-   * 4. Upper Balcony Mezzanines, Corbel Brackets & Rare Grimoire Shelves
+   * 4. Upper Balcony Mezzanines, Corbel Brackets & Instanced Balcony Books
    */
   private buildUpperBalconiesAndStairs(): void {
     const balconyY = 4.5;
@@ -368,10 +437,12 @@ export class LibraryManager {
     const leftBalcony = new THREE.Mesh(balcGeom, this.atlas.materials.woodPlanks);
     leftBalcony.position.set(-5.6, balconyY, 16);
     leftBalcony.receiveShadow = true;
+    this.freezeStatic(leftBalcony);
 
     const rightBalcony = new THREE.Mesh(balcGeom, this.atlas.materials.woodPlanks);
     rightBalcony.position.set(5.6, balconyY, 16);
     rightBalcony.receiveShadow = true;
+    this.freezeStatic(rightBalcony);
 
     // Wooden Balustrade Railings overlooking the nave
     const railGeom = new THREE.BoxGeometry(0.12, 0.85, balconyLength);
@@ -379,10 +450,12 @@ export class LibraryManager {
     const leftRail = new THREE.Mesh(railGeom, this.atlas.materials.darkOak);
     leftRail.position.set(-4.4, balconyY + 0.55, 16);
     leftRail.castShadow = true;
+    this.freezeStatic(leftRail);
 
     const rightRail = new THREE.Mesh(railGeom, this.atlas.materials.darkOak);
     rightRail.position.set(4.4, balconyY + 0.55, 16);
     rightRail.castShadow = true;
+    this.freezeStatic(rightRail);
 
     // Carved Corbel Support Brackets under balconies
     const corbelZ = [0, 6, 12, 18, 24, 30];
@@ -391,30 +464,36 @@ export class LibraryManager {
       const leftCorbel = new THREE.Mesh(corbelGeom, this.atlas.materials.darkOak);
       leftCorbel.position.set(-4.9, balconyY - 0.4, cz);
       leftCorbel.castShadow = true;
+      this.freezeStatic(leftCorbel);
 
       const rightCorbel = new THREE.Mesh(corbelGeom, this.atlas.materials.darkOak);
       rightCorbel.position.set(4.9, balconyY - 0.4, cz);
       rightCorbel.castShadow = true;
+      this.freezeStatic(rightCorbel);
 
       this.container.add(leftCorbel, rightCorbel);
     });
 
-    // Upper Tier Rare Grimoire Bookshelves (Y = 4.7 to 9.0) with interactive grimoires!
+    // Upper Tier Bookshelves Backing Wall
     const upperShelfHeight = 4.3;
     const upperShelfGeom = new THREE.BoxGeometry(0.7, upperShelfHeight, balconyLength);
 
     const leftUpperShelf = new THREE.Mesh(upperShelfGeom, this.atlas.materials.darkOak);
     leftUpperShelf.position.set(-6.6, balconyY + upperShelfHeight / 2 + 0.15, 16);
     leftUpperShelf.castShadow = true;
+    this.freezeStatic(leftUpperShelf);
 
     const rightUpperShelf = new THREE.Mesh(upperShelfGeom, this.atlas.materials.darkOak);
     rightUpperShelf.position.set(6.6, balconyY + upperShelfHeight / 2 + 0.15, 16);
     rightUpperShelf.castShadow = true;
+    this.freezeStatic(rightUpperShelf);
 
     this.container.add(leftBalcony, rightBalcony, leftRail, rightRail, leftUpperShelf, rightUpperShelf);
 
-    // Upper Shelf Ledges & Densely Packed Rare Books
+    // Upper Shelf Ledges & Instanced Books Batching
     const upperShelfRowsY = [5.3, 6.1, 6.9, 7.7];
+    const upperPendingBooks: PendingBookInstance[] = [];
+
     [-1, 1].forEach((side) => {
       const shelfX = side * 6.5;
 
@@ -423,9 +502,9 @@ export class LibraryManager {
         const ledgeMesh = new THREE.Mesh(ledgeGeom, this.atlas.materials.darkOak);
         ledgeMesh.position.set(shelfX, shelfY, 16);
         ledgeMesh.receiveShadow = true;
+        this.freezeStatic(ledgeMesh);
         this.container.add(ledgeMesh);
 
-        // Continuous dense book packing on upper balcony
         let currentZ = -0.8;
         const endZ = 32.8;
         let uBookIdx = 0;
@@ -449,24 +528,20 @@ export class LibraryManager {
             for (let s = 0; s < stackCount; s++) {
               const bookSeed = seed + s * 41;
               const bookData = LibraryLoreGenerator.generateBook(bookSeed);
-              const bookMats = BookSpineGenerator.getBookMaterials(bookData, true, side);
 
-              const bookGeom = new THREE.BoxGeometry(stackDepth, bookThick, stackWidth);
-              const bookMesh = new THREE.Mesh(bookGeom, bookMats);
               const bY = shelfY + 0.04 + s * bookThick + bookThick / 2;
-              bookMesh.position.set(shelfX - side * 0.06, bY, stackZ);
-              bookMesh.rotation.y = (prng() - 0.5) * 0.08;
-              bookMesh.castShadow = true;
-              bookMesh.receiveShadow = true;
+              const mat4 = new THREE.Matrix4();
+              const pos = new THREE.Vector3(shelfX - side * 0.06, bY, stackZ);
+              const rot = new THREE.Euler(0, (prng() - 0.5) * 0.08, 0);
+              const scale = new THREE.Vector3(stackDepth, bookThick, stackWidth);
+              mat4.compose(pos, new THREE.Quaternion().setFromEuler(rot), scale);
 
-              bookMesh.userData = {
-                isBook: true,
-                bookData: bookData,
-                originalColor: bookData.coverColor
-              };
-
-              this.raycastableBooks.push(bookMesh);
-              this.container.add(bookMesh);
+              upperPendingBooks.push({
+                bookData,
+                matrix: mat4,
+                isHorizontal: true,
+                side
+              });
             }
             currentZ += stackWidth + 0.015;
           } else {
@@ -477,27 +552,19 @@ export class LibraryManager {
             const bY = shelfY + 0.04 + bHeight / 2;
 
             const bookData = LibraryLoreGenerator.generateBook(seed);
-            const bookMats = BookSpineGenerator.getBookMaterials(bookData, false, side);
 
-            const bookGeom = new THREE.BoxGeometry(bDepth, bHeight, bWidth);
-            const bookMesh = new THREE.Mesh(bookGeom, bookMats);
-            bookMesh.position.set(shelfX - side * 0.06, bY, bZ);
+            const mat4 = new THREE.Matrix4();
+            const pos = new THREE.Vector3(shelfX - side * 0.06, bY, bZ);
+            const rot = new THREE.Euler(prng() < 0.16 ? (prng() - 0.5) * 0.08 : 0, 0, 0);
+            const scale = new THREE.Vector3(bDepth, bHeight, bWidth);
+            mat4.compose(pos, new THREE.Quaternion().setFromEuler(rot), scale);
 
-            if (prng() < 0.16) {
-              bookMesh.rotation.x = (prng() - 0.5) * 0.08;
-            }
-
-            bookMesh.castShadow = true;
-            bookMesh.receiveShadow = true;
-
-            bookMesh.userData = {
-              isBook: true,
-              bookData: bookData,
-              originalColor: bookData.coverColor
-            };
-
-            this.raycastableBooks.push(bookMesh);
-            this.container.add(bookMesh);
+            upperPendingBooks.push({
+              bookData,
+              matrix: mat4,
+              isHorizontal: false,
+              side
+            });
 
             currentZ += bWidth + 0.004;
           }
@@ -505,6 +572,8 @@ export class LibraryManager {
         }
       });
     });
+
+    this.createInstancedBookMeshes(upperPendingBooks);
 
     // Access Staircases (At Z = 2 and Z = 24)
     this.buildStaircase(-4.8, 2, balconyY);
@@ -523,6 +592,7 @@ export class LibraryManager {
       sMesh.position.set(startX, (i + 0.5) * stepHeight, startZ + i * stepDepth);
       sMesh.castShadow = true;
       sMesh.receiveShadow = true;
+      this.freezeStatic(sMesh);
       this.container.add(sMesh);
     }
   }
@@ -589,8 +659,8 @@ export class LibraryManager {
       flame.position.set(-0.65, 1.2, 0.25);
       deskGroup.add(candleBase, candleWax, flame);
 
-      // Warm dynamic candlelight
-      const candleLight = new THREE.PointLight(0xffbe55, 2.6, 10.0, 1.1);
+      // Warm dynamic candlelight (High brightness & coverage)
+      const candleLight = new THREE.PointLight(0xffc566, 4.2, 14.0, 1.1);
       candleLight.position.set(-0.65, 1.25, 0.25);
       candleLight.castShadow = true;
       candleLight.shadow.bias = -0.002;
@@ -600,7 +670,7 @@ export class LibraryManager {
 
       this.candleSconces.push({
         light: candleLight,
-        baseIntensity: 2.6,
+        baseIntensity: 4.2,
         flickerSpeed: 4.0 + Math.random() * 3.0,
         flickerPhase: Math.random() * Math.PI * 2
       });
@@ -623,7 +693,7 @@ export class LibraryManager {
       this.raycastableBooks.push(openBookMesh);
       deskGroup.add(openBookMesh);
 
-      // Stacked piles of books on desk corner (also interactive!)
+      // Stacked piles of books on desk corner
       const stackBookData1 = LibraryLoreGenerator.generateBook(cfg.seed + 1000);
       const stackMats1 = BookSpineGenerator.getBookMaterials(stackBookData1, true, 1);
       const stackMesh1 = new THREE.Mesh(
@@ -647,63 +717,55 @@ export class LibraryManager {
 
       deskGroup.add(stackMesh1, stackMesh2);
 
-      // Inkwell & Quill
-      const inkwell = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.04, 0.05, 0.08, 8),
-        this.atlas.materials.iron
-      );
-      inkwell.position.set(0.6, 0.95, 0.25);
-      deskGroup.add(inkwell);
-
       this.container.add(deskGroup);
     });
   }
 
   /**
-   * 6. Large Illuminated Celestial Globe on Carved Pedestal
+   * 6. Large Illuminated Celestial Globe on Ornate Pedestal
    */
   private buildCelestialGlobe(): void {
     const globeGroup = new THREE.Group();
     globeGroup.position.set(0, 0, 14);
 
-    // Carved Mahogany Octagonal Pedestal
-    const baseGeom = new THREE.CylinderGeometry(0.85, 1.0, 0.4, 8);
+    // Octagonal Dark Oak Base Pedestal
+    const baseGeom = new THREE.CylinderGeometry(1.0, 1.15, 0.6, 8);
     const baseMesh = new THREE.Mesh(baseGeom, this.atlas.materials.darkOak);
-    baseMesh.position.set(0, 0.2, 0);
+    baseMesh.position.set(0, 0.3, 0);
     baseMesh.castShadow = true;
     baseMesh.receiveShadow = true;
+    this.freezeStatic(baseMesh);
+    globeGroup.add(baseMesh);
 
-    const columnGeom = new THREE.CylinderGeometry(0.35, 0.45, 0.8, 8);
-    const columnMesh = new THREE.Mesh(columnGeom, this.atlas.materials.darkOak);
-    columnMesh.position.set(0, 0.8, 0);
-    columnMesh.castShadow = true;
-
-    // Brass Gimbal Ring (Axis Arm)
-    const ringGeom = new THREE.TorusGeometry(0.85, 0.05, 8, 24);
+    // Curved Brass Armillary Ring
+    const ringGeom = new THREE.TorusGeometry(1.0, 0.07, 8, 24);
     const ringMesh = new THREE.Mesh(ringGeom, this.atlas.materials.brassMetal);
-    ringMesh.position.set(0, 1.65, 0);
-    ringMesh.rotation.x = Math.PI / 4;
+    ringMesh.position.set(0, 1.45, 0);
+    ringMesh.rotation.y = Math.PI / 4;
+    ringMesh.castShadow = true;
+    globeGroup.add(ringMesh);
 
-    // Celestial/Terrestrial Globe Sphere
-    const sphereGeom = new THREE.SphereGeometry(0.75, 16, 16);
+    // Rotating Celestial Sphere
+    const sphereGeom = new THREE.SphereGeometry(0.82, 16, 16);
     this.globeSphereMesh = new THREE.Mesh(sphereGeom, this.atlas.materials.globeTexture);
-    this.globeSphereMesh.position.set(0, 1.65, 0);
+    this.globeSphereMesh.position.set(0, 1.45, 0);
     this.globeSphereMesh.castShadow = true;
+    globeGroup.add(this.globeSphereMesh);
 
-    // Register globe in raycastableBooks
-    const globeLore = LibraryLoreGenerator.generateBook(999, 'Tome of the Celestial Spheres & Lost Continents');
+    // Soft warm internal glow
+    const globeLight = new THREE.PointLight(0xffeaad, 3.2, 12.0, 1.1);
+    globeLight.position.set(0, 1.45, 0);
+    globeGroup.add(globeLight);
+
+    // Raycastable Book Data for the Celestial Globe
+    const globeBookData = LibraryLoreGenerator.generateBook(99999, 'The Celestial Atlas of the Spheres');
     this.globeSphereMesh.userData = {
       isBook: true,
-      bookData: globeLore,
-      originalColor: '#224a73'
+      bookData: globeBookData,
+      originalColor: '#f7d583'
     };
     this.raycastableBooks.push(this.globeSphereMesh);
 
-    // Inner warm illumination light
-    const globeLight = new THREE.PointLight(0xffe082, 2.8, 12.0, 1.1);
-    globeLight.position.set(0, 1.65, 0);
-
-    globeGroup.add(baseMesh, columnMesh, ringMesh, this.globeSphereMesh, globeLight);
     this.container.add(globeGroup);
   }
 
@@ -746,34 +808,35 @@ export class LibraryManager {
         const cx = Math.cos(angle) * 1.7;
         const czPos = Math.sin(angle) * 1.7;
 
-        const candleStem = new THREE.Mesh(
-          new THREE.CylinderGeometry(0.03, 0.03, 0.25, 6),
-          new THREE.MeshStandardMaterial({ color: 0xfff5d6, roughness: 0.3 })
+        const candleMesh = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.04, 0.04, 0.28, 6),
+          new THREE.MeshStandardMaterial({ color: 0xfffae6, roughness: 0.4 })
         );
-        candleStem.position.set(cx, 0.15, czPos);
+        candleMesh.position.set(cx, 0.14, czPos);
+        cGroup.add(candleMesh);
 
-        const candleFlame = new THREE.Mesh(
-          new THREE.ConeGeometry(0.03, 0.09, 6),
-          new THREE.MeshBasicMaterial({ color: 0xffb733 })
+        // Candle flame
+        const flame = new THREE.Mesh(
+          new THREE.ConeGeometry(0.03, 0.08, 6),
+          new THREE.MeshBasicMaterial({ color: 0xffaa22 })
         );
-        candleFlame.position.set(cx, 0.32, czPos);
-
-        cGroup.add(candleStem, candleFlame);
+        flame.position.set(cx, 0.32, czPos);
+        cGroup.add(flame);
       }
 
-      // Dynamic warm chandelier point light
-      const chLight = new THREE.PointLight(0xffbe55, 4.4, 26.0, 1.05);
-      chLight.position.set(0, 0.5, 0);
-      chLight.castShadow = true;
-      chLight.shadow.bias = -0.002;
-      chLight.shadow.mapSize.width = 512;
-      chLight.shadow.mapSize.height = 512;
-      cGroup.add(chLight);
+      // Dynamic glowing point light at center of chandelier (Boosted intensity & range)
+      const cLight = new THREE.PointLight(0xffb84d, 5.8, 26.0, 1.1);
+      cLight.position.set(0, 0.3, 0);
+      cLight.castShadow = true;
+      cLight.shadow.bias = -0.003;
+      cLight.shadow.mapSize.width = 512;
+      cLight.shadow.mapSize.height = 512;
+      cGroup.add(cLight);
 
       this.chandeliers.push({
         group: cGroup,
-        light: chLight,
-        baseIntensity: 4.4,
+        light: cLight,
+        baseIntensity: 5.8,
         flickerSpeed: 3.5 + idx * 0.8,
         flickerPhase: idx * 1.5
       });
@@ -783,46 +846,55 @@ export class LibraryManager {
   }
 
   /**
-   * 8. Wall-Mounted Candle Sconces along Columns
+   * 8. Wall-Mounted Brass Candle Sconces Along Nave Pillars
    */
   private buildWallCandleSconces(): void {
-    const sconceZ = [0, 6, 12, 18, 24, 30];
+    const sconceZ = [3, 9, 15, 21, 27, 33];
 
     sconceZ.forEach((sz, idx) => {
       [-1, 1].forEach((side) => {
+        const sx = side * 4.3;
+        const sy = 2.4;
+
         const sGroup = new THREE.Group();
-        const sx = side * 3.8;
-        sGroup.position.set(sx, 2.4, sz);
+        sGroup.position.set(sx - side * 0.45, sy, sz);
 
-        // Brass Arm
-        const arm = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.04, 0.04), this.atlas.materials.brassMetal);
-        arm.position.set(-side * 0.15, 0, 0);
-        sGroup.add(arm);
+        // Brass Wall Bracket
+        const bracketGeom = new THREE.BoxGeometry(0.2, 0.08, 0.08);
+        const bracket = new THREE.Mesh(bracketGeom, this.atlas.materials.brassMetal);
+        sGroup.add(bracket);
 
-        // Wax & Flame
+        // Candle Wax
+        const waxGeom = new THREE.CylinderGeometry(0.035, 0.035, 0.25, 6);
         const wax = new THREE.Mesh(
-          new THREE.CylinderGeometry(0.025, 0.025, 0.18, 6),
+          waxGeom,
           new THREE.MeshStandardMaterial({ color: 0xfffae6, roughness: 0.4 })
         );
-        wax.position.set(-side * 0.28, 0.1, 0);
+        wax.position.set(-side * 0.1, 0.15, 0);
+        sGroup.add(wax);
 
+        // Flame
         const flame = new THREE.Mesh(
-          new THREE.ConeGeometry(0.02, 0.06, 6),
-          new THREE.MeshBasicMaterial({ color: 0xffa526 })
+          new THREE.ConeGeometry(0.025, 0.06, 6),
+          new THREE.MeshBasicMaterial({ color: 0xffaa22 })
         );
-        flame.position.set(-side * 0.28, 0.22, 0);
-        sGroup.add(wax, flame);
+        flame.position.set(-side * 0.1, 0.3, 0);
+        sGroup.add(flame);
 
-        // Sconce Point Light
-        const sLight = new THREE.PointLight(0xffbe55, 1.8, 8.0, 1.2);
-        sLight.position.set(-side * 0.28, 0.25, 0);
+        // Point Light (Boosted intensity & range)
+        const sLight = new THREE.PointLight(0xffbe55, 3.6, 15.0, 1.1);
+        sLight.position.set(-side * 0.1, 0.32, 0);
+        sLight.castShadow = true;
+        sLight.shadow.bias = -0.002;
+        sLight.shadow.mapSize.width = 256;
+        sLight.shadow.mapSize.height = 256;
         sGroup.add(sLight);
 
         this.candleSconces.push({
           light: sLight,
-          baseIntensity: 1.8,
+          baseIntensity: 3.6,
           flickerSpeed: 4.5 + idx * 0.6,
-          flickerPhase: idx * 2.0 + (side === 1 ? 1.0 : 0)
+          flickerPhase: idx * 0.9 + side
         });
 
         this.container.add(sGroup);
@@ -831,113 +903,99 @@ export class LibraryManager {
   }
 
   /**
-   * 9. Heraldic Banners & Stone Motto Plaques
+   * 9. Heraldic Banners Hanging Along Balcony Rails
    */
   private buildHeraldicBannersAndPlaques(): void {
-    const bannerPositionsZ = [3, 9, 15, 21, 27, 33];
+    const bannerZ = [5, 11, 17, 23, 29];
+    const bannerGeom = new THREE.PlaneGeometry(1.1, 2.4);
 
-    bannerPositionsZ.forEach((bz, idx) => {
-      const isLion = idx % 2 === 0;
-      const mat = isLion ? this.atlas.materials.heraldicLionBanner : this.atlas.materials.heraldicCrossBanner;
+    bannerZ.forEach((bz, idx) => {
+      const bannerMat = idx % 2 === 0
+        ? this.atlas.materials.heraldicLionBanner
+        : this.atlas.materials.heraldicCrossBanner;
 
-      const bannerGeom = new THREE.PlaneGeometry(1.2, 2.4);
-
-      // Left balcony banner
-      const leftBanner = new THREE.Mesh(bannerGeom, mat);
-      leftBanner.position.set(-4.35, 3.2, bz);
+      const leftBanner = new THREE.Mesh(bannerGeom, bannerMat);
+      leftBanner.position.set(-4.34, 3.4, bz);
       leftBanner.rotation.y = Math.PI / 2;
-      leftBanner.castShadow = true;
+      this.freezeStatic(leftBanner);
 
-      // Right balcony banner
-      const rightBanner = new THREE.Mesh(bannerGeom, mat);
-      rightBanner.position.set(4.35, 3.2, bz);
+      const rightBanner = new THREE.Mesh(bannerGeom, bannerMat);
+      rightBanner.position.set(4.34, 3.4, bz);
       rightBanner.rotation.y = -Math.PI / 2;
-      rightBanner.castShadow = true;
+      this.freezeStatic(rightBanner);
 
       this.container.add(leftBanner, rightBanner);
     });
-
-    // Inscription Plaques on entrance pillars ("VERITAS")
-    const plaqueGeom = new THREE.PlaneGeometry(0.8, 1.2);
-    const leftPlaque = new THREE.Mesh(plaqueGeom, this.atlas.materials.inscriptionPlaque);
-    leftPlaque.position.set(-3.85, 2.2, 0.45);
-    leftPlaque.rotation.y = Math.PI;
-
-    const rightPlaque = new THREE.Mesh(plaqueGeom, this.atlas.materials.inscriptionPlaque);
-    rightPlaque.position.set(3.85, 2.2, 0.45);
-    rightPlaque.rotation.y = Math.PI;
-
-    this.container.add(leftPlaque, rightPlaque);
   }
 
   /**
-   * 10. Tall Stained-Glass Lancet Windows & Volumetric Sunbeams
+   * 10. Gothic Arched Stained-Glass Windows & Radiant Volumetric Sunbeams
    */
   private buildStainedGlassAndVolumetricLightRays(): void {
-    // Stained Glass Windows on North Apse Wall
-    const windowGeom = new THREE.PlaneGeometry(2.5, 6.5);
-    const centerWindow = new THREE.Mesh(windowGeom, this.atlas.materials.stainedGlassGothic);
-    centerWindow.position.set(0, 8.0, 35.4);
-    centerWindow.rotation.y = Math.PI;
+    // 1. High Cathedral Apse Window on North Wall (Z = 35.4, Y = 7.5)
+    const windowGeom = new THREE.PlaneGeometry(5.2, 8.5);
+    const stainedGlassMesh = new THREE.Mesh(windowGeom, this.atlas.materials.stainedGlassGothic);
+    stainedGlassMesh.position.set(0, 7.5, 35.4);
+    stainedGlassMesh.rotation.y = Math.PI;
+    this.freezeStatic(stainedGlassMesh);
+    this.container.add(stainedGlassMesh);
 
-    const leftWindow = new THREE.Mesh(windowGeom, this.atlas.materials.stainedGlassGothic);
-    leftWindow.position.set(-3.6, 8.0, 35.4);
-    leftWindow.rotation.y = Math.PI;
-
-    const rightWindow = new THREE.Mesh(windowGeom, this.atlas.materials.stainedGlassGothic);
-    rightWindow.position.set(3.6, 8.0, 35.4);
-    rightWindow.rotation.y = Math.PI;
-
-    this.container.add(centerWindow, leftWindow, rightWindow);
-
-    // Volumetric Sunbeams / God Rays (Angled semi-transparent additive planes)
+    // 2. Radiant Golden Volumetric Dust Light Rays streaming down from the high window
     const rayMat = new THREE.MeshBasicMaterial({
-      color: 0xffecc4,
+      color: 0xffeed6,
       transparent: true,
-      opacity: 0.18,
+      opacity: 0.32,
       side: THREE.DoubleSide,
       depthWrite: false,
       blending: THREE.AdditiveBlending
     });
 
-    const rayGeom = new THREE.PlaneGeometry(3.8, 20.0);
+    const rayGeom = new THREE.PlaneGeometry(4.5, 24.0);
 
-    const ray1 = new THREE.Mesh(rayGeom, rayMat);
-    ray1.position.set(0, 6.0, 24);
-    ray1.rotation.set(-0.75, 0.15, 0.2);
+    const rayCenter = new THREE.Mesh(rayGeom, rayMat);
+    rayCenter.position.set(0, 6.0, 22);
+    rayCenter.rotation.set(-0.72, 0.0, 0.0);
+    this.freezeStatic(rayCenter);
 
-    const ray2 = new THREE.Mesh(rayGeom, rayMat);
-    ray2.position.set(-2.6, 6.0, 24);
-    ray2.rotation.set(-0.75, -0.15, -0.2);
+    const rayLeft = new THREE.Mesh(rayGeom, rayMat);
+    rayLeft.position.set(-2.8, 6.0, 22);
+    rayLeft.rotation.set(-0.72, -0.15, -0.1);
+    this.freezeStatic(rayLeft);
 
-    const ray3 = new THREE.Mesh(rayGeom, rayMat);
-    ray3.position.set(2.6, 6.0, 24);
-    ray3.rotation.set(-0.75, 0.25, 0.1);
+    const rayRight = new THREE.Mesh(rayGeom, rayMat);
+    rayRight.position.set(2.8, 6.0, 22);
+    rayRight.rotation.set(-0.72, 0.15, 0.1);
+    this.freezeStatic(rayRight);
 
-    this.container.add(ray1, ray2, ray3);
+    const rayCross = new THREE.Mesh(rayGeom, rayMat);
+    rayCross.position.set(0, 6.0, 22);
+    rayCross.rotation.set(-0.72, 0, Math.PI / 2);
+    this.freezeStatic(rayCross);
+
+    this.container.add(rayCenter, rayLeft, rayRight, rayCross);
   }
 
   /**
    * 11. Floating Dust Particles (Catching the sunlight rays)
    */
   private buildFloatingDustParticles(): void {
-    const particleCount = 280;
+    const particleCount = 320;
     const positions = new Float32Array(particleCount * 3);
 
     for (let i = 0; i < particleCount; i++) {
-      positions[i * 3 + 0] = (Math.random() - 0.5) * 12;      // X: -6 to +6
-      positions[i * 3 + 1] = 0.5 + Math.random() * 10.5;      // Y: 0.5 to 11
-      positions[i * 3 + 2] = (Math.random() - 0.5) * 36 + 16; // Z: -2 to 34
+      positions[i * 3 + 0] = (Math.random() - 0.5) * 12;
+      positions[i * 3 + 1] = 0.5 + Math.random() * 10.5;
+      positions[i * 3 + 2] = (Math.random() - 0.5) * 36 + 16;
     }
 
     const pGeom = new THREE.BufferGeometry();
     pGeom.setAttribute('position', new THREE.BufferAttribute(positions, 3));
 
     const pMat = new THREE.PointsMaterial({
-      color: 0xffeab3,
-      size: 0.12,
+      color: 0xfff0cc,
+      size: 0.14,
       transparent: true,
-      opacity: 0.75,
+      opacity: 0.85,
       blending: THREE.AdditiveBlending,
       depthWrite: false
     });
@@ -951,25 +1009,23 @@ export class LibraryManager {
    */
   public getElevation(x: number, z: number, currentY: number = 0): number {
     // 1. Check Staircases
-    // Staircase 1: at X around -4.8, Z from 2.0 to 6.2 (rising from Y=0 to Y=4.5)
     if (Math.abs(x - (-4.8)) < 0.85 && z >= 2.0 && z <= 6.2) {
       const progress = (z - 2.0) / (6.2 - 2.0);
       return Math.max(0, Math.min(4.5, progress * 4.5));
     }
-    // Staircase 2: at X around 4.8, Z from 24.0 to 28.2 (rising from Y=0 to Y=4.5)
     if (Math.abs(x - 4.8) < 0.85 && z >= 24.0 && z <= 28.2) {
       const progress = (z - 24.0) / (28.2 - 24.0);
       return Math.max(0, Math.min(4.5, progress * 4.5));
     }
 
-    // 2. Upper Balcony (Only if player is already elevated Y >= 3.0, e.g. after climbing stairs)
+    // 2. Upper Balcony
     if (currentY >= 3.0) {
       if ((x <= -4.4 || x >= 4.4) && z >= -3 && z <= 35) {
         return 4.5;
       }
     }
 
-    // Ground floor is Y = 0.0 everywhere else (allows walking under balconies and close to shelves)
+    // Ground floor
     return 0.0;
   }
 
@@ -977,14 +1033,11 @@ export class LibraryManager {
    * Solid Collision Check
    */
   public isBlocked(x: number, z: number, y: number = 0): boolean {
-    // 1. Outer perimeter boundaries
     if (x <= -6.2 || x >= 6.2 || z <= -3.2 || z >= 35.2) {
       return true;
     }
 
-    // Ground floor obstacles
     if (y < 3.0) {
-      // 2. Stone Columns
       const pillarZ = [0, 6, 12, 18, 24, 30];
       for (const pz of pillarZ) {
         if (Math.abs(z - pz) < 0.65 && (Math.abs(x - (-4.3)) < 0.65 || Math.abs(x - 4.3) < 0.65)) {
@@ -992,18 +1045,15 @@ export class LibraryManager {
         }
       }
 
-      // 3. Celestial Globe Pedestal (Radius 1.1 at X = 0, Z = 14)
       const dxGlobe = x - 0;
       const dzGlobe = z - 14;
       if (dxGlobe * dxGlobe + dzGlobe * dzGlobe < 1.1 * 1.1) {
         return true;
       }
 
-      // 4. Study Tables
       const deskZ = [4, 8, 12, 18, 24, 30];
-      const deskX = [-2.3, 2.3, -2.3, 2.3, -2.3, 2.3];
-      for (let i = 0; i < deskZ.length; i++) {
-        if (Math.abs(x - deskX[i]) < 1.05 && Math.abs(z - deskZ[i]) < 0.7) {
+      for (const dz of deskZ) {
+        if (Math.abs(z - dz) < 0.75 && (Math.abs(x - (-2.3)) < 1.1 || Math.abs(x - 2.3) < 1.1)) {
           return true;
         }
       }
@@ -1016,26 +1066,22 @@ export class LibraryManager {
    * Tick update: Animate chandeliers, sconces, globe rotation, and dust motes
    */
   public update(elapsedTime: number): void {
-    // 1. Rotate Celestial Globe slowly
     if (this.globeSphereMesh) {
       this.globeSphereMesh.rotation.y = elapsedTime * 0.25;
     }
 
-    // 2. Flicker Chandelier lights
     this.chandeliers.forEach((ch) => {
       const flicker = Math.sin(elapsedTime * ch.flickerSpeed + ch.flickerPhase) * 0.35 +
                       Math.cos(elapsedTime * 8.0) * 0.15;
-      ch.light.intensity = Math.max(2.0, ch.baseIntensity + flicker);
+      ch.light.intensity = Math.max(3.5, ch.baseIntensity + flicker);
     });
 
-    // 3. Flicker Wall Sconces & Candles
     this.candleSconces.forEach((cs) => {
       const flicker = Math.sin(elapsedTime * cs.flickerSpeed + cs.flickerPhase) * 0.25 +
                       Math.sin(elapsedTime * 11.0) * 0.1;
-      cs.light.intensity = Math.max(1.0, cs.baseIntensity + flicker);
+      cs.light.intensity = Math.max(2.2, cs.baseIntensity + flicker);
     });
 
-    // 4. Drift Dust Particles
     if (this.dustParticles) {
       const posAttr = this.dustParticles.geometry.attributes.position as THREE.BufferAttribute;
       const count = posAttr.count;
