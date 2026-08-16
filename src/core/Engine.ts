@@ -123,8 +123,11 @@ export class Engine {
     });
 
     document.addEventListener('pointerlockchange', () => {
-      if (!document.pointerLockElement && this.currentPerspective === 'FPP' && !this.settingsModal.isOpen) {
-        // Cursor unlocked by browser; inputs continue to work smoothly
+      const isLocked = document.pointerLockElement !== null;
+      if (isLocked) {
+        document.body.classList.add('pointer-locked');
+      } else {
+        document.body.classList.remove('pointer-locked');
       }
     });
 

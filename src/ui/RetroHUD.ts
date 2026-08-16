@@ -32,7 +32,12 @@ export class RetroHUD {
 
   private buildDOM(): void {
     this.root.innerHTML = `
-      <div id="fpp-crosshair" class="retro-crosshair"></div>
+      <div id="fpp-crosshair" class="retro-crosshair">
+        <div class="crosshair-tick tick-top"></div>
+        <div class="crosshair-tick tick-bottom"></div>
+        <div class="crosshair-tick tick-left"></div>
+        <div class="crosshair-tick tick-right"></div>
+      </div>
 
       <header class="hud-top-bar">
         <div class="retro-panel hud-title">

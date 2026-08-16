@@ -30,7 +30,7 @@ export class CameraRig {
   public yaw: number = 0;
   public targetYaw: number = 0;
 
-  // In FPP: 0 is level horizon, positive is look up, negative is look down
+  // In FPP: 0 is level horizon, positive is looking up, negative is looking down
   public pitch: number = 0;
   public targetPitch: number = 0;
 
@@ -62,6 +62,7 @@ export class CameraRig {
 
     this.camera = new THREE.PerspectiveCamera(72, 16 / 9, 0.05, 250);
     this.camera.name = 'MainCamera';
+    this.camera.rotation.order = 'YXZ';
     this.pitchGroup.add(this.camera);
 
     this.setPerspective(this.perspective, true);
@@ -98,12 +99,16 @@ export class CameraRig {
   }
 
   public updateRigTransforms(): void {
-    this.yawGroup.rotation.y = this.yaw;
-
     if (this.perspective === 'FPP') {
-      this.pitchGroup.rotation.x = this.pitch;
+      // In FPP mode, apply yaw and pitch directly using YXZ Euler rotation on the camera
+      this.yawGroup.rotation.set(0, 0, 0);
+      this.pitchGroup.rotation.set(0, 0, 0);
       this.camera.position.set(0, 0, 0);
+      this.camera.rotation.set(this.pitch, this.yaw, 0, 'YXZ');
     } else {
+      // In TPP mode, use orbital rig groups
+      this.camera.rotation.set(0, 0, 0);
+      this.yawGroup.rotation.y = this.yaw;
       this.pitchGroup.rotation.x = -this.pitch;
       this.camera.position.set(0, 0, this.distance);
     }
@@ -116,11 +121,11 @@ export class CameraRig {
 
       if (this.perspective === 'FPP') {
         if (isLocked) {
-          // Responsive direct mouse look
+          // Direct mouse look
           this.yaw -= e.movementX * this.mouseSensitivity * 0.002;
           this.pitch -= e.movementY * this.mouseSensitivity * 0.002;
 
-          // Clamp pitch between -1.45 and +1.45 (~83 degrees)
+          // Clamp vertical pitch between -1.45 and +1.45 rad (~ -83 deg to +83 deg)
           this.pitch = Math.max(-1.45, Math.min(1.45, this.pitch));
           this.targetYaw = this.yaw;
           this.targetPitch = this.pitch;
@@ -165,7 +170,7 @@ export class CameraRig {
 
   public setTarget(x: number, y: number, z: number): void {
     if (this.perspective === 'FPP') {
-      // Eye level 1.65 above ground
+      // Mount at player eye level: Y = 1.65 above base position
       this.targetPosition.set(x, y + 1.65, z);
     } else {
       // Center of body in TPP
@@ -175,6 +180,10 @@ export class CameraRig {
 
   public getYaw(): number {
     return this.yaw;
+  }
+
+  public getPitch(): number {
+    return this.pitch;
   }
 
   public update(
