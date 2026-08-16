@@ -40,60 +40,6 @@ body.pointer-locked * {
   cursor: none !important;
 }
 
-/* Dynamic Color-Inverting Crosshair (mix-blend-mode: difference against canvas) */
-#crosshair,
-.retro-crosshair {
-  position: fixed;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  pointer-events: none;
-  mix-blend-mode: difference !important;
-  z-index: 9999;
-  width: 20px;
-  height: 20px;
-}
-
-.crosshair-tick {
-  position: absolute;
-  background-color: #ffffff !important;
-  border: none !important;
-  box-shadow: none !important;
-  opacity: 1 !important;
-}
-
-/* Top tick: 2px wide, 7px long */
-.crosshair-tick.tick-top {
-  top: 0;
-  left: 9px;
-  width: 2px;
-  height: 7px;
-}
-
-/* Bottom tick: 2px wide, 7px long */
-.crosshair-tick.tick-bottom {
-  bottom: 0;
-  left: 9px;
-  width: 2px;
-  height: 7px;
-}
-
-/* Left tick: 7px long, 2px wide */
-.crosshair-tick.tick-left {
-  top: 9px;
-  left: 0;
-  width: 7px;
-  height: 2px;
-}
-
-/* Right tick: 7px long, 2px wide */
-.crosshair-tick.tick-right {
-  top: 9px;
-  right: 0;
-  width: 7px;
-  height: 2px;
-}
-
 /* Retro HUD Overlay */
 #hud-root {
   position: absolute;

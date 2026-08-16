@@ -27,18 +27,18 @@ export class CameraRig {
   public targetPosition: THREE.Vector3 = new THREE.Vector3();
   public currentPosition: THREE.Vector3 = new THREE.Vector3();
 
+  // Unified yaw and pitch across FPP and TPP
   public yaw: number = 0;
   public targetYaw: number = 0;
 
-  // In FPP: 0 is horizon, +/-1.45 rad is looking up/down
-  // In TPP: 0.08 rad is low ground level, 1.40 rad is top-down overhead
+  // Pitch: 0 = horizon, +1.45 rad = look up, -1.45 rad = look down
   public pitch: number = 0;
   public targetPitch: number = 0;
 
   public distance: number = 0;
   public targetDistance: number = 0;
 
-  public minDistance: number = 6.0;
+  public minDistance: number = 4.0;
   public maxDistance: number = 26.0;
   public followSpeed: number = 18.0;
   public rotateSpeed: number = 2.5;
@@ -77,17 +77,12 @@ export class CameraRig {
     if (mode === 'FPP') {
       this.targetDistance = 0.0;
       this.distance = 0.0;
-      this.targetPitch = 0.0;
-      this.pitch = 0.0;
       this.camera.fov = 72;
       this.camera.near = 0.05;
       this.camera.updateProjectionMatrix();
     } else {
       this.targetDistance = 14.0;
       if (instant) this.distance = 14.0;
-      const tppPitch = (35 * Math.PI) / 180; // ~0.61 rad
-      this.targetPitch = tppPitch;
-      this.pitch = tppPitch;
       this.camera.fov = 45;
       this.camera.near = 0.1;
       this.camera.updateProjectionMatrix();
@@ -101,68 +96,57 @@ export class CameraRig {
   }
 
   public updateRigTransforms(): void {
+    this.yawGroup.rotation.set(0, 0, 0);
+    this.pitchGroup.rotation.set(0, 0, 0);
+
     if (this.perspective === 'FPP') {
-      // In FPP mode, direct YXZ camera Euler look at eye level
-      this.yawGroup.rotation.set(0, 0, 0);
-      this.pitchGroup.rotation.set(0, 0, 0);
-      this.camera.position.set(0, 0, 0);
+      // In FPP mode: Camera at player eye level with direct YXZ Euler look
+      this.camera.position.set(this.targetPosition.x, this.targetPosition.y, this.targetPosition.z);
       this.camera.rotation.set(this.pitch, this.yaw, 0, 'YXZ');
     } else {
-      // In TPP mode, calculate spherical orbit around player position
-      this.yawGroup.rotation.set(0, 0, 0);
-      this.pitchGroup.rotation.set(0, 0, 0);
+      // In TPP mode: Compute spherical position behind player matching identical look direction
+      const targetY = this.currentPosition.y;
+      const dirX = -Math.sin(this.yaw) * Math.cos(this.pitch);
+      const dirY = Math.sin(this.pitch);
+      const dirZ = -Math.cos(this.yaw) * Math.cos(this.pitch);
 
-      const horizDist = this.distance * Math.cos(this.pitch);
-      const vertDist = this.distance * Math.sin(this.pitch);
-      const camX = this.currentPosition.x + Math.sin(this.yaw) * horizDist;
-      const camY = this.currentPosition.y + vertDist;
-      const camZ = this.currentPosition.z + Math.cos(this.yaw) * horizDist;
+      const camX = this.currentPosition.x - dirX * this.distance;
+      const camY = targetY - dirY * this.distance;
+      const camZ = this.currentPosition.z - dirZ * this.distance;
 
       this.camera.position.set(camX, camY, camZ);
-      this.camera.lookAt(this.currentPosition.x, this.currentPosition.y, this.currentPosition.z);
+      this.camera.lookAt(this.currentPosition.x, targetY, this.currentPosition.z);
     }
   }
 
   private bindInputs(): void {
-    // 1. Mouse Move: Pointer Lock in FPP & TPP, or Right-Drag in TPP
+    // 1. Mouse Move: Unified look angle delta for both FPP and TPP
     window.addEventListener('mousemove', (e) => {
       const isLocked = document.pointerLockElement !== null;
 
-      if (this.perspective === 'FPP') {
-        if (isLocked) {
-          this.yaw -= e.movementX * this.mouseSensitivity * 0.002;
-          this.pitch -= e.movementY * this.mouseSensitivity * 0.002;
+      if (isLocked) {
+        this.yaw -= e.movementX * this.mouseSensitivity * 0.002;
+        this.pitch -= e.movementY * this.mouseSensitivity * 0.002;
 
-          // Clamp FPP pitch between -1.45 and +1.45 rad (~ -83 deg to +83 deg)
-          this.pitch = Math.max(-1.45, Math.min(1.45, this.pitch));
-          this.targetYaw = this.yaw;
-          this.targetPitch = this.pitch;
+        // Clamp vertical pitch between -1.45 rad (~ -83 deg) and +1.45 rad (~ +83 deg)
+        this.pitch = Math.max(-1.45, Math.min(1.45, this.pitch));
+        this.targetYaw = this.yaw;
+        this.targetPitch = this.pitch;
 
-          this.updateRigTransforms();
-        }
-      } else {
-        // TPP Mode: Invert movementY so pushing mouse up raises the camera orbit angle
-        if (isLocked) {
-          this.yaw -= e.movementX * this.mouseSensitivity * 0.002;
-          this.pitch += e.movementY * this.mouseSensitivity * 0.002;
+        this.updateRigTransforms();
+      } else if (this.perspective === 'TPP' && this.isDraggingRightMouse) {
+        const deltaX = e.clientX - this.previousMouseX;
+        const deltaY = e.clientY - this.previousMouseY;
+        this.previousMouseX = e.clientX;
+        this.previousMouseY = e.clientY;
 
-          // Clamp TPP pitch between 0.08 rad (~5 deg) and 1.40 rad (~80 deg)
-          this.pitch = Math.max(0.08, Math.min(1.40, this.pitch));
-          this.targetYaw = this.yaw;
-          this.targetPitch = this.pitch;
-        } else if (this.isDraggingRightMouse) {
-          const deltaX = e.clientX - this.previousMouseX;
-          const deltaY = e.clientY - this.previousMouseY;
-          this.previousMouseX = e.clientX;
-          this.previousMouseY = e.clientY;
+        this.targetYaw -= deltaX * 0.006 * this.mouseSensitivity;
+        this.targetPitch -= deltaY * 0.006 * this.mouseSensitivity;
+        this.targetPitch = Math.max(-1.45, Math.min(1.45, this.targetPitch));
 
-          this.targetYaw -= deltaX * 0.006 * this.mouseSensitivity;
-          this.targetPitch += deltaY * 0.006 * this.mouseSensitivity;
-          this.targetPitch = Math.max(0.08, Math.min(1.40, this.targetPitch));
-
-          this.yaw = this.targetYaw;
-          this.pitch = this.targetPitch;
-        }
+        this.yaw = this.targetYaw;
+        this.pitch = this.targetPitch;
+        this.updateRigTransforms();
       }
     });
 
@@ -199,8 +183,8 @@ export class CameraRig {
       // Mount at player eye level: Y = 1.65 above ground
       this.targetPosition.set(x, y + 1.65, z);
     } else {
-      // Center of body in TPP: Y = 1.2 above ground
-      this.targetPosition.set(x, y + 1.2, z);
+      // Center of body/chest in TPP: Y = 1.4 above ground
+      this.targetPosition.set(x, y + 1.4, z);
     }
   }
 
@@ -234,13 +218,8 @@ export class CameraRig {
       this.targetYaw -= gamepadRightStickX * this.rotateSpeed * validDelta * 1.5;
     }
     if (Math.abs(gamepadRightStickY) > 0.15) {
-      if (this.perspective === 'FPP') {
-        this.targetPitch -= gamepadRightStickY * this.rotateSpeed * validDelta * 1.2;
-        this.targetPitch = Math.max(-1.45, Math.min(1.45, this.targetPitch));
-      } else {
-        this.targetPitch += gamepadRightStickY * this.rotateSpeed * validDelta * 1.2;
-        this.targetPitch = Math.max(0.08, Math.min(1.40, this.targetPitch));
-      }
+      this.targetPitch -= gamepadRightStickY * this.rotateSpeed * validDelta * 1.2;
+      this.targetPitch = Math.max(-1.45, Math.min(1.45, this.targetPitch));
     }
 
     // 3. Transform Updates

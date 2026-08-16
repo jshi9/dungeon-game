@@ -66,27 +66,39 @@ export class RenderPipeline {
       uniform sampler2D tDiffuse;
       uniform vec2 uResolution;
       uniform float uWipeProgress;
+      uniform float uShowCrosshair;
       varying vec2 vUv;
 
       void main() {
         vec4 color = texture2D(tDiffuse, vUv);
 
-        // Retro Diamond-Grid Screen-Wipe Transition Effect
+        // 1. In-Engine Dynamic Color-Inverting Crosshair (Rendered in Native Pixel Grid)
+        if (uShowCrosshair > 0.5) {
+          vec2 pixelCoord = floor(vUv * uResolution);
+          vec2 center = floor(uResolution * 0.5);
+          vec2 d = abs(pixelCoord - center);
+
+          // 4 ticks: 1 pixel wide, 5 pixels long, 2 pixel gap from center
+          bool isVerticalTick = (d.x == 0.0 && d.y >= 2.0 && d.y <= 6.0);
+          bool isHorizontalTick = (d.y == 0.0 && d.x >= 2.0 && d.x <= 6.0);
+
+          if (isVerticalTick || isHorizontalTick) {
+            color.rgb = abs(vec3(1.0) - color.rgb);
+          }
+        }
+
+        // 2. Retro Diamond-Grid Screen-Wipe Transition Effect
         if (uWipeProgress > 0.001) {
-          // Macro grid coordinates (32 columns x 18 rows)
           vec2 gridCount = vec2(32.0, 18.0);
           vec2 cellUv = fract(vUv * gridCount);
           vec2 cellIndex = floor(vUv * gridCount);
 
-          // Staggered pattern delay across screen
           float stagger = (cellIndex.x + cellIndex.y) / (gridCount.x + gridCount.y) * 0.3;
           float adjustedProgress = clamp((uWipeProgress - stagger * 0.5) / (1.0 - 0.5 * 0.3), 0.0, 1.0);
-
-          // Diamond expansion inside each macro pixel cell
           float diamondDist = abs(cellUv.x - 0.5) + abs(cellUv.y - 0.5);
 
           if (diamondDist < adjustedProgress * 1.1) {
-            color = vec4(0.03, 0.02, 0.05, 1.0); // Void black transition
+            color = vec4(0.03, 0.02, 0.05, 1.0);
           }
         }
 
@@ -98,7 +110,8 @@ export class RenderPipeline {
       uniforms: {
         tDiffuse: { value: this.renderTarget.texture },
         uResolution: { value: new THREE.Vector2(this.internalWidth, this.internalHeight) },
-        uWipeProgress: { value: 0.0 }
+        uWipeProgress: { value: 0.0 },
+        uShowCrosshair: { value: 1.0 }
       },
       vertexShader: blitVertexShader,
       fragmentShader: blitFragmentShader,
@@ -111,6 +124,10 @@ export class RenderPipeline {
     this.blitScene.add(this.blitQuad);
 
     this.resize();
+  }
+
+  public setCrosshairVisible(visible: boolean): void {
+    this.blitMaterial.uniforms.uShowCrosshair.value = visible ? 1.0 : 0.0;
   }
 
   public setResolution(width: number, height: number): void {
@@ -136,7 +153,7 @@ export class RenderPipeline {
     this.renderer.clear();
     this.renderer.render(scene, camera);
 
-    // Pass 2: Blit low-res texture with NearestFilter to display canvas
+    // Pass 2: Blit low-res texture with NearestFilter to display canvas (with in-engine crosshair & wipe)
     this.renderer.setRenderTarget(null);
     this.renderer.render(this.blitScene, this.blitCamera);
   }

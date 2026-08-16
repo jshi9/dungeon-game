@@ -180,6 +180,7 @@ export class Engine {
     this.characterController.setPerspective(mode);
     this.hud.setPerspective(mode);
     this.settingsModal.setPerspectiveUI(mode);
+    this.renderPipeline.setCrosshairVisible(mode === 'FPP');
 
     if (mode === 'FPP') {
       this.characterModel.setFirstPerson(true);

@@ -14,7 +14,6 @@ export class RetroHUD {
   // Elements
   private modeBtn!: HTMLButtonElement;
   private viewBadgeEl!: HTMLElement;
-  private crosshairEl!: HTMLElement;
   private posValueEl!: HTMLElement;
   private chunkValueEl!: HTMLElement;
   private yawValueEl!: HTMLElement;
@@ -32,13 +31,6 @@ export class RetroHUD {
 
   private buildDOM(): void {
     this.root.innerHTML = `
-      <div id="crosshair" class="retro-crosshair">
-        <div class="crosshair-tick tick-top"></div>
-        <div class="crosshair-tick tick-bottom"></div>
-        <div class="crosshair-tick tick-left"></div>
-        <div class="crosshair-tick tick-right"></div>
-      </div>
-
       <header class="hud-top-bar">
         <div class="retro-panel hud-title">
           <span>⚔️ RETRO-3D ENGINE</span>
@@ -92,7 +84,6 @@ export class RetroHUD {
 
     this.modeBtn = this.root.querySelector('#btn-mode-toggle')!;
     this.viewBadgeEl = this.root.querySelector('#hud-view-badge')!;
-    this.crosshairEl = this.root.querySelector('#crosshair')!;
     this.posValueEl = this.root.querySelector('#tel-pos')!;
     this.chunkValueEl = this.root.querySelector('#tel-chunk')!;
     this.yawValueEl = this.root.querySelector('#tel-yaw')!;
@@ -124,11 +115,6 @@ export class RetroHUD {
 
   public setPerspective(mode: CameraPerspective): void {
     this.viewBadgeEl.textContent = mode;
-    if (mode === 'FPP') {
-      this.crosshairEl.style.display = 'block';
-    } else {
-      this.crosshairEl.style.display = 'none';
-    }
   }
 
   public updateTelemetry(
