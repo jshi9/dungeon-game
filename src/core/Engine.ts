@@ -5,10 +5,13 @@ import { LightingManager, EnvironmentMode } from '../lighting/LightingManager';
 import { TextureAtlas } from '../terrain/TextureAtlas';
 import { SurfaceManager } from '../terrain/SurfaceManager';
 import { DungeonManager } from '../terrain/DungeonManager';
+import { LibraryManager, InteractiveBookLocation } from '../terrain/LibraryManager';
 import { CharacterModel } from '../entities/CharacterModel';
 import { CharacterController } from '../entities/CharacterController';
 import { RetroHUD } from '../ui/RetroHUD';
 import { SettingsModal } from '../ui/SettingsModal';
+import { BookReaderModal } from '../ui/BookReaderModal';
+import { LibraryMusicManager } from '../audio/LibraryMusicManager';
 
 export class Engine {
   public canvas: HTMLCanvasElement;
@@ -23,17 +26,22 @@ export class Engine {
 
   public surfaceManager: SurfaceManager;
   public dungeonManager: DungeonManager;
+  public libraryManager: LibraryManager;
+  public musicManager: LibraryMusicManager;
   public characterModel: CharacterModel;
   public characterController: CharacterController;
   public hud: RetroHUD;
   public settingsModal: SettingsModal;
+  public bookReaderModal: BookReaderModal;
 
   public currentMode: EnvironmentMode = 'surface';
   public currentPerspective: CameraPerspective = 'FPP';
 
   private surfacePlayerPos = new THREE.Vector3(0, 0, 0);
   private dungeonPlayerPos = new THREE.Vector3(0, 0, 0);
+  private libraryPlayerPos = new THREE.Vector3(0, 0, -1.0);
 
+  private nearestInteractiveBook: InteractiveBookLocation | null = null;
   private keys: Record<string, boolean> = {};
 
   constructor(canvas: HTMLCanvasElement, hudRoot: HTMLElement) {
@@ -62,31 +70,47 @@ export class Engine {
     });
     this.scene.add(this.cameraRig.root);
 
-    // 5. Dual Maps: Surface & BSP Dungeon
+    // 5. Triple Maps: Surface, BSP Dungeon & Gothic Grand Cathedral Library
     this.surfaceManager = new SurfaceManager(this.scene, this.atlas);
     this.dungeonManager = new DungeonManager(this.scene, this.atlas, 48, 48);
+    this.libraryManager = new LibraryManager(this.scene, this.atlas);
 
-    // 6. Character & Controller (Attach FPS viewmodel to camera)
+    // 6. Medieval Ambient Music Manager (Procedural Web Audio on shuffled repeat)
+    this.musicManager = new LibraryMusicManager();
+
+    // 7. Character & Controller (Attach FPS viewmodel to camera)
     this.characterModel = new CharacterModel(this.atlas, this.cameraRig.camera);
     this.scene.add(this.characterModel.group);
 
     this.characterController = new CharacterController(this.characterModel);
     this.characterController.surfaceManager = this.surfaceManager;
     this.characterController.dungeonManager = this.dungeonManager;
+    this.characterController.libraryManager = this.libraryManager;
 
-    // 7. Initial Spawn Positions
+    // 8. Initial Spawn Positions
     const initialSurfaceY = this.surfaceManager.getElevation(0, 0);
     this.surfacePlayerPos.set(0, initialSurfaceY, 0);
 
     const dSpawn = this.dungeonManager.dungeon.spawnPoint;
     this.dungeonPlayerPos.set(dSpawn.x + 0.5, 0, dSpawn.z + 0.5);
 
-    // 8. Retro Settings Modal (mounted directly to document.body)
+    this.libraryPlayerPos.set(0, 0, -1.0);
+
+    // 9. Retro Settings Modal (mounted directly to document.body)
     this.settingsModal = new SettingsModal({
       onPerspectiveChange: (mode) => this.setPerspective(mode),
       onSensitivityChange: (sens) => this.cameraRig.setMouseSensitivity(sens),
       onFovChange: (fov) => this.cameraRig.setFov(fov),
       onResolutionChange: (w, h) => this.renderPipeline.setResolution(w, h),
+      onMusicVolumeChange: (vol) => this.musicManager.setVolume(vol),
+      onClose: () => {
+        this.characterController.isInputPaused = false;
+        this.canvas.requestPointerLock();
+      }
+    });
+
+    // 10. Interactive Book Reader Modal
+    this.bookReaderModal = new BookReaderModal({
       onClose: () => {
         this.characterController.isInputPaused = false;
         this.canvas.requestPointerLock();
@@ -109,9 +133,16 @@ export class Engine {
           this.cameraRig.setMouseSensitivity(s);
         }
       }
+      const savedMusic = localStorage.getItem('retro3d_music_vol');
+      if (savedMusic) {
+        const m = parseInt(savedMusic, 10);
+        if (!isNaN(m) && m >= 0 && m <= 100) {
+          this.musicManager.setVolume(m / 100);
+        }
+      }
     } catch {}
 
-    // 9. Retro HUD with Inventory Hotbar
+    // 11. Retro HUD with Inventory Hotbar
     this.hud = new RetroHUD(this.hudRoot, {
       onToggleMode: () => this.switchModeWithTransition(),
       onSelectResolution: (w, h) => this.renderPipeline.setResolution(w, h),
@@ -119,10 +150,15 @@ export class Engine {
       onSelectItem: (item) => this.characterModel.setActiveItem(item ? item.id : null)
     });
 
-    // 10. Bind Window Events
+    // Connect Music Now Playing callback to HUD
+    this.musicManager.onTrackChange = (title, subtitle) => {
+      this.hud.showNowPlaying(title, subtitle);
+    };
+
+    // 12. Bind Window Events
     this.bindEvents();
 
-    // 11. Initial Mode & Perspective Setup
+    // 13. Initial Mode & Perspective Setup
     this.setMode('surface', true);
     this.setPerspective('FPP');
     const initialItem = this.hud.getSelectedItem();
@@ -137,6 +173,18 @@ export class Engine {
 
     // Direct pointer lock on canvas click in both FPP and TPP
     this.canvas.addEventListener('click', () => {
+      // Resume audio if needed
+      if (this.currentMode === 'library') {
+        this.musicManager.setLibraryMode(true);
+      }
+
+      if (this.bookReaderModal.getIsOpen()) return;
+
+      if (this.nearestInteractiveBook && this.currentMode === 'library' && !this.settingsModal.isOpen) {
+        this.openBookReader(this.nearestInteractiveBook);
+        return;
+      }
+
       if (!this.settingsModal.isOpen) {
         this.canvas.requestPointerLock();
       }
@@ -151,29 +199,62 @@ export class Engine {
       }
     });
 
-    // Capture phase for Escape / KeyO / Hotbar keys
+    // Capture phase for Escape / KeyO / KeyN / KeyE / Hotbar keys
     window.addEventListener('keydown', (e) => {
       this.keys[e.code] = true;
 
+      // Resume audio on first keypress if in library
+      if (this.currentMode === 'library') {
+        this.musicManager.setLibraryMode(true);
+      }
+
       // Escape or 'KeyO' to toggle settings
       if (e.code === 'Escape' || e.code === 'KeyO') {
+        if (this.bookReaderModal.getIsOpen()) {
+          this.bookReaderModal.close();
+          return;
+        }
         e.preventDefault();
         e.stopPropagation();
         this.toggleSettings();
         return;
       }
 
+      // 'E' key to interact with books or lore
+      if (e.code === 'KeyE' && !this.settingsModal.isOpen) {
+        if (this.bookReaderModal.getIsOpen()) {
+          this.bookReaderModal.close();
+          return;
+        }
+        if (this.nearestInteractiveBook && this.currentMode === 'library') {
+          e.preventDefault();
+          this.openBookReader(this.nearestInteractiveBook);
+          return;
+        }
+      }
+
+      // 'N' key for direct Grand Library access
+      if (e.code === 'KeyN' && !this.settingsModal.isOpen && !this.bookReaderModal.getIsOpen()) {
+        e.preventDefault();
+        if (this.currentMode !== 'library') {
+          this.switchModeWithTransition('library');
+        } else {
+          this.switchModeWithTransition('surface');
+        }
+        return;
+      }
+
+      // 'M' key for 3-way Map cycling (Surface -> Dungeon -> Library -> Surface)
+      if (e.code === 'KeyM' && !this.settingsModal.isOpen && !this.bookReaderModal.getIsOpen()) {
+        this.switchModeWithTransition();
+      }
+
       // Number keys 1-8 for Hotbar Slot Selection (Toggle equip/unequip)
-      if (!this.settingsModal.isOpen && e.code.startsWith('Digit')) {
+      if (!this.settingsModal.isOpen && !this.bookReaderModal.getIsOpen() && e.code.startsWith('Digit')) {
         const num = parseInt(e.code.replace('Digit', ''), 10);
         if (num >= 1 && num <= 8) {
           this.hud.selectSlot(num - 1);
         }
-      }
-
-      // 'M' key for mode switch transition
-      if (e.code === 'KeyM' && !this.settingsModal.isOpen) {
-        this.switchModeWithTransition();
       }
 
       // 'F' key for Fullscreen
@@ -185,6 +266,12 @@ export class Engine {
     window.addEventListener('keyup', (e) => {
       this.keys[e.code] = false;
     });
+  }
+
+  public openBookReader(bookLoc: InteractiveBookLocation): void {
+    this.characterController.isInputPaused = true;
+    document.exitPointerLock();
+    this.bookReaderModal.open(bookLoc.book);
   }
 
   public openSettings(): void {
@@ -217,7 +304,7 @@ export class Engine {
 
     this.characterModel.setFirstPerson(mode === 'FPP');
 
-    if (!this.settingsModal.isOpen) {
+    if (!this.settingsModal.isOpen && !this.bookReaderModal.getIsOpen()) {
       this.canvas.requestPointerLock();
     }
   }
@@ -230,10 +317,22 @@ export class Engine {
     }
   }
 
-  public switchModeWithTransition(): void {
+  public switchModeWithTransition(targetMode?: EnvironmentMode): void {
     if (this.renderPipeline?.transitionManager?.isTransitioning) return;
 
-    const nextMode: EnvironmentMode = this.currentMode === 'surface' ? 'dungeon' : 'surface';
+    let nextMode: EnvironmentMode;
+    if (targetMode) {
+      nextMode = targetMode;
+    } else {
+      // 3-way map cycle
+      if (this.currentMode === 'surface') {
+        nextMode = 'dungeon';
+      } else if (this.currentMode === 'dungeon') {
+        nextMode = 'library';
+      } else {
+        nextMode = 'surface';
+      }
+    }
 
     this.renderPipeline.transitionManager.startTransition(
       () => {
@@ -248,8 +347,10 @@ export class Engine {
     if (this.characterController) {
       if (this.currentMode === 'surface') {
         this.surfacePlayerPos.copy(this.characterController.position);
-      } else {
+      } else if (this.currentMode === 'dungeon') {
         this.dungeonPlayerPos.copy(this.characterController.position);
+      } else {
+        this.libraryPlayerPos.copy(this.characterController.position);
       }
       this.characterController.currentMode = mode;
     }
@@ -260,9 +361,16 @@ export class Engine {
       this.lightingManager.setMode(mode);
     }
 
+    // Toggle Medieval Ambient Music for Library
+    if (this.musicManager) {
+      this.musicManager.setLibraryMode(mode === 'library');
+    }
+
     if (mode === 'surface') {
       if (this.surfaceManager) this.surfaceManager.setVisible(true);
       if (this.dungeonManager) this.dungeonManager.setVisible(false);
+      if (this.libraryManager) this.libraryManager.setVisible(false);
+
       if (this.characterModel) {
         this.characterModel.baseLanternIntensity = 2.0;
         if (this.characterModel.fpsLanternLight) {
@@ -282,9 +390,11 @@ export class Engine {
       if (this.surfaceManager) {
         this.surfaceManager.update(targetPos.x, targetPos.z);
       }
-    } else {
+    } else if (mode === 'dungeon') {
       if (this.surfaceManager) this.surfaceManager.setVisible(false);
       if (this.dungeonManager) this.dungeonManager.setVisible(true);
+      if (this.libraryManager) this.libraryManager.setVisible(false);
+
       if (this.characterModel) {
         this.characterModel.baseLanternIntensity = 5.0;
         if (this.characterModel.fpsLanternLight) {
@@ -298,6 +408,28 @@ export class Engine {
       }
 
       const targetPos = this.dungeonPlayerPos;
+      if (this.characterController) {
+        this.characterController.setPosition(targetPos.x, targetPos.y, targetPos.z);
+      }
+    } else {
+      // Grand Cathedral Library
+      if (this.surfaceManager) this.surfaceManager.setVisible(false);
+      if (this.dungeonManager) this.dungeonManager.setVisible(false);
+      if (this.libraryManager) this.libraryManager.setVisible(true);
+
+      if (this.characterModel) {
+        this.characterModel.baseLanternIntensity = 4.0;
+        if (this.characterModel.fpsLanternLight) {
+          this.characterModel.fpsLanternLight.intensity = 4.0;
+          this.characterModel.fpsLanternLight.distance = 25;
+        }
+        if (this.characterModel.tppLanternLight) {
+          this.characterModel.tppLanternLight.intensity = 4.0;
+          this.characterModel.tppLanternLight.distance = 25;
+        }
+      }
+
+      const targetPos = this.libraryPlayerPos;
       if (this.characterController) {
         this.characterController.setPosition(targetPos.x, targetPos.y, targetPos.z);
       }
@@ -331,8 +463,8 @@ export class Engine {
 
     // 1. Controller & Gamepad Inputs
     const gp = this.characterController.getGamepadInput();
-    const qPressed = !this.settingsModal.isOpen && !!this.keys['KeyQ'];
-    const ePressed = !this.settingsModal.isOpen && !!this.keys['KeyE'];
+    const qPressed = !this.settingsModal.isOpen && !this.bookReaderModal.getIsOpen() && !!this.keys['KeyQ'];
+    const ePressed = !this.settingsModal.isOpen && !this.bookReaderModal.getIsOpen() && !!this.keys['KeyE'];
 
     // 2. Update Character Movement relative to camera yaw first
     this.characterController.update(delta, this.cameraRig.getYaw());
@@ -345,30 +477,33 @@ export class Engine {
     );
     this.cameraRig.update(delta, gp.rightStickX, gp.rightStickY, qPressed, ePressed);
 
-    // 4. Update Flashlight and Handheld Direction Aiming
-    const cosPitch = Math.cos(this.cameraRig.pitch);
-    const sinPitch = Math.sin(this.cameraRig.pitch);
-    const cosYaw = Math.cos(this.cameraRig.yaw);
-    const sinYaw = Math.sin(this.cameraRig.yaw);
-    const lookDir = new THREE.Vector3(
-      -sinYaw * cosPitch,
-      sinPitch,
-      -cosYaw * cosPitch
-    );
-    this.characterModel.updateLightAim(this.cameraRig.camera.position, lookDir);
-
-    // 5. Update Active Map Systems
+    // 4. Update Active Map Systems
     if (this.currentMode === 'surface') {
       this.surfaceManager.update(this.characterController.position.x, this.characterController.position.z);
       this.lightingManager.updateSunPosition(this.characterController.position);
-    } else {
+      this.hud.hideInteractionPrompt();
+      this.nearestInteractiveBook = null;
+    } else if (this.currentMode === 'dungeon') {
       this.dungeonManager.updateTorches(elapsedTime);
+      this.hud.hideInteractionPrompt();
+      this.nearestInteractiveBook = null;
+    } else {
+      // Grand Cathedral Library update
+      this.libraryManager.update(elapsedTime);
+
+      // Check proximity to interactive books / desks / globe
+      this.nearestInteractiveBook = this.libraryManager.getNearestInteractiveBook(this.characterController.position, 2.5);
+      if (this.nearestInteractiveBook && !this.bookReaderModal.getIsOpen() && !this.settingsModal.isOpen) {
+        this.hud.showInteractionPrompt(`[E] READ: ${this.nearestInteractiveBook.label.toUpperCase()}`);
+      } else {
+        this.hud.hideInteractionPrompt();
+      }
     }
 
-    // 6. Render Scene via Pixel-Grid Pipeline
+    // 5. Render Scene via Pixel-Grid Pipeline
     this.renderPipeline.render(this.scene, this.cameraRig.camera, delta);
 
-    // 7. Update HUD Telemetry
+    // 6. Update HUD Telemetry
     const chunkX = Math.floor(this.characterController.position.x / 16);
     const chunkZ = Math.floor(this.characterController.position.z / 16);
     this.hud.updateTelemetry(

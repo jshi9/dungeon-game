@@ -41,6 +41,12 @@ export class RetroHUD {
   private gamepadBadgeEl!: HTMLElement;
   private hotbarLabelEl!: HTMLElement;
   private hotbarSlotsContainer!: HTMLElement;
+  private interactionPromptEl!: HTMLElement;
+  private promptTextEl!: HTMLElement;
+  private musicToastEl!: HTMLElement;
+  private musicTitleEl!: HTMLElement;
+  private musicSubtitleEl!: HTMLElement;
+  private musicToastTimer: number | null = null;
 
   public items: InventoryItem[] = [...DEFAULT_HOTBAR_ITEMS];
   public selectedIndex: number = 0; // Starts with Flashlight equipped (index 0)
@@ -64,7 +70,7 @@ export class RetroHUD {
 
         <div class="hud-controls-group">
           <button id="btn-mode-toggle" class="retro-panel retro-btn">
-            <span>🗺️ MAP: SURFACE</span>
+            <span>☀️ MAP: SURFACE</span>
           </button>
 
           <button id="btn-fullscreen" class="retro-panel retro-btn" title="Toggle Fullscreen (F)">
@@ -72,6 +78,21 @@ export class RetroHUD {
           </button>
         </div>
       </header>
+
+      <!-- Top Center Music Now Playing Notification -->
+      <div id="hud-music-toast" class="hud-music-toast hidden">
+        <span class="music-icon">🎵</span>
+        <div class="music-info">
+          <div id="music-title" class="music-title">The Scribe's Vigil</div>
+          <div id="music-subtitle" class="music-subtitle">Medieval Lute & Flute</div>
+        </div>
+      </div>
+
+      <!-- Center Screen Interaction Prompt -->
+      <div id="hud-interaction-prompt" class="hud-interaction-prompt hidden">
+        <span class="key-badge prompt-key">E</span>
+        <span id="prompt-text" class="prompt-text">READ BOOK</span>
+      </div>
 
       <!-- Center-Bottom Pixel Inventory Hotbar -->
       <div class="hud-hotbar-container">
@@ -108,9 +129,8 @@ export class RetroHUD {
         </div>
 
         <div class="retro-panel controls-guide">
-          <div><span class="key-badge">1</span>-<span class="key-badge">8</span> : Equip/Unequip &nbsp;|&nbsp; <span class="key-badge">W</span> <span class="key-badge">A</span> <span class="key-badge">S</span> <span class="key-badge">D</span> : Move</div>
-          <div><span class="key-badge">Shift</span> : Sprint &nbsp;|&nbsp; <span class="key-badge">M</span> : Switch Map (Wipe)</div>
-          <div><span class="key-badge">Esc</span> / <span class="key-badge">O</span> : Settings (FPP/TPP, FOV, Sens)</div>
+          <div><span class="key-badge">1</span>-<span class="key-badge">8</span> : Items &nbsp;|&nbsp; <span class="key-badge">W</span><span class="key-badge">A</span><span class="key-badge">S</span><span class="key-badge">D</span> : Move &nbsp;|&nbsp; <span class="key-badge">E</span> : Read</div>
+          <div><span class="key-badge">M</span> : Switch Map &nbsp;|&nbsp; <span class="key-badge">N</span> : Grand Library &nbsp;|&nbsp; <span class="key-badge">Esc</span> : Settings</div>
         </div>
       </footer>
     `;
@@ -124,6 +144,11 @@ export class RetroHUD {
     this.gamepadBadgeEl = this.root.querySelector('#tel-gamepad')!;
     this.hotbarLabelEl = this.root.querySelector('#hotbar-item-label')!;
     this.hotbarSlotsContainer = this.root.querySelector('#hotbar-slots')!;
+    this.interactionPromptEl = this.root.querySelector('#hud-interaction-prompt')!;
+    this.promptTextEl = this.root.querySelector('#prompt-text')!;
+    this.musicToastEl = this.root.querySelector('#hud-music-toast')!;
+    this.musicTitleEl = this.root.querySelector('#music-title')!;
+    this.musicSubtitleEl = this.root.querySelector('#music-subtitle')!;
 
     // Bind event listeners
     this.modeBtn.addEventListener('click', () => {
@@ -137,6 +162,29 @@ export class RetroHUD {
 
     this.renderHotbar();
     this.setPerspective('FPP');
+  }
+
+  public showNowPlaying(title: string, subtitle: string): void {
+    this.musicTitleEl.textContent = title;
+    this.musicSubtitleEl.textContent = subtitle;
+    this.musicToastEl.classList.remove('hidden');
+
+    if (this.musicToastTimer !== null) {
+      window.clearTimeout(this.musicToastTimer);
+    }
+
+    this.musicToastTimer = window.setTimeout(() => {
+      this.musicToastEl.classList.add('hidden');
+    }, 5500);
+  }
+
+  public showInteractionPrompt(text: string): void {
+    this.promptTextEl.textContent = text;
+    this.interactionPromptEl.classList.remove('hidden');
+  }
+
+  public hideInteractionPrompt(): void {
+    this.interactionPromptEl.classList.add('hidden');
   }
 
   public renderHotbar(): void {
@@ -238,8 +286,11 @@ export class RetroHUD {
     if (mode === 'surface') {
       this.modeBtn.innerHTML = `<span>☀️ MAP: SURFACE</span>`;
       this.modeBtn.classList.remove('active-mode');
-    } else {
+    } else if (mode === 'dungeon') {
       this.modeBtn.innerHTML = `<span>🏰 MAP: DUNGEON</span>`;
+      this.modeBtn.classList.add('active-mode');
+    } else {
+      this.modeBtn.innerHTML = `<span>📚 MAP: GRAND LIBRARY</span>`;
       this.modeBtn.classList.add('active-mode');
     }
   }

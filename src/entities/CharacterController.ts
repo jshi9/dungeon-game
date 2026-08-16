@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { CharacterModel } from './CharacterModel';
 import { SurfaceManager } from '../terrain/SurfaceManager';
 import { DungeonManager } from '../terrain/DungeonManager';
+import { LibraryManager } from '../terrain/LibraryManager';
 import { EnvironmentMode } from '../lighting/LightingManager';
 import { CameraPerspective } from '../camera/CameraRig';
 
@@ -27,6 +28,7 @@ export class CharacterController {
   // Collision providers
   public surfaceManager?: SurfaceManager;
   public dungeonManager?: DungeonManager;
+  public libraryManager?: LibraryManager;
   public currentMode: EnvironmentMode = 'surface';
 
   constructor(model: CharacterModel) {
@@ -60,45 +62,45 @@ export class CharacterController {
     rightStickX: number;
     rightStickY: number;
     sprint: boolean;
+    jump: boolean;
+    switchMode: boolean;
+    switchView: boolean;
   } {
     const gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
-    let moveX = 0;
-    let moveZ = 0;
-    let rightStickX = 0;
-    let rightStickY = 0;
-    let sprint = false;
+    const gp = Array.from(gamepads).find((g) => g !== null && g.connected);
 
-    for (const gp of gamepads) {
-      if (!gp) continue;
-      const lx = gp.axes[0] || 0;
-      const lz = gp.axes[1] || 0;
-      if (Math.hypot(lx, lz) > 0.18) {
-        moveX = lx;
-        moveZ = lz;
-      }
-      if (gp.buttons[14]?.pressed) moveX = -1;
-      if (gp.buttons[15]?.pressed) moveX = 1;
-      if (gp.buttons[12]?.pressed) moveZ = -1;
-      if (gp.buttons[13]?.pressed) moveZ = 1;
-
-      const rx = gp.axes[2] || 0;
-      const ry = gp.axes[3] || 0;
-      if (Math.abs(rx) > 0.18) rightStickX = rx;
-      if (Math.abs(ry) > 0.18) rightStickY = ry;
-
-      if (gp.buttons[0]?.pressed || gp.buttons[10]?.pressed) {
-        sprint = true;
-      }
-      break;
+    if (!gp) {
+      return {
+        moveX: 0,
+        moveZ: 0,
+        rightStickX: 0,
+        rightStickY: 0,
+        sprint: false,
+        jump: false,
+        switchMode: false,
+        switchView: false
+      };
     }
 
-    return { moveX, moveZ, rightStickX, rightStickY, sprint };
+    const deadzone = 0.15;
+    const applyDeadzone = (val: number) => (Math.abs(val) > deadzone ? val : 0);
+
+    return {
+      moveX: applyDeadzone(gp.axes[0] ?? 0),
+      moveZ: applyDeadzone(gp.axes[1] ?? 0),
+      rightStickX: applyDeadzone(gp.axes[2] ?? 0),
+      rightStickY: applyDeadzone(gp.axes[3] ?? 0),
+      sprint: !!gp.buttons[0]?.pressed,
+      jump: !!gp.buttons[1]?.pressed,
+      switchMode: !!gp.buttons[2]?.pressed,
+      switchView: !!gp.buttons[3]?.pressed
+    };
   }
 
   public update(delta: number, cameraYaw: number): void {
     const validDelta = (Number.isFinite(delta) && delta > 0) ? Math.min(delta, 0.1) : 0.016;
 
-    // If input is paused (e.g. settings modal open), decelerate to 0
+    // If input is paused (e.g. settings modal or book reader open), decelerate to 0
     if (this.isInputPaused) {
       this.velocity.x = THREE.MathUtils.damp(this.velocity.x, 0, this.deceleration, validDelta);
       this.velocity.z = THREE.MathUtils.damp(this.velocity.z, 0, this.deceleration, validDelta);
@@ -158,40 +160,29 @@ export class CharacterController {
 
     // 5. Facing Orientation
     if (this.perspective === 'FPP') {
-      // In First-Person, player body orientation strictly matches camera yaw
       this.facingAngle = cameraYaw;
-      this.targetFacingAngle = cameraYaw;
       this.model.group.rotation.y = cameraYaw;
     } else {
-      // In Third-Person, 8-directional snapping
-      const moveMag = Math.hypot(worldDirX, worldDirZ);
-      if (this.isMoving && moveMag > 0.001) {
-        const rawAngle = Math.atan2(worldDirX, worldDirZ);
-        if (Number.isFinite(rawAngle)) {
-          const snapStep = Math.PI / 4;
-          this.targetFacingAngle = Math.round(rawAngle / snapStep) * snapStep;
-        }
+      if (this.isMoving) {
+        this.targetFacingAngle = Math.atan2(this.velocity.x, this.velocity.z);
+        let diff = this.targetFacingAngle - this.facingAngle;
+        while (diff < -Math.PI) diff += Math.PI * 2;
+        while (diff > Math.PI) diff -= Math.PI * 2;
+        this.facingAngle += diff * Math.min(1.0, 14.0 * validDelta);
       }
-
-      let diff = this.targetFacingAngle - this.facingAngle;
-      while (diff < -Math.PI) diff += Math.PI * 2;
-      while (diff > Math.PI) diff -= Math.PI * 2;
-      this.facingAngle += diff * Math.min(1.0, 14 * validDelta);
       this.model.group.rotation.y = this.facingAngle;
     }
 
-    // 6. Update Character Mesh & Walk Cycle
+    // 6. Synchronize Visual Model Position
     this.model.group.position.copy(this.position);
-    this.model.updateAnimation(
-      this.isMoving,
-      validDelta,
-      Math.hypot(this.velocity.x, this.velocity.z) / this.moveSpeed
-    );
+
+    // 7. Update Model Limb Walk Animation
+    const speedRatio = Math.hypot(this.velocity.x, this.velocity.z) / this.moveSpeed;
+    this.model.updateAnimation(this.isMoving, validDelta, speedRatio);
   }
 
   /**
-   * Sample multi-point footprint terrain height around (x, z) to prevent edge clipping and sinking.
-   * Takes the maximum walkable ground height among footprint points within step height range.
+   * Multi-point Footprint Terrain Height Sampling (9 points around base radius)
    */
   public getFootprintGroundHeight(x: number, z: number, currentY: number): number {
     if (!this.surfaceManager) return 0;
@@ -215,7 +206,6 @@ export class CharacterController {
 
     for (const p of points) {
       const h = this.surfaceManager.getElevation(p.x, p.z);
-      // Valid supporting ground must be at or below current foot height + step threshold
       if (h <= currentY + this.maxStepHeight + 0.1) {
         if (h > maxWalkableH) {
           maxWalkableH = h;
@@ -231,7 +221,7 @@ export class CharacterController {
   }
 
   /**
-   * Check if any footprint bounding point at (x, z) hits a cliff/wall higher than maxStepHeight.
+   * Check if any footprint bounding point hits a cliff higher than maxStepHeight
    */
   public isWallBlocked(x: number, z: number, currentY: number): boolean {
     if (!this.surfaceManager) return false;
@@ -263,7 +253,7 @@ export class CharacterController {
     const moveDistZ = this.velocity.z * delta;
 
     if (this.currentMode === 'surface' && this.surfaceManager) {
-      // 1. Check Horizontal Movement with Wall Collision
+      // 1. Surface Terrain Collision
       const nextX = this.position.x + moveDistX;
       const isWallBlockedX = this.isWallBlocked(nextX, this.position.z, this.position.y);
       if (!isWallBlockedX) {
@@ -276,15 +266,14 @@ export class CharacterController {
         this.position.z = nextZ;
       }
 
-      // 2. Multi-Point Footprint Ground Height Resolution (prevents edge sinking)
+      // Multi-Point Footprint Ground Height Resolution
       const targetGroundY = this.getFootprintGroundHeight(this.position.x, this.position.z, this.position.y);
-
-      // Smooth step-up and step-down interpolation
       this.position.y = THREE.MathUtils.damp(this.position.y, targetGroundY, 20, delta);
       if (this.position.y < targetGroundY) {
         this.position.y = targetGroundY;
       }
     } else if (this.currentMode === 'dungeon' && this.dungeonManager) {
+      // 2. BSP Dungeon Wall Collision
       const r = this.playerRadius;
 
       const testX = this.position.x + moveDistX;
@@ -310,6 +299,33 @@ export class CharacterController {
       }
 
       this.position.y = 0;
+    } else if (this.currentMode === 'library' && this.libraryManager) {
+      // 3. Grand Cathedral Library Collision
+      const r = this.playerRadius;
+
+      const testX = this.position.x + moveDistX;
+      const blockedX =
+        this.libraryManager.isBlocked(testX - r, this.position.z, this.position.y) ||
+        this.libraryManager.isBlocked(testX + r, this.position.z, this.position.y);
+
+      if (!blockedX) {
+        this.position.x = testX;
+      }
+
+      const testZ = this.position.z + moveDistZ;
+      const blockedZ =
+        this.libraryManager.isBlocked(this.position.x, testZ - r, this.position.y) ||
+        this.libraryManager.isBlocked(this.position.x, testZ + r, this.position.y);
+
+      if (!blockedZ) {
+        this.position.z = testZ;
+      }
+
+      const targetGroundY = this.libraryManager.getElevation(this.position.x, this.position.z);
+      this.position.y = THREE.MathUtils.damp(this.position.y, targetGroundY, 20, delta);
+      if (this.position.y < targetGroundY) {
+        this.position.y = targetGroundY;
+      }
     }
   }
 }

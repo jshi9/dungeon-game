@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 
-export type EnvironmentMode = 'surface' | 'dungeon';
+export type EnvironmentMode = 'surface' | 'dungeon' | 'library';
 
 export class LightingManager {
   public scene: THREE.Scene;
@@ -11,16 +11,18 @@ export class LightingManager {
   public dirLight: THREE.DirectionalLight;
   public dirLightTarget: THREE.Object3D;
 
-  // Dungeon Ambient
+  // Dungeon / Library Ambient
   public dungeonAmbient: THREE.AmbientLight;
 
   // Fogs
   private surfaceFog: THREE.FogExp2;
   private dungeonFog: THREE.Fog;
+  private libraryFog: THREE.Fog;
 
   // Background Colors
   private surfaceBgColor = new THREE.Color(0x8bc3ea);
   private dungeonBgColor = new THREE.Color(0x0a0812);
+  private libraryBgColor = new THREE.Color(0x0c0b14);
 
   constructor(scene: THREE.Scene) {
     this.scene = scene;
@@ -53,13 +55,14 @@ export class LightingManager {
     this.dirLight.target = this.dirLightTarget;
     this.scene.add(this.dirLight);
 
-    // 3. Dungeon Ambient (Warm baseline ambient for dungeon visibility)
+    // 3. Ambient
     this.dungeonAmbient = new THREE.AmbientLight(0x4c425e, 1.2);
     this.scene.add(this.dungeonAmbient);
 
-    // 4. Fogs (Linear atmospheric falloff allows flashlight to penetrate far down halls)
+    // 4. Fogs
     this.surfaceFog = new THREE.FogExp2(0x8bc3ea, 0.010);
     this.dungeonFog = new THREE.Fog(0x06050e, 18, 95);
+    this.libraryFog = new THREE.Fog(0x0c0b14, 22, 90);
 
     this.setMode('surface');
   }
@@ -75,7 +78,7 @@ export class LightingManager {
       this.hemiLight.intensity = 0.95;
       this.dirLight.intensity = 1.8;
       this.dungeonAmbient.intensity = 0.1;
-    } else {
+    } else if (mode === 'dungeon') {
       this.scene.background = this.dungeonBgColor;
       this.scene.fog = this.dungeonFog;
       this.hemiLight.color.setHex(0x5a5070);
@@ -83,6 +86,15 @@ export class LightingManager {
       this.hemiLight.intensity = 0.35;
       this.dirLight.intensity = 0.0;
       this.dungeonAmbient.intensity = 1.2;
+    } else {
+      // Grand Cathedral Library
+      this.scene.background = this.libraryBgColor;
+      this.scene.fog = this.libraryFog;
+      this.hemiLight.color.setHex(0xffe8c2);
+      this.hemiLight.groundColor.setHex(0x2d1f2b);
+      this.hemiLight.intensity = 0.45;
+      this.dirLight.intensity = 0.0;
+      this.dungeonAmbient.intensity = 1.15;
     }
   }
 
