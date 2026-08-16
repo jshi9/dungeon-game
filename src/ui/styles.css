@@ -54,41 +54,43 @@ body.pointer-locked * {
 
 .crosshair-tick {
   position: absolute;
-  background-color: #ffffff;
-  box-shadow: 0 0 0 1px #000000;
-  border-radius: 0.5px;
+  background-color: #ffffff !important;
+  border: 1px solid #000000 !important;
+  box-sizing: border-box !important;
+  opacity: 1 !important;
+  filter: none !important;
 }
 
-/* Top tick: 2px wide, 6px long, 4px gap to center (center is at (10, 10)) */
+/* Top tick: 4px wide (2px inner white + 2x1px border), 7px long */
 .crosshair-tick.tick-top {
   top: 0;
-  left: 9px;
-  width: 2px;
-  height: 6px;
+  left: 8px;
+  width: 4px;
+  height: 7px;
 }
 
-/* Bottom tick: 2px wide, 6px long, 4px gap to center */
+/* Bottom tick: 4px wide, 7px long */
 .crosshair-tick.tick-bottom {
   bottom: 0;
-  left: 9px;
-  width: 2px;
-  height: 6px;
+  left: 8px;
+  width: 4px;
+  height: 7px;
 }
 
-/* Left tick: 6px long, 2px wide, 4px gap to center */
+/* Left tick: 7px long, 4px wide */
 .crosshair-tick.tick-left {
-  top: 9px;
+  top: 8px;
   left: 0;
-  width: 6px;
-  height: 2px;
+  width: 7px;
+  height: 4px;
 }
 
-/* Right tick: 6px long, 2px wide, 4px gap to center */
+/* Right tick: 7px long, 4px wide */
 .crosshair-tick.tick-right {
-  top: 9px;
+  top: 8px;
   right: 0;
-  width: 6px;
-  height: 2px;
+  width: 7px;
+  height: 4px;
 }
 
 /* Retro HUD Overlay */

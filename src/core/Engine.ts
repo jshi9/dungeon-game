@@ -88,9 +88,7 @@ export class Engine {
       onResolutionChange: (w, h) => this.renderPipeline.setResolution(w, h),
       onClose: () => {
         this.characterController.isInputPaused = false;
-        if (this.currentPerspective === 'FPP') {
-          this.canvas.requestPointerLock();
-        }
+        this.canvas.requestPointerLock();
       }
     });
 
@@ -115,9 +113,9 @@ export class Engine {
       this.cameraRig.setAspect(window.innerWidth / window.innerHeight);
     });
 
-    // Direct pointer lock on canvas click in FPP
+    // Direct pointer lock on canvas click in both FPP and TPP
     this.canvas.addEventListener('click', () => {
-      if (!this.settingsModal.isOpen && this.currentPerspective === 'FPP') {
+      if (!this.settingsModal.isOpen) {
         this.canvas.requestPointerLock();
       }
     });
@@ -165,9 +163,7 @@ export class Engine {
   public closeSettings(): void {
     this.characterController.isInputPaused = false;
     this.settingsModal.hide();
-    if (this.currentPerspective === 'FPP') {
-      this.canvas.requestPointerLock();
-    }
+    this.canvas.requestPointerLock();
   }
 
   public toggleSettings(): void {
@@ -187,12 +183,12 @@ export class Engine {
 
     if (mode === 'FPP') {
       this.characterModel.setFirstPerson(true);
-      if (!this.settingsModal.isOpen) {
-        this.canvas.requestPointerLock();
-      }
     } else {
       this.characterModel.setFirstPerson(false);
-      document.exitPointerLock();
+    }
+
+    if (!this.settingsModal.isOpen) {
+      this.canvas.requestPointerLock();
     }
   }
 

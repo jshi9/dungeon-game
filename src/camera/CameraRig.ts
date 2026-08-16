@@ -30,7 +30,8 @@ export class CameraRig {
   public yaw: number = 0;
   public targetYaw: number = 0;
 
-  // In FPP: 0 is level horizon, positive is looking up, negative is looking down
+  // In FPP: 0 is horizon, +/-1.45 rad is looking up/down
+  // In TPP: 0.08 rad is low ground level, 1.40 rad is top-down overhead
   public pitch: number = 0;
   public targetPitch: number = 0;
 
@@ -44,6 +45,7 @@ export class CameraRig {
 
   private isDraggingRightMouse: boolean = false;
   private previousMouseX: number = 0;
+  private previousMouseY: number = 0;
 
   constructor(options: CameraRigOptions = {}) {
     this.perspective = options.perspective ?? 'FPP';
@@ -83,7 +85,7 @@ export class CameraRig {
     } else {
       this.targetDistance = 14.0;
       if (instant) this.distance = 14.0;
-      const tppPitch = (35 * Math.PI) / 180;
+      const tppPitch = (35 * Math.PI) / 180; // ~0.61 rad
       this.targetPitch = tppPitch;
       this.pitch = tppPitch;
       this.camera.fov = 45;
@@ -100,32 +102,38 @@ export class CameraRig {
 
   public updateRigTransforms(): void {
     if (this.perspective === 'FPP') {
-      // In FPP mode, apply yaw and pitch directly using YXZ Euler rotation on the camera
+      // In FPP mode, direct YXZ camera Euler look at eye level
       this.yawGroup.rotation.set(0, 0, 0);
       this.pitchGroup.rotation.set(0, 0, 0);
       this.camera.position.set(0, 0, 0);
       this.camera.rotation.set(this.pitch, this.yaw, 0, 'YXZ');
     } else {
-      // In TPP mode, use orbital rig groups
-      this.camera.rotation.set(0, 0, 0);
-      this.yawGroup.rotation.y = this.yaw;
-      this.pitchGroup.rotation.x = -this.pitch;
-      this.camera.position.set(0, 0, this.distance);
+      // In TPP mode, calculate spherical orbit around player position
+      this.yawGroup.rotation.set(0, 0, 0);
+      this.pitchGroup.rotation.set(0, 0, 0);
+
+      const horizDist = this.distance * Math.cos(this.pitch);
+      const vertDist = this.distance * Math.sin(this.pitch);
+      const camX = this.currentPosition.x + Math.sin(this.yaw) * horizDist;
+      const camY = this.currentPosition.y + vertDist;
+      const camZ = this.currentPosition.z + Math.cos(this.yaw) * horizDist;
+
+      this.camera.position.set(camX, camY, camZ);
+      this.camera.lookAt(this.currentPosition.x, this.currentPosition.y, this.currentPosition.z);
     }
   }
 
   private bindInputs(): void {
-    // 1. Mouse Move: Pointer Lock in FPP / Right Drag in TPP
+    // 1. Mouse Move: Pointer Lock in FPP & TPP, or Right-Drag in TPP
     window.addEventListener('mousemove', (e) => {
       const isLocked = document.pointerLockElement !== null;
 
       if (this.perspective === 'FPP') {
         if (isLocked) {
-          // Direct mouse look
           this.yaw -= e.movementX * this.mouseSensitivity * 0.002;
           this.pitch -= e.movementY * this.mouseSensitivity * 0.002;
 
-          // Clamp vertical pitch between -1.45 and +1.45 rad (~ -83 deg to +83 deg)
+          // Clamp FPP pitch between -1.45 and +1.45 rad (~ -83 deg to +83 deg)
           this.pitch = Math.max(-1.45, Math.min(1.45, this.pitch));
           this.targetYaw = this.yaw;
           this.targetPitch = this.pitch;
@@ -133,10 +141,27 @@ export class CameraRig {
           this.updateRigTransforms();
         }
       } else {
-        if (this.isDraggingRightMouse) {
+        // TPP Mode
+        if (isLocked) {
+          this.yaw -= e.movementX * this.mouseSensitivity * 0.002;
+          this.pitch -= e.movementY * this.mouseSensitivity * 0.002;
+
+          // Clamp TPP pitch between 0.08 rad (~5 deg) and 1.40 rad (~80 deg)
+          this.pitch = Math.max(0.08, Math.min(1.40, this.pitch));
+          this.targetYaw = this.yaw;
+          this.targetPitch = this.pitch;
+        } else if (this.isDraggingRightMouse) {
           const deltaX = e.clientX - this.previousMouseX;
+          const deltaY = e.clientY - this.previousMouseY;
           this.previousMouseX = e.clientX;
+          this.previousMouseY = e.clientY;
+
           this.targetYaw -= deltaX * 0.006 * this.mouseSensitivity;
+          this.targetPitch -= deltaY * 0.006 * this.mouseSensitivity;
+          this.targetPitch = Math.max(0.08, Math.min(1.40, this.targetPitch));
+
+          this.yaw = this.targetYaw;
+          this.pitch = this.targetPitch;
         }
       }
     });
@@ -145,6 +170,7 @@ export class CameraRig {
       if (this.perspective === 'TPP' && e.button === 2) {
         this.isDraggingRightMouse = true;
         this.previousMouseX = e.clientX;
+        this.previousMouseY = e.clientY;
         e.preventDefault();
       }
     });
@@ -170,11 +196,11 @@ export class CameraRig {
 
   public setTarget(x: number, y: number, z: number): void {
     if (this.perspective === 'FPP') {
-      // Mount at player eye level: Y = 1.65 above base position
+      // Mount at player eye level: Y = 1.65 above ground
       this.targetPosition.set(x, y + 1.65, z);
     } else {
-      // Center of body in TPP
-      this.targetPosition.set(x, y + 0.8, z);
+      // Center of body in TPP: Y = 1.2 above ground
+      this.targetPosition.set(x, y + 1.2, z);
     }
   }
 
@@ -203,13 +229,17 @@ export class CameraRig {
       this.targetYaw -= this.rotateSpeed * validDelta;
     }
 
-    // 2. Gamepad Right Analog Stick
+    // 2. Gamepad Right Analog Stick (Horizontal & Vertical)
     if (Math.abs(gamepadRightStickX) > 0.15) {
       this.targetYaw -= gamepadRightStickX * this.rotateSpeed * validDelta * 1.5;
     }
-    if (this.perspective === 'FPP' && Math.abs(gamepadRightStickY) > 0.15) {
+    if (Math.abs(gamepadRightStickY) > 0.15) {
       this.targetPitch -= gamepadRightStickY * this.rotateSpeed * validDelta * 1.2;
-      this.targetPitch = Math.max(-1.45, Math.min(1.45, this.targetPitch));
+      if (this.perspective === 'FPP') {
+        this.targetPitch = Math.max(-1.45, Math.min(1.45, this.targetPitch));
+      } else {
+        this.targetPitch = Math.max(0.08, Math.min(1.40, this.targetPitch));
+      }
     }
 
     // 3. Transform Updates
@@ -220,9 +250,9 @@ export class CameraRig {
       this.root.position.copy(this.targetPosition);
     } else {
       // Smooth interpolation in TPP
-      this.yaw = THREE.MathUtils.damp(this.yaw, this.targetYaw, 12, validDelta);
-      this.pitch = THREE.MathUtils.damp(this.pitch, this.targetPitch, 12, validDelta);
-      this.distance = THREE.MathUtils.damp(this.distance, this.targetDistance, 12, validDelta);
+      this.yaw = THREE.MathUtils.damp(this.yaw, this.targetYaw, 14, validDelta);
+      this.pitch = THREE.MathUtils.damp(this.pitch, this.targetPitch, 14, validDelta);
+      this.distance = THREE.MathUtils.damp(this.distance, this.targetDistance, 14, validDelta);
       this.currentPosition.lerp(this.targetPosition, Math.min(1.0, this.followSpeed * validDelta));
       this.root.position.copy(this.currentPosition);
     }
