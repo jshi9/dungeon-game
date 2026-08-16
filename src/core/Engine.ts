@@ -72,24 +72,25 @@ export class Engine {
     this.characterController.surfaceManager = this.surfaceManager;
     this.characterController.dungeonManager = this.dungeonManager;
 
-    // Set initial spawn positions
+    // 7. Initial Spawn Positions
     const initialSurfaceY = this.surfaceManager.getElevation(0, 0);
     this.surfacePlayerPos.set(0, initialSurfaceY, 0);
 
     const dSpawn = this.dungeonManager.dungeon.spawnPoint;
     this.dungeonPlayerPos.set(dSpawn.x + 0.5, 0, dSpawn.z + 0.5);
 
-    // Start in Surface mode
-    this.setMode('surface', true);
-
-    // 7. Retro HUD
+    // 8. Retro HUD (instantiated before any mode initialization)
     this.hud = new RetroHUD(this.hudRoot, {
       onToggleMode: () => this.switchModeWithTransition(),
       onSelectResolution: (w, h) => this.renderPipeline.setResolution(w, h),
       onToggleFullscreen: () => this.toggleFullscreen()
     });
 
+    // 9. Bind Window Events
     this.bindEvents();
+
+    // 10. Start in Initial Mode (called at the very end when all properties exist)
+    this.setMode('surface', true);
   }
 
   private bindEvents(): void {
@@ -126,7 +127,7 @@ export class Engine {
   }
 
   public switchModeWithTransition(): void {
-    if (this.renderPipeline.transitionManager.isTransitioning) return;
+    if (this.renderPipeline?.transitionManager?.isTransitioning) return;
 
     const nextMode: EnvironmentMode = this.currentMode === 'surface' ? 'dungeon' : 'surface';
 
@@ -143,35 +144,47 @@ export class Engine {
   }
 
   public setMode(mode: EnvironmentMode, instant: boolean = false): void {
-    // Save current position
-    if (this.currentMode === 'surface') {
-      this.surfacePlayerPos.copy(this.characterController.position);
-    } else {
-      this.dungeonPlayerPos.copy(this.characterController.position);
+    // Save current position if character controller is active
+    if (this.characterController) {
+      if (this.currentMode === 'surface') {
+        this.surfacePlayerPos.copy(this.characterController.position);
+      } else {
+        this.dungeonPlayerPos.copy(this.characterController.position);
+      }
+      this.characterController.currentMode = mode;
     }
 
     this.currentMode = mode;
-    this.lightingManager.setMode(mode);
-    this.characterController.currentMode = mode;
 
-    if (mode === 'surface') {
-      this.surfaceManager.setVisible(true);
-      this.dungeonManager.setVisible(false);
-      this.characterModel.lanternLight.intensity = 1.0;
-
-      const targetPos = this.surfacePlayerPos;
-      this.characterController.setPosition(targetPos.x, targetPos.y, targetPos.z);
-      this.surfaceManager.update(targetPos.x, targetPos.z);
-    } else {
-      this.surfaceManager.setVisible(false);
-      this.dungeonManager.setVisible(true);
-      this.characterModel.lanternLight.intensity = 2.2;
-
-      const targetPos = this.dungeonPlayerPos;
-      this.characterController.setPosition(targetPos.x, targetPos.y, targetPos.z);
+    // Defensive check on LightingManager
+    if (this.lightingManager) {
+      this.lightingManager.setMode(mode);
     }
 
-    if (instant) {
+    if (mode === 'surface') {
+      if (this.surfaceManager) this.surfaceManager.setVisible(true);
+      if (this.dungeonManager) this.dungeonManager.setVisible(false);
+      if (this.characterModel?.lanternLight) this.characterModel.lanternLight.intensity = 1.0;
+
+      const targetPos = this.surfacePlayerPos;
+      if (this.characterController) {
+        this.characterController.setPosition(targetPos.x, targetPos.y, targetPos.z);
+      }
+      if (this.surfaceManager) {
+        this.surfaceManager.update(targetPos.x, targetPos.z);
+      }
+    } else {
+      if (this.surfaceManager) this.surfaceManager.setVisible(false);
+      if (this.dungeonManager) this.dungeonManager.setVisible(true);
+      if (this.characterModel?.lanternLight) this.characterModel.lanternLight.intensity = 2.2;
+
+      const targetPos = this.dungeonPlayerPos;
+      if (this.characterController) {
+        this.characterController.setPosition(targetPos.x, targetPos.y, targetPos.z);
+      }
+    }
+
+    if (instant && this.cameraRig && this.characterController) {
       this.cameraRig.setTarget(
         this.characterController.position.x,
         this.characterController.position.y,
@@ -180,7 +193,10 @@ export class Engine {
       this.cameraRig.currentPosition.copy(this.cameraRig.targetPosition);
     }
 
-    this.hud.setMode(mode);
+    // Defensive check on RetroHUD
+    if (this.hud) {
+      this.hud.setMode(mode);
+    }
   }
 
   public start(): void {
