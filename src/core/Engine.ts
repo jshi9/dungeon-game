@@ -81,8 +81,8 @@ export class Engine {
     const dSpawn = this.dungeonManager.dungeon.spawnPoint;
     this.dungeonPlayerPos.set(dSpawn.x + 0.5, 0, dSpawn.z + 0.5);
 
-    // 8. Retro Settings Modal
-    this.settingsModal = new SettingsModal(this.hudRoot, {
+    // 8. Retro Settings Modal (mounted directly to document.body)
+    this.settingsModal = new SettingsModal({
       onPerspectiveChange: (mode) => this.setPerspective(mode),
       onSensitivityChange: (sens) => this.cameraRig.setMouseSensitivity(sens),
       onResolutionChange: (w, h) => this.renderPipeline.setResolution(w, h),
@@ -124,7 +124,7 @@ export class Engine {
 
     document.addEventListener('pointerlockchange', () => {
       if (!document.pointerLockElement && this.currentPerspective === 'FPP' && !this.settingsModal.isOpen) {
-        // Cursor unlocked
+        // Cursor unlocked by browser; inputs continue to work smoothly
       }
     });
 
@@ -155,16 +155,21 @@ export class Engine {
 
   public openSettings(): void {
     this.characterController.isInputPaused = true;
-    this.settingsModal.open();
+    document.exitPointerLock();
+    this.settingsModal.show();
+  }
+
+  public closeSettings(): void {
+    this.characterController.isInputPaused = false;
+    this.settingsModal.hide();
+    if (this.currentPerspective === 'FPP') {
+      this.canvas.requestPointerLock();
+    }
   }
 
   public toggleSettings(): void {
     if (this.settingsModal.isOpen) {
-      this.settingsModal.close();
-      this.characterController.isInputPaused = false;
-      if (this.currentPerspective === 'FPP') {
-        this.canvas.requestPointerLock();
-      }
+      this.closeSettings();
     } else {
       this.openSettings();
     }
@@ -176,6 +181,16 @@ export class Engine {
     this.characterController.setPerspective(mode);
     this.hud.setPerspective(mode);
     this.settingsModal.setPerspectiveUI(mode);
+
+    if (mode === 'FPP') {
+      this.characterModel.setFirstPerson(true);
+      if (!this.settingsModal.isOpen) {
+        this.canvas.requestPointerLock();
+      }
+    } else {
+      this.characterModel.setFirstPerson(false);
+      document.exitPointerLock();
+    }
   }
 
   public toggleFullscreen(): void {

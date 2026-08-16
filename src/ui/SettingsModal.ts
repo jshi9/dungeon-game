@@ -8,27 +8,26 @@ export interface SettingsModalCallbacks {
 }
 
 export class SettingsModal {
-  private root: HTMLElement;
-  private modalEl!: HTMLElement;
+  public element!: HTMLElement;
   private callbacks: SettingsModalCallbacks;
   public isOpen: boolean = false;
 
-  constructor(root: HTMLElement, callbacks: SettingsModalCallbacks) {
-    this.root = root;
+  constructor(callbacks: SettingsModalCallbacks) {
     this.callbacks = callbacks;
     this.buildDOM();
   }
 
   private buildDOM(): void {
-    this.modalEl = document.createElement('div');
-    this.modalEl.id = 'settings-modal-overlay';
-    this.modalEl.className = 'modal-overlay hidden';
+    this.element = document.createElement('div');
+    this.element.id = 'settings-modal-overlay';
+    this.element.className = 'modal-overlay';
+    this.element.style.display = 'none';
 
-    this.modalEl.innerHTML = `
+    this.element.innerHTML = `
       <div class="retro-modal retro-panel">
         <div class="modal-header">
           <h2>⚙️ GAME SETTINGS</h2>
-          <button id="btn-modal-close-x" class="retro-btn modal-close-x">✕</button>
+          <button id="btn-modal-close-x" class="retro-btn modal-close-x" title="Close Settings (Esc / O)">✕</button>
         </div>
 
         <div class="modal-body">
@@ -73,23 +72,23 @@ export class SettingsModal {
         </div>
 
         <div class="modal-footer">
-          <button id="btn-resume-game" class="retro-btn btn-primary-resume">▶ RESUME GAME</button>
+          <button id="btn-resume-game" class="retro-btn btn-primary-resume">▶ RESUME / CLOSE</button>
         </div>
       </div>
     `;
 
-    this.root.appendChild(this.modalEl);
+    document.body.appendChild(this.element);
     this.bindEvents();
   }
 
   private bindEvents(): void {
-    const btnFpp = this.modalEl.querySelector('#btn-fpp') as HTMLButtonElement;
-    const btnTpp = this.modalEl.querySelector('#btn-tpp') as HTMLButtonElement;
-    const sliderSens = this.modalEl.querySelector('#slider-sensitivity') as HTMLInputElement;
-    const valSens = this.modalEl.querySelector('#val-sensitivity') as HTMLElement;
-    const selectRes = this.modalEl.querySelector('#modal-select-resolution') as HTMLSelectElement;
-    const btnCloseX = this.modalEl.querySelector('#btn-modal-close-x') as HTMLButtonElement;
-    const btnResume = this.modalEl.querySelector('#btn-resume-game') as HTMLButtonElement;
+    const btnFpp = this.element.querySelector('#btn-fpp') as HTMLButtonElement;
+    const btnTpp = this.element.querySelector('#btn-tpp') as HTMLButtonElement;
+    const sliderSens = this.element.querySelector('#slider-sensitivity') as HTMLInputElement;
+    const valSens = this.element.querySelector('#val-sensitivity') as HTMLElement;
+    const selectRes = this.element.querySelector('#modal-select-resolution') as HTMLSelectElement;
+    const btnCloseX = this.element.querySelector('#btn-modal-close-x') as HTMLButtonElement;
+    const btnResume = this.element.querySelector('#btn-resume-game') as HTMLButtonElement;
 
     btnFpp.addEventListener('click', () => {
       btnFpp.classList.add('active-mode');
@@ -114,44 +113,40 @@ export class SettingsModal {
       this.callbacks.onResolutionChange(w, h);
     });
 
-    const closeHandler = () => {
-      this.close();
-    };
+    btnCloseX.addEventListener('click', () => this.hide());
+    btnResume.addEventListener('click', () => this.hide());
 
-    btnCloseX.addEventListener('click', closeHandler);
-    btnResume.addEventListener('click', closeHandler);
-
-    // Close when clicking outside modal box
-    this.modalEl.addEventListener('click', (e) => {
-      if (e.target === this.modalEl) {
-        this.close();
+    // Close when clicking outside the modal dialog box
+    this.element.addEventListener('click', (e) => {
+      if (e.target === this.element) {
+        this.hide();
       }
     });
   }
 
-  public open(): void {
+  public show(): void {
     this.isOpen = true;
-    this.modalEl.classList.remove('hidden');
+    this.element.style.display = 'flex';
     document.exitPointerLock();
   }
 
-  public close(): void {
+  public hide(): void {
     this.isOpen = false;
-    this.modalEl.classList.add('hidden');
+    this.element.style.display = 'none';
     this.callbacks.onClose();
   }
 
   public toggle(): void {
     if (this.isOpen) {
-      this.close();
+      this.hide();
     } else {
-      this.open();
+      this.show();
     }
   }
 
   public setPerspectiveUI(mode: CameraPerspective): void {
-    const btnFpp = this.modalEl.querySelector('#btn-fpp');
-    const btnTpp = this.modalEl.querySelector('#btn-tpp');
+    const btnFpp = this.element.querySelector('#btn-fpp');
+    const btnTpp = this.element.querySelector('#btn-tpp');
     if (mode === 'FPP') {
       btnFpp?.classList.add('active-mode');
       btnTpp?.classList.remove('active-mode');
