@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { RenderPipeline } from './RenderPipeline';
-import { CameraRig } from '../camera/CameraRig';
+import { CameraRig, CameraPerspective } from '../camera/CameraRig';
 import { LightingManager, EnvironmentMode } from '../lighting/LightingManager';
 import { TextureAtlas } from '../terrain/TextureAtlas';
 import { SurfaceManager } from '../terrain/SurfaceManager';
@@ -8,6 +8,7 @@ import { DungeonManager } from '../terrain/DungeonManager';
 import { CharacterModel } from '../entities/CharacterModel';
 import { CharacterController } from '../entities/CharacterController';
 import { RetroHUD } from '../ui/RetroHUD';
+import { SettingsModal } from '../ui/SettingsModal';
 
 export class Engine {
   public canvas: HTMLCanvasElement;
@@ -25,8 +26,11 @@ export class Engine {
   public characterModel: CharacterModel;
   public characterController: CharacterController;
   public hud: RetroHUD;
+  public settingsModal: SettingsModal;
 
   public currentMode: EnvironmentMode = 'surface';
+  public currentPerspective: CameraPerspective = 'FPP';
+
   private surfacePlayerPos = new THREE.Vector3(0, 0, 0);
   private dungeonPlayerPos = new THREE.Vector3(0, 0, 0);
 
@@ -51,12 +55,10 @@ export class Engine {
     this.atlas = new TextureAtlas();
     this.lightingManager = new LightingManager(this.scene);
 
-    // 4. Camera Rig (360° yaw orbit, 35° pitch, diometric)
+    // 4. Camera Rig (Default to First-Person Perspective FPP)
     this.cameraRig = new CameraRig({
-      fov: 42,
-      pitchDeg: 35,
-      initialYawDeg: 45,
-      distance: 14.0
+      perspective: 'FPP',
+      mouseSensitivity: 1.0
     });
     this.scene.add(this.cameraRig.root);
 
@@ -79,18 +81,33 @@ export class Engine {
     const dSpawn = this.dungeonManager.dungeon.spawnPoint;
     this.dungeonPlayerPos.set(dSpawn.x + 0.5, 0, dSpawn.z + 0.5);
 
-    // 8. Retro HUD (instantiated before any mode initialization)
+    // 8. Retro Settings Modal
+    this.settingsModal = new SettingsModal(this.hudRoot, {
+      onPerspectiveChange: (mode) => this.setPerspective(mode),
+      onSensitivityChange: (sens) => this.cameraRig.setMouseSensitivity(sens),
+      onResolutionChange: (w, h) => this.renderPipeline.setResolution(w, h),
+      onClose: () => {
+        this.characterController.isInputPaused = false;
+        if (this.currentPerspective === 'FPP') {
+          this.canvas.requestPointerLock();
+        }
+      }
+    });
+
+    // 9. Retro HUD
     this.hud = new RetroHUD(this.hudRoot, {
       onToggleMode: () => this.switchModeWithTransition(),
       onSelectResolution: (w, h) => this.renderPipeline.setResolution(w, h),
-      onToggleFullscreen: () => this.toggleFullscreen()
+      onToggleFullscreen: () => this.toggleFullscreen(),
+      onOpenSettings: () => this.openSettings()
     });
 
-    // 9. Bind Window Events
+    // 10. Bind Window Events
     this.bindEvents();
 
-    // 10. Start in Initial Mode (called at the very end when all properties exist)
+    // 11. Initial Mode & Perspective Setup
     this.setMode('surface', true);
+    this.setPerspective('FPP');
   }
 
   private bindEvents(): void {
@@ -99,16 +116,28 @@ export class Engine {
       this.cameraRig.setAspect(window.innerWidth / window.innerHeight);
     });
 
+    // Pointer lock on canvas click in FPP
+    this.canvas.addEventListener('click', () => {
+      if (!this.settingsModal.isOpen && this.currentPerspective === 'FPP') {
+        this.canvas.requestPointerLock();
+      }
+    });
+
     window.addEventListener('keydown', (e) => {
       this.keys[e.code] = true;
 
+      // Escape or 'O' key to toggle settings
+      if (e.code === 'Escape' || e.code === 'KeyO') {
+        this.toggleSettings();
+      }
+
       // 'M' key for mode switch transition
-      if (e.code === 'KeyM') {
+      if (e.code === 'KeyM' && !this.settingsModal.isOpen) {
         this.switchModeWithTransition();
       }
 
       // 'F' key for Fullscreen
-      if (e.code === 'KeyF') {
+      if (e.code === 'KeyF' && !this.settingsModal.isOpen) {
         this.toggleFullscreen();
       }
     });
@@ -116,6 +145,31 @@ export class Engine {
     window.addEventListener('keyup', (e) => {
       this.keys[e.code] = false;
     });
+  }
+
+  public openSettings(): void {
+    this.characterController.isInputPaused = true;
+    this.settingsModal.open();
+  }
+
+  public toggleSettings(): void {
+    if (this.settingsModal.isOpen) {
+      this.settingsModal.close();
+      this.characterController.isInputPaused = false;
+      if (this.currentPerspective === 'FPP') {
+        this.canvas.requestPointerLock();
+      }
+    } else {
+      this.openSettings();
+    }
+  }
+
+  public setPerspective(mode: CameraPerspective): void {
+    this.currentPerspective = mode;
+    this.cameraRig.setPerspective(mode);
+    this.characterController.setPerspective(mode);
+    this.hud.setPerspective(mode);
+    this.settingsModal.setPerspectiveUI(mode);
   }
 
   public toggleFullscreen(): void {
@@ -133,18 +187,14 @@ export class Engine {
 
     this.renderPipeline.transitionManager.startTransition(
       () => {
-        // Midpoint swap: screen is fully obscured by diamond pixel wipe
         this.setMode(nextMode);
       },
-      () => {
-        // Transition finished
-      },
+      () => {},
       0.7
     );
   }
 
   public setMode(mode: EnvironmentMode, instant: boolean = false): void {
-    // Save current position if character controller is active
     if (this.characterController) {
       if (this.currentMode === 'surface') {
         this.surfacePlayerPos.copy(this.characterController.position);
@@ -156,7 +206,6 @@ export class Engine {
 
     this.currentMode = mode;
 
-    // Defensive check on LightingManager
     if (this.lightingManager) {
       this.lightingManager.setMode(mode);
     }
@@ -199,7 +248,6 @@ export class Engine {
       this.cameraRig.currentPosition.copy(this.cameraRig.targetPosition);
     }
 
-    // Defensive check on RetroHUD
     if (this.hud) {
       this.hud.setMode(mode);
     }
@@ -219,18 +267,18 @@ export class Engine {
 
     // 1. Controller & Gamepad Inputs
     const gp = this.characterController.getGamepadInput();
-    const qPressed = !!this.keys['KeyQ'];
-    const ePressed = !!this.keys['KeyE'];
+    const qPressed = !this.settingsModal.isOpen && !!this.keys['KeyQ'];
+    const ePressed = !this.settingsModal.isOpen && !!this.keys['KeyE'];
 
-    // 2. Update Camera Rig (360° yaw orbit & target tracking)
+    // 2. Update Camera Rig
     this.cameraRig.setTarget(
       this.characterController.position.x,
-      this.characterController.position.y + 0.8,
+      this.characterController.position.y,
       this.characterController.position.z
     );
-    this.cameraRig.update(delta, gp.rightStickX, qPressed, ePressed);
+    this.cameraRig.update(delta, gp.rightStickX, gp.rightStickY, qPressed, ePressed);
 
-    // 3. Update Character Movement relative to dynamic camera yaw
+    // 3. Update Character Movement relative to camera yaw
     this.characterController.update(delta, this.cameraRig.getYaw());
 
     // 4. Update Active Map Systems

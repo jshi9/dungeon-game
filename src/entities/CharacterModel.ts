@@ -10,7 +10,13 @@ export class CharacterModel {
   private rightLegPivot: THREE.Group;
   private leftArmPivot: THREE.Group;
   private rightArmPivot: THREE.Group;
+  private torsoMesh: THREE.Mesh;
+  private leftPauldron: THREE.Mesh;
+  private rightPauldron: THREE.Mesh;
+  private headGroup: THREE.Group;
   private lanternMesh: THREE.Group;
+
+  public isFirstPerson: boolean = false;
   private walkTime: number = 0;
 
   constructor(atlas: TextureAtlas) {
@@ -41,18 +47,16 @@ export class CharacterModel {
     });
 
     // 1. Legs (from Y = 0.0 to Y = 0.70)
-    // Left Leg with hip pivot at Y = 0.70
     this.leftLegPivot = new THREE.Group();
     this.leftLegPivot.position.set(-0.16, 0.70, 0);
     const legGeom = new THREE.BoxGeometry(0.20, 0.70, 0.22);
     const leftLegMesh = new THREE.Mesh(legGeom, darkClothMat);
-    leftLegMesh.position.set(0, -0.35, 0); // Center relative to hip pivot
+    leftLegMesh.position.set(0, -0.35, 0);
     leftLegMesh.castShadow = true;
     leftLegMesh.receiveShadow = true;
     this.leftLegPivot.add(leftLegMesh);
     this.bodyGroup.add(this.leftLegPivot);
 
-    // Right Leg with hip pivot at Y = 0.70
     this.rightLegPivot = new THREE.Group();
     this.rightLegPivot.position.set(0.16, 0.70, 0);
     const rightLegMesh = new THREE.Mesh(legGeom, darkClothMat);
@@ -64,22 +68,22 @@ export class CharacterModel {
 
     // 2. Torso & Chestplate (from Y = 0.70 to Y = 1.40)
     const torsoGeom = new THREE.BoxGeometry(0.52, 0.70, 0.36);
-    const torso = new THREE.Mesh(torsoGeom, armorMat);
-    torso.position.set(0, 1.05, 0);
-    torso.castShadow = true;
-    torso.receiveShadow = true;
-    this.bodyGroup.add(torso);
+    this.torsoMesh = new THREE.Mesh(torsoGeom, armorMat);
+    this.torsoMesh.position.set(0, 1.05, 0);
+    this.torsoMesh.castShadow = true;
+    this.torsoMesh.receiveShadow = true;
+    this.bodyGroup.add(this.torsoMesh);
 
     // Pauldrons (Shoulder guards at Y = 1.35)
     const pauldronGeom = new THREE.BoxGeometry(0.22, 0.20, 0.40);
-    const leftPauldron = new THREE.Mesh(pauldronGeom, armorMat);
-    leftPauldron.position.set(-0.35, 1.35, 0);
-    leftPauldron.castShadow = true;
+    this.leftPauldron = new THREE.Mesh(pauldronGeom, armorMat);
+    this.leftPauldron.position.set(-0.35, 1.35, 0);
+    this.leftPauldron.castShadow = true;
 
-    const rightPauldron = new THREE.Mesh(pauldronGeom, armorMat);
-    rightPauldron.position.set(0.35, 1.35, 0);
-    rightPauldron.castShadow = true;
-    this.bodyGroup.add(leftPauldron, rightPauldron);
+    this.rightPauldron = new THREE.Mesh(pauldronGeom, armorMat);
+    this.rightPauldron.position.set(0.35, 1.35, 0);
+    this.rightPauldron.castShadow = true;
+    this.bodyGroup.add(this.leftPauldron, this.rightPauldron);
 
     // 3. Arms with shoulder pivots at Y = 1.35
     const armGeom = new THREE.BoxGeometry(0.16, 0.58, 0.18);
@@ -103,24 +107,23 @@ export class CharacterModel {
     this.bodyGroup.add(this.rightArmPivot);
 
     // 4. Head & Helmet / Hair (from Y = 1.40 to Y = 1.90)
-    const headGroup = new THREE.Group();
-    headGroup.position.set(0, 1.62, 0);
+    this.headGroup = new THREE.Group();
+    this.headGroup.position.set(0, 1.62, 0);
 
     const faceGeom = new THREE.BoxGeometry(0.38, 0.38, 0.38);
     const face = new THREE.Mesh(faceGeom, skinMat);
     face.castShadow = true;
-    headGroup.add(face);
+    this.headGroup.add(face);
 
-    // Knight Hair / Visor
     const hairGeom = new THREE.BoxGeometry(0.42, 0.24, 0.42);
     const hair = new THREE.Mesh(hairGeom, hairMat);
     hair.position.set(0, 0.14, -0.02);
     hair.castShadow = true;
-    headGroup.add(hair);
+    this.headGroup.add(hair);
 
-    this.bodyGroup.add(headGroup);
+    this.bodyGroup.add(this.headGroup);
 
-    // 5. Handheld Lantern (casting dynamic light)
+    // 5. Handheld Lantern
     this.lanternMesh = new THREE.Group();
     this.lanternMesh.position.set(0.44, 0.85, 0.30);
 
@@ -145,6 +148,30 @@ export class CharacterModel {
     this.bodyGroup.add(this.lanternMesh);
   }
 
+  public setFirstPerson(isFPP: boolean): void {
+    this.isFirstPerson = isFPP;
+
+    // In FPP, hide body/head to prevent near-clipping, but keep lantern visible in view
+    this.torsoMesh.visible = !isFPP;
+    this.headGroup.visible = !isFPP;
+    this.leftLegPivot.visible = !isFPP;
+    this.rightLegPivot.visible = !isFPP;
+    this.leftArmPivot.visible = !isFPP;
+    this.rightArmPivot.visible = !isFPP;
+    this.leftPauldron.visible = !isFPP;
+    this.rightPauldron.visible = !isFPP;
+
+    if (isFPP) {
+      // Reposition lantern in front-right view for first-person
+      this.lanternMesh.position.set(0.35, 1.35, -0.45);
+      this.lanternMesh.scale.set(0.85, 0.85, 0.85);
+    } else {
+      // Restore third person lantern position
+      this.lanternMesh.position.set(0.44, 0.85, 0.30);
+      this.lanternMesh.scale.set(1.0, 1.0, 1.0);
+    }
+  }
+
   public updateAnimation(isMoving: boolean, delta: number, speed: number): void {
     const validDelta = (Number.isFinite(delta) && delta > 0) ? Math.min(delta, 0.1) : 0.016;
     const validSpeed = (Number.isFinite(speed) && speed > 0) ? Math.min(speed, 3.0) : 1.0;
@@ -159,24 +186,30 @@ export class CharacterModel {
       this.leftArmPivot.rotation.x = -legAngle * 0.7;
       this.rightArmPivot.rotation.x = legAngle * 0.7;
 
-      // Vertical bob applied strictly to bodyGroup, never root group
       this.bodyGroup.position.y = Math.abs(Math.sin(this.walkTime * 2.0)) * 0.05;
 
-      // Lantern swing
-      this.lanternMesh.rotation.z = Math.sin(this.walkTime) * 0.2;
-      this.lanternMesh.position.y = 0.85 + Math.cos(this.walkTime) * 0.03;
+      if (this.isFirstPerson) {
+        this.lanternMesh.position.y = 1.35 + Math.sin(this.walkTime * 2.0) * 0.03;
+        this.lanternMesh.position.x = 0.35 + Math.cos(this.walkTime) * 0.02;
+      } else {
+        this.lanternMesh.rotation.z = Math.sin(this.walkTime) * 0.2;
+        this.lanternMesh.position.y = 0.85 + Math.cos(this.walkTime) * 0.03;
+      }
     } else {
-      // Smooth return to idle
       this.leftLegPivot.rotation.x *= 0.82;
       this.rightLegPivot.rotation.x *= 0.82;
       this.leftArmPivot.rotation.x *= 0.82;
       this.rightArmPivot.rotation.x *= 0.82;
       this.bodyGroup.position.y *= 0.82;
-      this.lanternMesh.rotation.z *= 0.82;
-      this.lanternMesh.position.y = 0.85;
+
+      if (this.isFirstPerson) {
+        this.lanternMesh.position.set(0.35, 1.35, -0.45);
+      } else {
+        this.lanternMesh.rotation.z *= 0.82;
+        this.lanternMesh.position.y = 0.85;
+      }
     }
 
-    // Light flicker
     const lightFlicker = Math.sin(this.walkTime * 3.0) * 0.15;
     this.lanternLight.intensity = 2.5 + lightFlicker;
   }

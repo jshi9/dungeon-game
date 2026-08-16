@@ -1,9 +1,11 @@
 import { EnvironmentMode } from '../lighting/LightingManager';
+import { CameraPerspective } from '../camera/CameraRig';
 
 export interface HUDCallbacks {
   onToggleMode: () => void;
   onSelectResolution: (width: number, height: number) => void;
   onToggleFullscreen: () => void;
+  onOpenSettings: () => void;
 }
 
 export class RetroHUD {
@@ -12,6 +14,8 @@ export class RetroHUD {
 
   // Elements
   private modeBtn!: HTMLButtonElement;
+  private settingsBtn!: HTMLButtonElement;
+  private viewBadgeEl!: HTMLElement;
   private posValueEl!: HTMLElement;
   private chunkValueEl!: HTMLElement;
   private yawValueEl!: HTMLElement;
@@ -31,7 +35,8 @@ export class RetroHUD {
     this.root.innerHTML = `
       <header class="hud-top-bar">
         <div class="retro-panel hud-title">
-          <span>⚔️ RETRO-3D DUNGEON ENGINE</span>
+          <span>⚔️ RETRO-3D ENGINE</span>
+          <span id="hud-view-badge" class="key-badge">FPP</span>
         </div>
 
         <div class="hud-controls-group">
@@ -39,11 +44,9 @@ export class RetroHUD {
             <span>🗺️ MAP: SURFACE</span>
           </button>
 
-          <select id="select-resolution" class="retro-panel retro-btn" style="padding-right: 8px;">
-            <option value="640x360" selected>640x360 (Pixel 16:9)</option>
-            <option value="320x180">320x180 (Ultra Retro)</option>
-            <option value="960x540">960x540 (Hi-Res Pixel)</option>
-          </select>
+          <button id="btn-settings-toggle" class="retro-panel retro-btn" title="Settings Menu (Esc / O)">
+            <span>⚙️ SETTINGS</span>
+          </button>
 
           <button id="btn-fullscreen" class="retro-panel retro-btn" title="Toggle Fullscreen (F)">
             <span>⛶ FULLSCREEN</span>
@@ -64,7 +67,7 @@ export class RetroHUD {
             </li>
             <li class="telemetry-item">
               <span class="telemetry-label">CAM YAW:</span>
-              <span id="tel-yaw" class="telemetry-value">45.0°</span>
+              <span id="tel-yaw" class="telemetry-value">0.0°</span>
             </li>
             <li class="telemetry-item">
               <span class="telemetry-label">RENDER FPS:</span>
@@ -78,15 +81,16 @@ export class RetroHUD {
         </div>
 
         <div class="retro-panel controls-guide">
-          <div><span class="key-badge">W</span> <span class="key-badge">A</span> <span class="key-badge">S</span> <span class="key-badge">D</span> / <span class="key-badge">L-Stick</span> : Camera-Relative Move</div>
-          <div><span class="key-badge">Shift</span> : Sprint &nbsp;|&nbsp; <span class="key-badge">Space</span> : Step Up</div>
-          <div><span class="key-badge">Q</span> <span class="key-badge">E</span> / <span class="key-badge">Right-Drag</span> / <span class="key-badge">R-Stick</span> : 360° Camera Orbit</div>
-          <div><span class="key-badge">Scroll Wheel</span> : Zoom &nbsp;|&nbsp; <span class="key-badge">M</span> : Switch Map (Screen Wipe)</div>
+          <div><span class="key-badge">Click</span> : Mouse Look (FPP) &nbsp;|&nbsp; <span class="key-badge">W</span> <span class="key-badge">A</span> <span class="key-badge">S</span> <span class="key-badge">D</span> : Move / Strafe</div>
+          <div><span class="key-badge">Shift</span> : Sprint &nbsp;|&nbsp; <span class="key-badge">M</span> : Switch Map (Screen Wipe)</div>
+          <div><span class="key-badge">Esc</span> / <span class="key-badge">O</span> / <span class="key-badge">⚙️</span> : Settings (Toggle FPP/TPP, Sensitivity)</div>
         </div>
       </footer>
     `;
 
     this.modeBtn = this.root.querySelector('#btn-mode-toggle')!;
+    this.settingsBtn = this.root.querySelector('#btn-settings-toggle')!;
+    this.viewBadgeEl = this.root.querySelector('#hud-view-badge')!;
     this.posValueEl = this.root.querySelector('#tel-pos')!;
     this.chunkValueEl = this.root.querySelector('#tel-chunk')!;
     this.yawValueEl = this.root.querySelector('#tel-yaw')!;
@@ -98,10 +102,8 @@ export class RetroHUD {
       this.callbacks.onToggleMode();
     });
 
-    const resSelect = this.root.querySelector('#select-resolution') as HTMLSelectElement;
-    resSelect.addEventListener('change', () => {
-      const [w, h] = resSelect.value.split('x').map(Number);
-      this.callbacks.onSelectResolution(w, h);
+    this.settingsBtn.addEventListener('click', () => {
+      this.callbacks.onOpenSettings();
     });
 
     const fsBtn = this.root.querySelector('#btn-fullscreen')!;
@@ -118,6 +120,10 @@ export class RetroHUD {
       this.modeBtn.innerHTML = `<span>🏰 MAP: DUNGEON</span>`;
       this.modeBtn.classList.add('active-mode');
     }
+  }
+
+  public setPerspective(mode: CameraPerspective): void {
+    this.viewBadgeEl.textContent = mode;
   }
 
   public updateTelemetry(
