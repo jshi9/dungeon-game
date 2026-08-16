@@ -35,7 +35,7 @@ export class RenderPipeline {
     });
 
     this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.BasicShadowMap; // Hard-edged retro shadows
+    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap; // Smooth realistic shadows
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.setPixelRatio(1); // Keep 1:1 pixel grid for crisp upscale
 

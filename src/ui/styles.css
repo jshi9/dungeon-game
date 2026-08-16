@@ -546,13 +546,14 @@ body.pointer-locked * {
 .book-reader-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(8, 6, 12, 0.85);
-  backdrop-filter: blur(6px);
+  background: rgba(6, 4, 10, 0.88);
+  backdrop-filter: blur(8px);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 10000;
-  padding: 20px;
+  padding: 16px;
+  box-sizing: border-box;
 }
 
 .book-reader-overlay.hidden {
@@ -561,15 +562,17 @@ body.pointer-locked * {
 
 .book-reader-container {
   position: relative;
-  max-width: 900px;
-  width: 95vw;
-  animation: bookOpen 0.3s ease-out;
+  width: min(96vw, 1380px);
+  height: min(92vh, 880px);
+  display: flex;
+  flex-direction: column;
+  animation: bookOpen 0.25s ease-out;
 }
 
 @keyframes bookOpen {
   from {
     opacity: 0;
-    transform: scale(0.92) translateY(20px);
+    transform: scale(0.94) translateY(14px);
   }
   to {
     opacity: 1;
@@ -579,61 +582,300 @@ body.pointer-locked * {
 
 .book-leather-binding {
   position: relative;
-  background: #2a1810;
-  border: 12px solid #5a301a;
-  border-radius: 12px;
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.9), inset 0 0 20px rgba(0, 0, 0, 0.8);
-  padding: 16px 20px;
+  width: 100%;
+  height: 100%;
+  background: #24140c;
+  border: 14px solid #5a301a;
+  border-radius: 14px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.95), inset 0 0 30px rgba(0, 0, 0, 0.85);
+  padding: 22px 28px 16px 28px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
 }
 
 .book-ribbon-bookmark {
   position: absolute;
-  top: -8px;
+  top: -10px;
   left: 50%;
   transform: translateX(-50%);
-  width: 18px;
-  height: 48px;
+  width: 22px;
+  height: 56px;
   background: #a62424;
   border: 1px solid #570f0f;
-  box-shadow: 2px 2px 6px rgba(0, 0, 0, 0.6);
+  box-shadow: 2px 2px 8px rgba(0, 0, 0, 0.65);
   z-index: 10;
   clip-path: polygon(0 0, 100% 0, 100% 85%, 50% 100%, 0 85%);
 }
 
 .book-pages-spread {
+  flex: 1;
+  min-height: 0;
   display: flex;
-  min-height: 480px;
-  background: #eadeb8;
-  border-radius: 4px;
-  box-shadow: inset 0 0 25px rgba(125, 95, 50, 0.4);
+  background: #f2e8cc;
+  border-radius: 6px;
+  box-shadow: inset 0 0 30px rgba(125, 95, 50, 0.45);
   position: relative;
+  overflow: hidden;
 }
 
 .book-spine-crease {
-  width: 24px;
-  background: linear-gradient(to right, rgba(0,0,0,0.15), rgba(0,0,0,0.35) 50%, rgba(0,0,0,0.15));
-  box-shadow: inset 0 0 6px rgba(0,0,0,0.4);
+  width: 28px;
+  background: linear-gradient(to right, rgba(0,0,0,0.14), rgba(0,0,0,0.38) 50%, rgba(0,0,0,0.14));
+  box-shadow: inset 0 0 8px rgba(0,0,0,0.45);
   flex-shrink: 0;
 }
 
 .parchment-page {
   flex: 1;
-  padding: 24px 28px;
-  color: #2b1f14;
+  min-height: 0;
+  padding: 30px 42px;
+  color: #261a10;
   font-family: Georgia, 'Times New Roman', serif;
   display: flex;
   flex-direction: column;
+  overflow-y: auto;
 }
 
 .parchment-page.left-page {
-  border-right: 1px solid rgba(139, 107, 61, 0.25);
+  border-right: 1px solid rgba(139, 107, 61, 0.30);
 }
 
 .parchment-page.right-page {
-  border-left: 1px solid rgba(139, 107, 61, 0.25);
+  border-left: 1px solid rgba(139, 107, 61, 0.30);
 }
 
 .page-inner {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+/* Page Special Layouts */
+.page-half-title {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  text-align: center;
+}
+
+.half-title-text {
+  font-family: 'Cinzel', Georgia, serif;
+  font-size: 24px;
+  font-weight: 900;
+  color: #3b190f;
+  letter-spacing: 2px;
+  line-height: 1.4;
+  max-width: 85%;
+}
+
+.page-frontispiece {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  text-align: center;
+}
+
+.frontispiece-header {
+  font-family: 'Courier New', monospace;
+  font-size: 11px;
+  font-weight: bold;
+  letter-spacing: 1.5px;
+  color: #8c6a43;
+  margin-bottom: 12px;
+}
+
+.frontispiece-ascii {
+  font-family: monospace;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #5c3b1e;
+  background: rgba(184, 150, 102, 0.15);
+  border: 1px dashed #b89666;
+  border-radius: 6px;
+  padding: 16px 20px;
+  max-width: 95%;
+  margin: 0 auto;
+  white-space: pre-wrap;
+}
+
+.page-title-page {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  text-align: center;
+}
+
+.book-main-title {
+  font-family: 'Cinzel', Georgia, serif;
+  font-size: 25px;
+  color: #3b190f;
+  margin: 0 0 8px 0;
+  line-height: 1.25;
+  font-weight: 900;
+  text-shadow: 1px 1px 0 rgba(255, 255, 255, 0.5);
+  max-width: 90%;
+}
+
+.book-subtitle {
+  font-size: 14px;
+  font-style: italic;
+  color: #634730;
+  margin-bottom: 12px;
+  max-width: 85%;
+}
+
+.book-author-lead {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: #8a6e4d;
+  margin-top: 8px;
+}
+
+.book-author-name {
+  font-family: 'Cinzel', Georgia, serif;
+  font-size: 18px;
+  font-weight: bold;
+  color: #4a2818;
+  margin-top: 4px;
+}
+
+.book-era-tag {
+  font-size: 12px;
+  color: #7d6349;
+  font-style: italic;
+  margin-top: 6px;
+}
+
+.book-press-imprint {
+  font-family: 'Courier New', monospace;
+  font-size: 11px;
+  color: #8c7152;
+  margin-top: 18px;
+  line-height: 1.5;
+}
+
+.page-copyright {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  height: 100%;
+  font-size: 12px;
+  line-height: 1.6;
+  color: #5c432d;
+  padding-bottom: 12px;
+}
+
+.copyright-header {
+  font-weight: bold;
+  font-size: 12px;
+  color: #422915;
+  border-bottom: 1px solid #c9b18f;
+  padding-bottom: 6px;
+  margin-bottom: 10px;
+  letter-spacing: 0.5px;
+}
+
+.copyright-body {
+  font-family: 'Courier New', monospace;
+  font-size: 11px;
+  color: #6b5037;
+}
+
+.page-dedication {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  text-align: center;
+  font-style: italic;
+  font-size: 16px;
+  line-height: 1.8;
+  color: #422a18;
+  padding: 0 24px;
+}
+
+.page-toc {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.toc-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.toc-row-link {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 13.5px;
+  color: #3b2212;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 3px;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.toc-row-link:hover {
+  background: rgba(138, 98, 48, 0.2);
+  color: #82181e;
+}
+
+.toc-title {
+  font-weight: bold;
+  letter-spacing: 0.3px;
+}
+
+.toc-dots {
+  flex: 1;
+  border-bottom: 1px dotted #a8885f;
+  margin: 0 10px;
+}
+
+.toc-page-badge {
+  font-family: 'Courier New', monospace;
+  font-weight: bold;
+  color: #6e2016;
+  font-size: 13px;
+}
+
+.page-glossary {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.glossary-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #2b1f14;
+}
+
+.glossary-entry {
+  margin-bottom: 4px;
+}
+
+.glossary-term {
+  color: #5c1810;
+  font-weight: bold;
+}
+
+.page-author-bio {
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -647,58 +889,37 @@ body.pointer-locked * {
 .book-category-tag {
   display: inline-block;
   font-family: 'Courier New', monospace;
-  font-size: 10px;
+  font-size: 10.5px;
   font-weight: bold;
   letter-spacing: 1px;
-  padding: 3px 8px;
+  padding: 4px 10px;
   border-radius: 3px;
   background: #4a3319;
   color: #ffd88a;
-  margin-bottom: 8px;
-}
-
-.book-title {
-  font-size: 20px;
-  color: #3b190f;
-  margin: 0 0 6px 0;
-  line-height: 1.25;
-  font-weight: 900;
-  text-shadow: 1px 1px 0 rgba(255, 255, 255, 0.5);
-}
-
-.book-author {
-  font-size: 13px;
-  color: #5c432d;
-}
-
-.book-era {
-  font-size: 11px;
-  color: #7d6349;
-  font-style: italic;
-  margin-top: 2px;
+  margin-bottom: 10px;
 }
 
 .ornate-divider {
   color: #8c683b;
-  font-size: 13px;
-  margin-top: 8px;
+  font-size: 14px;
+  margin: 8px 0;
 }
 
 .chapter-header {
-  font-size: 14px;
+  font-size: 15px;
   font-weight: bold;
   color: #4a2818;
   border-bottom: 1px solid #c4ab85;
-  padding-bottom: 4px;
-  margin-bottom: 12px;
+  padding-bottom: 6px;
+  margin-bottom: 14px;
   text-align: center;
   letter-spacing: 0.5px;
 }
 
 .page-body-text {
   flex: 1;
-  font-size: 13.5px;
-  line-height: 1.6;
+  font-size: 14.5px;
+  line-height: 1.7;
   color: #2b1f14;
 }
 
@@ -713,14 +934,297 @@ body.pointer-locked * {
 
 .drop-cap {
   float: left;
-  font-size: 38px;
-  line-height: 32px;
+  font-size: 42px;
+  line-height: 34px;
   padding-top: 4px;
-  padding-right: 6px;
+  padding-right: 8px;
   padding-bottom: 2px;
   font-weight: bold;
   color: #6e2016;
   font-family: 'Cinzel', Georgia, serif;
+}
+
+/* -------------------------------------------------------------
+ * TYPOGRAPHY FONT THEMES
+ * ------------------------------------------------------------- */
+.book-leather-binding.font-garamond {
+  font-family: 'EB Garamond', 'Garamond', 'Baskerville', Georgia, serif;
+}
+
+.book-leather-binding.font-gothic {
+  font-family: 'Cinzel', 'MedievalSharp', 'Georgia', serif;
+}
+
+.book-leather-binding.font-scriptorium {
+  font-family: 'Palatino', 'Palatino Linotype', 'Book Antiqua', Georgia, serif;
+}
+
+.book-leather-binding.font-crimson {
+  font-family: 'Crimson Pro', 'Times New Roman', serif;
+}
+
+.book-leather-binding.font-mystic {
+  font-family: 'Alegreya', 'Cinzel Decorative', Georgia, serif;
+}
+
+/* -------------------------------------------------------------
+ * FONT SIZES (Balanced: 13.5px - 15.5px)
+ * ------------------------------------------------------------- */
+.book-leather-binding.size-compact .page-body-text {
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+
+.book-leather-binding.size-regular .page-body-text {
+  font-size: 14.5px;
+  line-height: 1.68;
+}
+
+.book-leather-binding.size-relaxed .page-body-text {
+  font-size: 15.5px;
+  line-height: 1.75;
+}
+
+/* -------------------------------------------------------------
+ * LAYOUT FORMATS
+ * ------------------------------------------------------------- */
+.page-body-text.layout-two-column {
+  column-count: 2;
+  column-gap: 20px;
+  column-rule: 1px solid #c9b597;
+  text-align: justify;
+}
+
+.page-body-text.layout-verse {
+  text-align: center;
+  font-style: italic;
+  padding: 0 16px;
+}
+
+.page-body-text.layout-verse p {
+  margin: 0 auto 16px auto;
+  text-align: center;
+  line-height: 1.8;
+}
+
+.parchment-page.has-illuminated-border .page-inner {
+  border: 2px solid #8c683b;
+  outline: 1px dashed #d4af37;
+  outline-offset: 4px;
+  padding: 14px 18px;
+  box-sizing: border-box;
+}
+
+.marginalia-note {
+  font-family: 'Courier New', monospace;
+  font-size: 11px;
+  font-style: italic;
+  color: #7a3a1e;
+  background: rgba(255, 235, 180, 0.45);
+  border-left: 3px solid #8c3823;
+  padding: 4px 8px;
+  margin-bottom: 10px;
+  border-radius: 2px;
+}
+
+.special-section-header {
+  font-family: 'Cinzel', Georgia, serif;
+  font-size: 13.5px;
+  font-weight: bold;
+  color: #5c1810;
+  text-align: center;
+  margin: 10px 0;
+  letter-spacing: 0.8px;
+}
+
+/* -------------------------------------------------------------
+ * MATHEMATICAL & SCIENTIFIC PROOF BOXES & EQUATIONS
+ * ------------------------------------------------------------- */
+.math-proof-card {
+  margin: 10px 0;
+  padding: 10px 14px;
+  background: rgba(60, 42, 26, 0.07);
+  border: 1px solid #b89c74;
+  border-left: 4px solid #7d4e24;
+  border-radius: 4px;
+  box-shadow: inset 0 0 8px rgba(0, 0, 0, 0.04);
+}
+
+.math-theorem-header {
+  font-family: 'Cinzel', Georgia, serif;
+  font-size: 13px;
+  font-weight: bold;
+  color: #5c1810;
+  text-align: center;
+  margin-bottom: 8px;
+  letter-spacing: 0.8px;
+  border-bottom: 1px dashed #b89c74;
+  padding-bottom: 4px;
+}
+
+.math-display-eq {
+  font-family: 'Times New Roman', 'Cambria Math', Georgia, serif;
+  font-size: 16px;
+  font-weight: 500;
+  color: #1f140c;
+  text-align: center;
+  margin: 10px 0;
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.35);
+  border: 1px solid #d4c0a5;
+  border-radius: 4px;
+  overflow-x: auto;
+  letter-spacing: 0.5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.math-inline-eq {
+  font-family: 'Times New Roman', 'Cambria Math', Georgia, serif;
+  font-size: 14.5px;
+  font-weight: 600;
+  color: #3b1e0f;
+  padding: 0 2px;
+}
+
+.math-proof-line {
+  font-size: 13px;
+  line-height: 1.6;
+  color: #2b1f14;
+  margin: 4px 0;
+}
+
+.math-qed-badge {
+  font-family: 'Cinzel', Georgia, serif;
+  font-size: 11.5px;
+  font-weight: bold;
+  color: #6e2016;
+  text-align: right;
+  margin-top: 8px;
+  padding-top: 4px;
+  border-top: 1px dashed #b89c74;
+  font-style: italic;
+}
+
+.math-frac {
+  display: inline-flex;
+  flex-direction: column;
+  vertical-align: middle;
+  text-align: center;
+  font-size: 0.88em;
+  padding: 0 4px;
+}
+
+.math-num {
+  border-bottom: 1px solid #2b1f14;
+  padding-bottom: 1px;
+}
+
+.math-den {
+  padding-top: 1px;
+}
+
+.math-sqrt {
+  display: inline-flex;
+  align-items: center;
+  font-size: 1.05em;
+  padding: 0 2px;
+}
+
+.math-radicand {
+  border-top: 1px solid #2b1f14;
+  padding-top: 1px;
+  margin-left: 1px;
+}
+
+.math-vec {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 0.85;
+  font-style: italic;
+  font-weight: bold;
+  padding: 0 2px;
+}
+
+.math-vec-arrow {
+  font-size: 0.65em;
+  line-height: 0.65em;
+  color: #3b1e0f;
+}
+
+.math-hat {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 0.85;
+  font-style: italic;
+  padding: 0 2px;
+}
+
+.math-hat-sym {
+  font-size: 0.65em;
+  line-height: 0.65em;
+  color: #3b1e0f;
+}
+
+.math-delim {
+  font-size: 1.25em;
+  vertical-align: -0.06em;
+  font-family: 'Cambria Math', 'Times New Roman', serif;
+}
+
+.math-op {
+  font-size: 1.3em;
+  vertical-align: -0.1em;
+  padding: 0 2px;
+  font-family: 'Cambria Math', 'Times New Roman', serif;
+}
+
+.math-func {
+  font-style: normal;
+  font-family: 'Times New Roman', Georgia, serif;
+  padding-right: 2px;
+}
+
+.math-text {
+  font-family: Georgia, serif;
+  font-style: normal;
+  font-size: 0.9em;
+}
+
+.math-matrix-wrapper {
+  display: flex;
+  justify-content: center;
+  margin: 6px 0;
+  width: 100%;
+}
+
+.math-matrix-table {
+  border-collapse: collapse;
+  margin: 4px auto;
+}
+
+.math-matrix-table.bmatrix {
+  border-left: 2px solid #2b1f14;
+  border-right: 2px solid #2b1f14;
+  padding: 0 6px;
+}
+
+.math-matrix-table.pmatrix {
+  border-left: 2px solid #2b1f14;
+  border-right: 2px solid #2b1f14;
+  border-radius: 6px;
+  padding: 0 6px;
+}
+
+.math-matrix-table td {
+  padding: 3px 10px;
+  text-align: center;
+  font-family: 'Times New Roman', 'Cambria Math', Georgia, serif;
+  font-size: 14px;
 }
 
 .blank-page-note {
@@ -730,7 +1234,7 @@ body.pointer-locked * {
   height: 100%;
   font-style: italic;
   color: #8a765c;
-  font-size: 14px;
+  font-size: 15px;
 }
 
 .page-footer {
@@ -747,6 +1251,30 @@ body.pointer-locked * {
   align-items: center;
   margin-top: 14px;
   gap: 12px;
+}
+
+.nav-left-group, .nav-right-group {
+  display: flex;
+  gap: 8px;
+}
+
+.nav-center-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.book-page-select {
+  background: #2e1d13;
+  color: #f7d583;
+  border: 1px solid #8f6a3d;
+  border-radius: 3px;
+  padding: 4px 8px;
+  font-family: 'Courier New', monospace;
+  font-size: 11px;
+  cursor: pointer;
+  max-width: 220px;
+  outline: none;
 }
 
 .nav-page-btn {

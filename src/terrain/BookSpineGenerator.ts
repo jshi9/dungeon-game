@@ -23,7 +23,7 @@ export class BookSpineGenerator {
   private static leatherBackMatCache: Map<string, THREE.MeshStandardMaterial> = new Map();
 
   /**
-   * Generates a high-detail voxel/pixel-art spine texture matching the reference artwork.
+   * Generates a high-detail voxel/pixel-art spine texture with distinct leather colorways
    */
   public static getSpineTexture(book: BookData, isHorizontal: boolean = false): THREE.CanvasTexture {
     const key = `${book.id}_${book.coverColor}_${book.accentColor}_${isHorizontal ? 'H' : 'V'}`;
@@ -57,24 +57,56 @@ export class BookSpineGenerator {
   }
 
   /**
-   * Returns a 6-material array for a 3D BoxGeometry book:
-   * [right, left, top, bottom, front(spine), back]
+   * Returns a 6-material array for a 3D BoxGeometry book with varying specular shine & metalness
    */
   public static getBookMaterials(book: BookData, isHorizontal: boolean = false, side: number = -1): THREE.Material[] {
     const spineTex = this.getSpineTexture(book, isHorizontal);
+
+    // Compute varying specular shine & roughness based on accent type
+    let roughness = 0.55;
+    let metalness = 0.2;
+
+    switch (book.accentColor) {
+      case '#ffd700': // 24K Radiant Gold
+        roughness = 0.38;
+        metalness = 0.45;
+        break;
+      case '#d1d7e3': // Silver Foil
+        roughness = 0.32;
+        metalness = 0.55;
+        break;
+      case '#c86d49': // Copper Foil
+        roughness = 0.42;
+        metalness = 0.48;
+        break;
+      case '#e5b84c': // Antique Gold
+        roughness = 0.50;
+        metalness = 0.30;
+        break;
+      case '#9a7838': // Tarnished Bronze
+        roughness = 0.68;
+        metalness = 0.18;
+        break;
+      case '#1a1614': // Blind Stamped Leather (Matte)
+        roughness = 0.88;
+        metalness = 0.02;
+        break;
+      case '#dfd2b5': // Aged Ivory
+        roughness = 0.82;
+        metalness = 0.05;
+        break;
+    }
+
     const spineMat = new THREE.MeshStandardMaterial({
       map: spineTex,
-      roughness: 0.5,
-      metalness: 0.25
+      roughness,
+      metalness
     });
 
     const leatherBackMat = this.getLeatherCoverMaterial(book.coverColor);
     const pageMat = this.getPageEdgeMaterial();
 
-    // Box face ordering: [ +X (right), -X (left), +Y (top), -Y (bottom), +Z (front), -Z (back) ]
-    // In our scene, Left bookshelf (X = -6.5) has spine facing +X. Right bookshelf (X = +6.5) has spine facing -X.
-    // For horizontal desk books or stacked books, spine face depends on side.
-    const spineOnPositiveX = side === -1; // facing nave (+X) for left shelf, (-X) for right shelf
+    const spineOnPositiveX = side === -1;
 
     const materials: THREE.Material[] = [
       spineOnPositiveX ? spineMat : pageMat,       // +X
@@ -96,11 +128,9 @@ export class BookSpineGenerator {
       const ctx = canvas.getContext('2d')!;
       ctx.imageSmoothingEnabled = false;
 
-      // Base aged parchment
       ctx.fillStyle = '#dfd3ad';
       ctx.fillRect(0, 0, 16, 16);
 
-      // Fine horizontal paper sheet lines
       ctx.fillStyle = 'rgba(160, 140, 100, 0.45)';
       for (let y = 1; y < 16; y += 2) {
         ctx.fillRect(0, y, 16, 1);
@@ -113,7 +143,7 @@ export class BookSpineGenerator {
 
       this.pageSideMat = new THREE.MeshStandardMaterial({
         map: tex,
-        roughness: 0.9,
+        roughness: 0.85,
         metalness: 0.05
       });
     }
@@ -134,14 +164,12 @@ export class BookSpineGenerator {
     ctx.fillStyle = coverColor;
     ctx.fillRect(0, 0, 16, 16);
 
-    // Leather grain texture
-    ctx.fillStyle = 'rgba(0,0,0,0.15)';
+    ctx.fillStyle = 'rgba(0,0,0,0.12)';
     ctx.fillRect(2, 2, 4, 4);
     ctx.fillRect(9, 3, 5, 3);
     ctx.fillRect(3, 10, 6, 4);
-    ctx.fillRect(11, 11, 3, 3);
 
-    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.fillStyle = 'rgba(0,0,0,0.25)';
     ctx.fillRect(0, 0, 16, 1);
     ctx.fillRect(0, 15, 16, 1);
     ctx.fillRect(0, 0, 1, 16);
@@ -154,8 +182,8 @@ export class BookSpineGenerator {
 
     const mat = new THREE.MeshStandardMaterial({
       map: tex,
-      roughness: 0.7,
-      metalness: 0.1
+      roughness: 0.65,
+      metalness: 0.08
     });
 
     this.leatherBackMatCache.set(coverColor, mat);
@@ -163,109 +191,91 @@ export class BookSpineGenerator {
   }
 
   /**
-   * Draws a vertical spine (48x96 px) with ornate borders, gold bands, title, and heraldic emblem.
+   * Draws a vertical spine (48x96 px) with elegant, clean proportions showcasing rich leather colors
    */
   private static drawVerticalSpine(ctx: CanvasRenderingContext2D, w: number, h: number, book: BookData): void {
-    // 1. Base Rich Leather Background
+    // 1. Base Rich Leather Background (Clean & Vibrant)
     ctx.fillStyle = book.coverColor;
     ctx.fillRect(0, 0, w, h);
 
-    // 2. Curvature Shading (Darker on edges for 3D cylindrical spine feel)
+    // 2. Curvature Shading (Dark edges for 3D curved spine cylinder feel)
     const grad = ctx.createLinearGradient(0, 0, w, 0);
     grad.addColorStop(0, 'rgba(0, 0, 0, 0.45)');
-    grad.addColorStop(0.2, 'rgba(0, 0, 0, 0.05)');
-    grad.addColorStop(0.8, 'rgba(0, 0, 0, 0.05)');
+    grad.addColorStop(0.18, 'rgba(0, 0, 0, 0.0)');
+    grad.addColorStop(0.82, 'rgba(0, 0, 0, 0.0)');
     grad.addColorStop(1, 'rgba(0, 0, 0, 0.45)');
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, w, h);
 
-    // 3. Ornate Double Gold Border Frame
-    const gold = book.accentColor || '#ffd88a';
-    const goldDark = '#91712a';
-    const goldBright = '#fff2b8';
+    const accent = book.accentColor || '#ffd700';
+    const isBlindStamped = accent === '#1a1614';
 
-    // Outer border
-    ctx.fillStyle = goldDark;
-    ctx.strokeRect(1.5, 1.5, w - 3, h - 3);
-    ctx.fillStyle = gold;
-    ctx.strokeRect(2.5, 2.5, w - 5, h - 5);
+    // 3. Thin Elegant Perimeter Border
+    if (isBlindStamped) {
+      ctx.strokeStyle = 'rgba(0, 0, 0, 0.45)';
+      ctx.strokeRect(2.5, 2.5, w - 5, h - 5);
+    } else {
+      ctx.strokeStyle = 'rgba(0, 0, 0, 0.35)';
+      ctx.strokeRect(1.5, 1.5, w - 3, h - 3);
+      ctx.strokeStyle = accent;
+      ctx.strokeRect(2.5, 2.5, w - 5, h - 5);
+    }
 
-    // Inner filigree border
-    ctx.strokeStyle = goldDark;
-    ctx.strokeRect(5.5, 5.5, w - 11, h - 11);
-    ctx.strokeStyle = gold;
-    ctx.strokeRect(6.5, 6.5, w - 13, h - 13);
+    // 4. Subtle Corner Accents
+    this.drawCornerBrackets(ctx, 3, 3, w - 6, h - 6, accent);
 
-    // 4. Ornate Gold Corner Brackets (Fleur-de-lis / stepped brackets)
-    this.drawCornerBrackets(ctx, 4, 4, w - 8, h - 8, gold, goldBright);
-
-    // 5. Raised Gold Spine Rib Bands (Top, Mid-Upper, Mid-Lower, Bottom)
+    // 5. Four Crisp Horizontal Spine Rib Bands
     const bandPositionsY = [12, 38, 58, 84];
     bandPositionsY.forEach((by) => {
       // Dark drop shadow
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
-      ctx.fillRect(3, by - 1, w - 6, 4);
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+      ctx.fillRect(4, by - 1, w - 8, 3);
 
-      // Gold band
-      ctx.fillStyle = gold;
-      ctx.fillRect(3, by, w - 6, 2);
-
-      // Gold highlight
-      ctx.fillStyle = goldBright;
+      // Accent band line
+      ctx.fillStyle = isBlindStamped ? 'rgba(0, 0, 0, 0.6)' : accent;
       ctx.fillRect(4, by, w - 8, 1);
     });
 
-    // 6. Center Heraldic Crest / Emblem
+    // 6. Center Heraldic Crest / Emblem (Lower Half)
     const emblem = this.determineEmblem(book);
     const centerX = w / 2;
-    const centerY = h - 22; // Lower medallion zone
-    this.drawEmblem(ctx, centerX, centerY, emblem, gold, goldBright);
+    const centerY = h - 22;
+    this.drawEmblem(ctx, centerX, centerY, emblem, accent);
 
-    // 7. Title Zone (Upper zone between ribs)
-    this.drawSpineTitle(ctx, w / 2, 25, book.title, goldBright, goldDark);
+    // 7. Spine Title (Upper Half)
+    this.drawSpineTitle(ctx, w / 2, 25, book.title, accent, isBlindStamped);
   }
 
   /**
-   * Draws a horizontal spine (128x32 px) for stacked books.
+   * Draws a horizontal spine (128x32 px) for stacked books
    */
   private static drawHorizontalSpine(ctx: CanvasRenderingContext2D, w: number, h: number, book: BookData): void {
-    // 1. Base Leather
     ctx.fillStyle = book.coverColor;
     ctx.fillRect(0, 0, w, h);
 
-    // Curvature gradient
     const grad = ctx.createLinearGradient(0, 0, 0, h);
     grad.addColorStop(0, 'rgba(0, 0, 0, 0.4)');
-    grad.addColorStop(0.2, 'rgba(0, 0, 0, 0.05)');
-    grad.addColorStop(0.8, 'rgba(0, 0, 0, 0.05)');
+    grad.addColorStop(0.2, 'rgba(0, 0, 0, 0.0)');
+    grad.addColorStop(0.8, 'rgba(0, 0, 0, 0.0)');
     grad.addColorStop(1, 'rgba(0, 0, 0, 0.4)');
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, w, h);
 
-    const gold = book.accentColor || '#ffd88a';
-    const goldDark = '#91712a';
-    const goldBright = '#fff2b8';
+    const accent = book.accentColor || '#ffd700';
+    const isBlindStamped = accent === '#1a1614';
 
-    // Horizontal gold border
-    ctx.strokeStyle = goldDark;
-    ctx.strokeRect(1.5, 1.5, w - 3, h - 3);
-    ctx.strokeStyle = gold;
+    // Thin frame border
+    ctx.strokeStyle = isBlindStamped ? 'rgba(0, 0, 0, 0.5)' : accent;
     ctx.strokeRect(2.5, 2.5, w - 5, h - 5);
-
-    // End-bands on left & right
-    ctx.fillStyle = gold;
-    ctx.fillRect(4, 2, 3, h - 4);
-    ctx.fillRect(w - 7, 2, 3, h - 4);
 
     // Left emblem
     const emblem = this.determineEmblem(book);
-    this.drawEmblem(ctx, 16, h / 2, emblem, gold, goldBright);
+    this.drawEmblem(ctx, 16, h / 2, emblem, accent);
 
-    // Right decorative cross or star
-    this.drawEmblem(ctx, w - 16, h / 2, 'cross', gold, goldBright);
+    // Right emblem
+    this.drawEmblem(ctx, w - 16, h / 2, 'cross', accent);
 
-    // Center Title Text
-    ctx.fillStyle = '#000000';
+    // Title text
     ctx.font = 'bold 9px "Cinzel", Georgia, serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
@@ -273,10 +283,11 @@ export class BookSpineGenerator {
     const cleanTitle = book.title.length > 20 ? book.title.slice(0, 18) + '…' : book.title;
 
     // Drop shadow
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
     ctx.fillText(cleanTitle.toUpperCase(), w / 2 + 1, h / 2 + 1);
 
-    // Gilded text
-    ctx.fillStyle = goldBright;
+    // Title fill
+    ctx.fillStyle = isBlindStamped ? 'rgba(0, 0, 0, 0.75)' : accent;
     ctx.fillText(cleanTitle.toUpperCase(), w / 2, h / 2);
   }
 
@@ -286,37 +297,25 @@ export class BookSpineGenerator {
     y: number,
     w: number,
     h: number,
-    gold: string,
-    goldBright: string
+    accent: string
   ): void {
-    ctx.fillStyle = gold;
+    ctx.fillStyle = accent;
 
     // Top-Left
-    ctx.fillRect(x, y, 4, 1);
-    ctx.fillRect(x, y, 1, 4);
-    ctx.fillRect(x + 1, y + 1, 2, 2);
+    ctx.fillRect(x, y, 3, 1);
+    ctx.fillRect(x, y, 1, 3);
 
     // Top-Right
-    ctx.fillRect(x + w - 4, y, 4, 1);
-    ctx.fillRect(x + w - 1, y, 1, 4);
-    ctx.fillRect(x + w - 3, y + 1, 2, 2);
+    ctx.fillRect(x + w - 3, y, 3, 1);
+    ctx.fillRect(x + w - 1, y, 1, 3);
 
     // Bottom-Left
-    ctx.fillRect(x, y + h - 1, 4, 1);
-    ctx.fillRect(x, y + h - 4, 1, 4);
-    ctx.fillRect(x + 1, y + h - 3, 2, 2);
+    ctx.fillRect(x, y + h - 1, 3, 1);
+    ctx.fillRect(x, y + h - 3, 1, 3);
 
     // Bottom-Right
-    ctx.fillRect(x + w - 4, y + h - 1, 4, 1);
-    ctx.fillRect(x + w - 1, y + h - 4, 1, 4);
-    ctx.fillRect(x + w - 3, y + h - 3, 2, 2);
-
-    // Tiny gold dots in corners
-    ctx.fillStyle = goldBright;
-    ctx.fillRect(x + 1, y + 1, 1, 1);
-    ctx.fillRect(x + w - 2, y + 1, 1, 1);
-    ctx.fillRect(x + 1, y + h - 2, 1, 1);
-    ctx.fillRect(x + w - 2, y + h - 2, 1, 1);
+    ctx.fillRect(x + w - 3, y + h - 1, 3, 1);
+    ctx.fillRect(x + w - 1, y + h - 3, 1, 3);
   }
 
   private static drawSpineTitle(
@@ -324,15 +323,13 @@ export class BookSpineGenerator {
     cx: number,
     cy: number,
     title: string,
-    goldBright: string,
-    _goldDark: string
+    accent: string,
+    isBlindStamped: boolean
   ): void {
     ctx.save();
-    ctx.fillStyle = '#000000';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
 
-    // Word wrap into 1-3 compact lines
     const words = title.split(' ');
     const lines: string[] = [];
     let curLine = '';
@@ -348,19 +345,20 @@ export class BookSpineGenerator {
     if (curLine) lines.push(curLine);
 
     const displayLines = lines.slice(0, 3);
-    const lineHeight = 6.5;
+    const lineHeight = 7;
     const startY = cy - ((displayLines.length - 1) * lineHeight) / 2;
 
-    ctx.font = 'bold 6.5px "Cinzel", "Courier New", serif';
+    ctx.font = 'bold 7px "Cinzel", Georgia, serif';
 
     displayLines.forEach((line, idx) => {
       const y = startY + idx * lineHeight;
-      // Shadow
-      ctx.fillStyle = 'rgba(0,0,0,0.85)';
-      ctx.fillText(line.toUpperCase(), cx + 0.8, y + 0.8);
 
-      // Gold text
-      ctx.fillStyle = goldBright;
+      // Drop shadow
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
+      ctx.fillText(line.toUpperCase(), cx + 1, y + 1);
+
+      // Main title text
+      ctx.fillStyle = isBlindStamped ? 'rgba(0, 0, 0, 0.75)' : accent;
       ctx.fillText(line.toUpperCase(), cx, y);
     });
 
@@ -368,15 +366,26 @@ export class BookSpineGenerator {
   }
 
   private static determineEmblem(book: BookData): BookEmblemType {
-    const c = book.classification;
-    if (c === 'Tales & Mythology') return 'lion';
-    if (c === 'Mysticism & Magic') return 'moon_stars';
-    if (c === 'Academic Texts & Grammar') return 'celtic';
-    if (c === 'Breakthroughs & Theories') return 'compass';
-    if (c === 'Professional Manuals') return 'tree';
-    if (c === 'Dissertations') return 'pillar';
-    if (c === 'Fiction') return 'sword';
-    return 'cross';
+    switch (book.classification) {
+      case 'Fiction':
+        return 'sword';
+      case 'Non-Fiction':
+        return 'cross';
+      case 'Academic Texts & Grammar':
+        return 'celtic';
+      case 'Professional Manuals':
+        return 'tree';
+      case 'Breakthroughs & Theories':
+        return 'compass';
+      case 'Dissertations':
+        return 'pillar';
+      case 'Mysticism & Magic':
+        return 'moon_stars';
+      case 'Tales & Mythology':
+        return 'lion';
+      default:
+        return 'crest';
+    }
   }
 
   private static drawEmblem(
@@ -384,97 +393,67 @@ export class BookSpineGenerator {
     cx: number,
     cy: number,
     emblem: BookEmblemType,
-    gold: string,
-    goldBright: string
+    accent: string
   ): void {
-    ctx.save();
-    ctx.translate(Math.round(cx), Math.round(cy));
-
-    // Outer gold medallion diamond/circle
-    ctx.fillStyle = 'rgba(0,0,0,0.4)';
-    ctx.fillRect(-7, -7, 14, 14);
-
-    ctx.strokeStyle = gold;
-    ctx.strokeRect(-6.5, -6.5, 13, 13);
-
-    ctx.fillStyle = gold;
+    ctx.fillStyle = accent;
 
     switch (emblem) {
       case 'lion':
-        // Rampant Lion Silhouette
-        ctx.fillRect(-2, -4, 4, 3); // Head
-        ctx.fillRect(-3, -1, 6, 4); // Body
-        ctx.fillRect(-4, -3, 2, 2); // Left raised paw
-        ctx.fillRect(2, -2, 2, 2);  // Right raised paw
-        ctx.fillRect(-3, 3, 2, 3);  // Left leg
-        ctx.fillRect(1, 3, 2, 3);   // Right leg
-        ctx.fillStyle = goldBright;
-        ctx.fillRect(-1, -4, 2, 1); // Crown
+        // Rampant golden lion crest
+        ctx.fillRect(cx - 3, cy - 5, 5, 2);
+        ctx.fillRect(cx - 2, cy - 3, 5, 5);
+        ctx.fillRect(cx - 4, cy - 1, 2, 2);
+        ctx.fillRect(cx + 2, cy - 2, 2, 3);
+        ctx.fillRect(cx - 3, cy + 2, 2, 3);
+        ctx.fillRect(cx + 1, cy + 2, 2, 3);
+        ctx.fillRect(cx + 3, cy - 4, 1, 4);
         break;
 
       case 'cross':
       case 'celtic':
-        // Ornate Gothic Cross
-        ctx.fillRect(-1, -5, 2, 10); // Vertical stem
-        ctx.fillRect(-4, -2, 8, 2);  // Horizontal bar
-        ctx.fillStyle = goldBright;
-        ctx.fillRect(-2, -3, 4, 4);  // Center boss
-        ctx.fillRect(-1, -6, 2, 1);  // Top fleur
+        // Medieval heraldic cross
+        ctx.fillRect(cx - 1, cy - 6, 2, 12);
+        ctx.fillRect(cx - 4, cy - 3, 8, 2);
+        ctx.fillRect(cx - 3, cy - 5, 6, 1);
+        ctx.fillRect(cx - 3, cy + 5, 6, 1);
         break;
 
       case 'moon_stars':
-        // Crescent Moon & Stars
-        ctx.fillRect(-3, -4, 3, 8);
-        ctx.fillRect(0, -3, 2, 6);
-        ctx.clearRect(-1, -2, 2, 4);
-        ctx.fillStyle = goldBright;
-        ctx.fillRect(2, -4, 2, 2); // Star 1
-        ctx.fillRect(3, 2, 2, 2);  // Star 2
+        // Crescent moon & star
+        ctx.fillRect(cx - 4, cy - 4, 2, 8);
+        ctx.fillRect(cx - 2, cy - 5, 3, 1);
+        ctx.fillRect(cx - 2, cy + 4, 3, 1);
+        ctx.fillRect(cx + 2, cy - 1, 2, 2);
+        break;
+
+      case 'sword':
+        // Knight Greatsword
+        ctx.fillRect(cx, cy - 6, 1, 12);
+        ctx.fillRect(cx - 3, cy + 2, 7, 1);
+        ctx.fillRect(cx - 1, cy + 5, 3, 1);
         break;
 
       case 'pillar':
         // Classical Roman Capital
-        ctx.fillRect(-4, -4, 8, 2); // Capital top
-        ctx.fillRect(-2, -2, 4, 6); // Fluted shaft
-        ctx.fillRect(-4, 3, 8, 2);  // Base plinth
-        break;
-
-      case 'sword':
-        // Upright Knight Sword
-        ctx.fillRect(-1, -5, 2, 7); // Blade
-        ctx.fillRect(-4, 1, 8, 1);  // Crossguard
-        ctx.fillRect(-1, 2, 2, 2);  // Grip
-        ctx.fillStyle = goldBright;
-        ctx.fillRect(-1, 4, 2, 1);  // Pommel
+        ctx.fillRect(cx - 4, cy - 5, 8, 2);
+        ctx.fillRect(cx - 2, cy - 3, 4, 7);
+        ctx.fillRect(cx - 4, cy + 4, 8, 2);
         break;
 
       case 'compass':
         // 8-Point Compass Star
-        ctx.fillRect(-1, -5, 2, 10);
-        ctx.fillRect(-5, -1, 10, 2);
-        ctx.fillStyle = goldBright;
-        ctx.fillRect(-2, -2, 4, 4);
+        ctx.fillRect(cx, cy - 5, 1, 10);
+        ctx.fillRect(cx - 5, cy, 10, 1);
+        ctx.fillRect(cx - 2, cy - 2, 4, 4);
         break;
 
       case 'tree':
-      case 'flower':
-        // Tree of Life / Floral Lily
-        ctx.fillRect(-1, -4, 2, 8); // Trunk
-        ctx.fillRect(-4, -2, 8, 2); // Branches
-        ctx.fillRect(-3, -4, 6, 2); // Crown
-        ctx.fillStyle = goldBright;
-        ctx.fillRect(-1, -5, 2, 2); // Top bloom
-        break;
-
       default:
-        // Ornate Diamond Knot
-        ctx.fillRect(-1, -4, 2, 8);
-        ctx.fillRect(-4, -1, 8, 2);
-        ctx.fillStyle = goldBright;
-        ctx.fillRect(-2, -2, 4, 4);
+        // Tree of life / Alchemical flora
+        ctx.fillRect(cx, cy - 1, 1, 6);
+        ctx.fillRect(cx - 3, cy - 4, 6, 3);
+        ctx.fillRect(cx - 2, cy - 5, 4, 1);
         break;
     }
-
-    ctx.restore();
   }
 }

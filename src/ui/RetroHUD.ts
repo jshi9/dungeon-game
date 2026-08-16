@@ -12,7 +12,7 @@ export interface InventoryItem {
 
 export const DEFAULT_HOTBAR_ITEMS: InventoryItem[] = [
   { id: 'flashlight', name: 'High-Power Flashlight', icon: '🔦', description: 'Ultra-bright directional beam' },
-  { id: 'lantern', name: 'Brass Lantern', icon: '🏮', description: 'Warm 360° omnidirectional light' },
+  { id: 'lantern', name: 'Ornate Brass Lantern', icon: '🏮', description: 'Cozy 360° warm candlelight glow' },
   { id: 'sword', name: 'Iron Broadsword', icon: '⚔️', description: 'Hand-forged knight blade' },
   { id: 'shield', name: 'Oak Shield', icon: '🛡️', description: 'Reinforced iron-banded shield' },
   { id: 'potion', name: 'Health Elixir', icon: '🧪', count: 3, description: 'Restores vitality and stamina' },

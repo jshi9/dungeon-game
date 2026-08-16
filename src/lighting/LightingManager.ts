@@ -11,11 +11,11 @@ export class LightingManager {
   public dirLight: THREE.DirectionalLight;
   public dirLightTarget: THREE.Object3D;
 
-  // Grand Cathedral Library Sunbeams
+  // Grand Cathedral Library Sunbeams (North Stained Glass)
   public librarySunLight: THREE.DirectionalLight;
   public librarySunTarget: THREE.Object3D;
 
-  // Dungeon / Library Ambient
+  // Ambient Fill
   public dungeonAmbient: THREE.AmbientLight;
 
   // Fogs
@@ -26,7 +26,7 @@ export class LightingManager {
   // Background Colors
   private surfaceBgColor = new THREE.Color(0x8bc3ea);
   private dungeonBgColor = new THREE.Color(0x0a0812);
-  private libraryBgColor = new THREE.Color(0x1a131b);
+  private libraryBgColor = new THREE.Color(0x08060c);
 
   constructor(scene: THREE.Scene) {
     this.scene = scene;
@@ -58,36 +58,36 @@ export class LightingManager {
     this.dirLight.target = this.dirLightTarget;
     this.scene.add(this.dirLight);
 
-    // 3. Majestic Directional Sunbeams (Grand Cathedral Library)
-    this.librarySunLight = new THREE.DirectionalLight(0xfff0d4, 2.8);
-    this.librarySunLight.position.set(0, 22, 38);
+    // 3. Majestic Directional Sunbeam (High North Stained Glass Window)
+    this.librarySunLight = new THREE.DirectionalLight(0xffeed6, 2.4);
+    this.librarySunLight.position.set(0, 24, 38);
     this.librarySunLight.castShadow = true;
     this.librarySunLight.shadow.mapSize.width = 2048;
     this.librarySunLight.shadow.mapSize.height = 2048;
     this.librarySunLight.shadow.camera.near = 1.0;
-    this.librarySunLight.shadow.camera.far = 80;
+    this.librarySunLight.shadow.camera.far = 85;
     this.librarySunLight.shadow.bias = -0.001;
 
-    const ld = 24;
+    const ld = 26;
     this.librarySunLight.shadow.camera.left = -ld;
     this.librarySunLight.shadow.camera.right = ld;
     this.librarySunLight.shadow.camera.top = ld;
     this.librarySunLight.shadow.camera.bottom = -ld;
 
     this.librarySunTarget = new THREE.Object3D();
-    this.librarySunTarget.position.set(0, 2.0, 14.0);
+    this.librarySunTarget.position.set(0, 2.0, 16.0);
     this.scene.add(this.librarySunTarget);
     this.librarySunLight.target = this.librarySunTarget;
     this.scene.add(this.librarySunLight);
 
-    // 4. Ambient
-    this.dungeonAmbient = new THREE.AmbientLight(0xffe8c8, 1.2);
+    // 4. Ambient Light
+    this.dungeonAmbient = new THREE.AmbientLight(0x322438, 0.25);
     this.scene.add(this.dungeonAmbient);
 
     // 5. Atmospheric Fogs
     this.surfaceFog = new THREE.FogExp2(0x8bc3ea, 0.010);
     this.dungeonFog = new THREE.Fog(0x06050e, 18, 95);
-    this.libraryFog = new THREE.Fog(0x1a131b, 28, 100);
+    this.libraryFog = new THREE.Fog(0x08060c, 22, 75);
 
     this.setMode('surface');
   }
@@ -116,16 +116,16 @@ export class LightingManager {
       this.dungeonAmbient.intensity = 1.2;
       this.dungeonAmbient.color.setHex(0x4c425e);
     } else {
-      // Grand Cathedral Library: Majestic Warm Golden Cathedral Atmosphere
+      // Grand Cathedral Library: Dark Mysterious Background with High Local Light Contrast
       this.scene.background = this.libraryBgColor;
       this.scene.fog = this.libraryFog;
-      this.hemiLight.color.setHex(0xfff3db);
-      this.hemiLight.groundColor.setHex(0x593b2a);
-      this.hemiLight.intensity = 1.65;
+      this.hemiLight.color.setHex(0x423850);
+      this.hemiLight.groundColor.setHex(0x181210);
+      this.hemiLight.intensity = 0.28; // Subtle fill so shadows remain deep
       this.dirLight.intensity = 0.0;
-      this.librarySunLight.intensity = 3.2; // Majestic golden sunlight beam!
-      this.dungeonAmbient.intensity = 1.85; // Warm luminous ambient fill
-      this.dungeonAmbient.color.setHex(0xffe4bc);
+      this.librarySunLight.intensity = 2.4; // Sunbeam cutting through the apse window
+      this.dungeonAmbient.intensity = 0.25; // Moody ambient tone
+      this.dungeonAmbient.color.setHex(0x322438);
     }
   }
 

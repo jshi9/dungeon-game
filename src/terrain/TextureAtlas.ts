@@ -116,23 +116,29 @@ export class TextureAtlas {
     ctxDirt.fillRect(4, 7, 2, 1);
     ctxDirt.fillRect(11, 12, 1, 2);
 
-    // 4. Stone Brick
-    const [cBrick, ctxBrick] = this.createCanvas(16, 16);
-    const bBase = ['#737984', '#616773', '#808794', '#555b66'];
-    for (let y = 0; y < 16; y++) {
-      for (let x = 0; x < 16; x++) {
-        const rand = Math.random();
-        ctxBrick.fillStyle = rand > 0.7 ? bBase[2] : rand > 0.4 ? bBase[0] : rand > 0.2 ? bBase[1] : bBase[3];
+    // 4. Stone Brick (Ashlar Gothic Masonry 32x32)
+    const [cBrick, ctxBrick] = this.createCanvas(32, 32);
+    for (let y = 0; y < 32; y++) {
+      for (let x = 0; x < 32; x++) {
+        const noise = Math.sin(x * 0.5) * Math.cos(y * 0.5);
+        ctxBrick.fillStyle = noise > 0.3 ? '#6e7480' : noise > -0.3 ? '#585e6a' : '#494e58';
         ctxBrick.fillRect(x, y, 1, 1);
       }
     }
-    ctxBrick.fillStyle = '#33373f';
-    ctxBrick.fillRect(0, 0, 16, 1);
-    ctxBrick.fillRect(0, 8, 16, 1);
-    ctxBrick.fillRect(0, 0, 1, 8);
-    ctxBrick.fillRect(8, 0, 1, 8);
-    ctxBrick.fillRect(4, 8, 1, 8);
-    ctxBrick.fillRect(12, 8, 1, 8);
+    // Mortar Courses
+    ctxBrick.fillStyle = '#262930';
+    ctxBrick.fillRect(0, 0, 32, 1);
+    ctxBrick.fillRect(0, 16, 32, 1);
+    ctxBrick.fillRect(0, 0, 1, 16);
+    ctxBrick.fillRect(16, 0, 1, 16);
+    ctxBrick.fillRect(8, 16, 1, 16);
+    ctxBrick.fillRect(24, 16, 1, 16);
+    // Highlights on stone edges
+    ctxBrick.fillStyle = '#828896';
+    ctxBrick.fillRect(1, 1, 14, 1);
+    ctxBrick.fillRect(17, 1, 14, 1);
+    ctxBrick.fillRect(9, 17, 14, 1);
+    ctxBrick.fillRect(25, 17, 6, 1);
 
     // 5. Cobblestone
     const [cCobble, ctxCobble] = this.createCanvas(16, 16);
@@ -212,23 +218,38 @@ export class TextureAtlas {
       }
     }
 
-    // 10. Carpet Red
-    const [cCarpet, ctxCarpet] = this.createCanvas(16, 16);
-    ctxCarpet.fillStyle = '#831e1e';
-    ctxCarpet.fillRect(0, 0, 16, 16);
-    ctxCarpet.fillStyle = '#cda250';
-    ctxCarpet.fillRect(1, 1, 14, 1);
-    ctxCarpet.fillRect(1, 14, 14, 1);
-    ctxCarpet.fillRect(1, 1, 1, 14);
-    ctxCarpet.fillRect(14, 1, 1, 14);
-    ctxCarpet.fillStyle = '#651414';
-    ctxCarpet.fillRect(3, 3, 10, 10);
-    for (let y = 4; y < 12; y += 2) {
-      for (let x = 4; x < 12; x += 2) {
-        ctxCarpet.fillStyle = '#7a1919';
+    // 10. Carpet Red (Rich Crimson Velvet with Gold Filigree Border 32x32)
+    const [cCarpet, ctxCarpet] = this.createCanvas(32, 32);
+    ctxCarpet.fillStyle = '#80141a'; // Deep crimson base
+    ctxCarpet.fillRect(0, 0, 32, 32);
+
+    // Subtle velvet weave texture
+    for (let y = 0; y < 32; y += 2) {
+      for (let x = 0; x < 32; x += 2) {
+        ctxCarpet.fillStyle = ((x + y) % 4 === 0) ? '#680e14' : '#941920';
         ctxCarpet.fillRect(x, y, 1, 1);
       }
     }
+
+    // Outer Gilded Braided Border
+    ctxCarpet.fillStyle = '#d4af37';
+    ctxCarpet.fillRect(2, 2, 28, 1);
+    ctxCarpet.fillRect(2, 29, 28, 1);
+    ctxCarpet.fillRect(2, 2, 1, 28);
+    ctxCarpet.fillRect(29, 2, 1, 28);
+
+    // Inner Gold Accent Line
+    ctxCarpet.fillStyle = '#ffd700';
+    ctxCarpet.fillRect(4, 4, 24, 1);
+    ctxCarpet.fillRect(4, 27, 24, 1);
+    ctxCarpet.fillRect(4, 4, 1, 24);
+    ctxCarpet.fillRect(27, 4, 1, 24);
+
+    // Center Gold Fleur-de-lis / Diamond Motif
+    ctxCarpet.fillStyle = '#ffd700';
+    ctxCarpet.fillRect(15, 12, 2, 8);
+    ctxCarpet.fillRect(12, 15, 8, 2);
+    ctxCarpet.fillRect(14, 14, 4, 4);
 
     // 11. Iron / Metal
     const [cIron, ctxIron] = this.createCanvas(16, 16);
@@ -281,18 +302,16 @@ export class TextureAtlas {
     // GRAND LIBRARY TEXTURES
     // -------------------------------------------------------------
 
-    // 15. Dense Bookshelf (Multi-colored pixelated leather spines with gold ribs)
+    // 15. Dense Bookshelf
     const [cBooksDense, ctxBooksDense] = this.createCanvas(16, 16);
-    ctxBooksDense.fillStyle = '#4e331c';
-    ctxBooksDense.fillRect(0, 0, 16, 16); // Wood frame background
-    // Wood shelf dividers at y=0, y=8, y=15
-    ctxBooksDense.fillStyle = '#382210';
+    ctxBooksDense.fillStyle = '#362112';
+    ctxBooksDense.fillRect(0, 0, 16, 16);
+    ctxBooksDense.fillStyle = '#201208';
     ctxBooksDense.fillRect(0, 0, 16, 1);
     ctxBooksDense.fillRect(0, 7, 16, 2);
     ctxBooksDense.fillRect(0, 15, 16, 1);
 
-    const bookColors = ['#9e2b2b', '#2b4b8a', '#2d6b38', '#8a5e2b', '#6d3284', '#3b3b44', '#c98a2c'];
-    // Top shelf books (y = 1 to 6)
+    const bookColors = ['#8b181e', '#1c3761', '#1d5334', '#542d17', '#521c63', '#222226', '#8c6227'];
     let bx = 1;
     while (bx < 15) {
       const bWidth = (bx % 2 === 0) ? 2 : 1;
@@ -300,7 +319,6 @@ export class TextureAtlas {
       const col = bookColors[(bx * 3) % bookColors.length];
       ctxBooksDense.fillStyle = col;
       ctxBooksDense.fillRect(bx, 7 - bHeight, bWidth, bHeight);
-      // Gold ribbing on spines
       if (bx % 3 === 0) {
         ctxBooksDense.fillStyle = '#ffd700';
         ctxBooksDense.fillRect(bx, 7 - bHeight + 1, bWidth, 1);
@@ -308,7 +326,6 @@ export class TextureAtlas {
       }
       bx += bWidth;
     }
-    // Bottom shelf books (y = 9 to 14)
     bx = 1;
     while (bx < 15) {
       const bWidth = (bx % 3 === 0) ? 2 : 1;
@@ -317,158 +334,215 @@ export class TextureAtlas {
       ctxBooksDense.fillStyle = col;
       ctxBooksDense.fillRect(bx, 15 - bHeight, bWidth, bHeight);
       if (bx % 2 === 0) {
-        ctxBooksDense.fillStyle = '#e5c158';
+        ctxBooksDense.fillStyle = '#e5b84c';
         ctxBooksDense.fillRect(bx, 15 - bHeight + 1, bWidth, 1);
       }
       bx += bWidth;
     }
 
-    // 16. Rare Bookshelf (Glowing Arcane Grimoires & Gilded Tomes)
+    // 16. Rare Bookshelf
     const [cBooksRare, ctxBooksRare] = this.createCanvas(16, 16);
-    ctxBooksRare.fillStyle = '#2d1b38';
+    ctxBooksRare.fillStyle = '#22142a';
     ctxBooksRare.fillRect(0, 0, 16, 16);
-    ctxBooksRare.fillStyle = '#1c1024';
+    ctxBooksRare.fillStyle = '#140a1c';
     ctxBooksRare.fillRect(0, 0, 16, 2);
     ctxBooksRare.fillRect(0, 7, 16, 2);
     ctxBooksRare.fillRect(0, 14, 16, 2);
 
-    const rareColors = ['#1d4370', '#5a1d70', '#701d2d', '#1d705c', '#c28b17'];
+    const rareColors = ['#162d4d', '#421654', '#591624', '#164d40', '#9c6f14'];
     for (let rbx = 1; rbx < 15; rbx += 2) {
       ctxBooksRare.fillStyle = rareColors[(rbx * 2) % rareColors.length];
       ctxBooksRare.fillRect(rbx, 2, 2, 5);
       ctxBooksRare.fillRect(rbx, 9, 2, 5);
-      // Glowing arcane glyphs
       ctxBooksRare.fillStyle = '#8ce8ff';
       ctxBooksRare.fillRect(rbx + 1, 4, 1, 1);
       ctxBooksRare.fillStyle = '#ffd269';
       ctxBooksRare.fillRect(rbx, 11, 1, 1);
     }
 
-    // 17. Heraldic Lion Banner (Royal blue banner with rampant golden lion)
-    const [cBannerLion, ctxBannerLion] = this.createCanvas(16, 32);
-    ctxBannerLion.fillStyle = '#1a2b58';
-    ctxBannerLion.fillRect(0, 0, 16, 30);
-    // Gold ornamental border
-    ctxBannerLion.fillStyle = '#e8b835';
-    ctxBannerLion.fillRect(1, 1, 14, 1);
-    ctxBannerLion.fillRect(1, 1, 1, 28);
-    ctxBannerLion.fillRect(14, 1, 1, 28);
-    // Banner swallowtail bottom
-    ctxBannerLion.fillStyle = '#0f1a38';
-    ctxBannerLion.fillRect(0, 30, 8, 2);
-    ctxBannerLion.fillRect(8, 30, 8, 2);
-    ctxBannerLion.clearRect(4, 28, 8, 4);
+    // 17. Heraldic Lion Banner (32x64 High Detail Velvet Tapestry)
+    const [cBannerLion, ctxBannerLion] = this.createCanvas(32, 64);
+    ctxBannerLion.fillStyle = '#142247'; // Royal deep blue velvet
+    ctxBannerLion.fillRect(0, 0, 32, 60);
 
-    // Golden Heraldic Lion Silhouette
-    ctxBannerLion.fillStyle = '#f7cb45';
-    // Lion head & mane
-    ctxBannerLion.fillRect(6, 6, 4, 4);
-    ctxBannerLion.fillRect(5, 7, 1, 2);
-    ctxBannerLion.fillRect(10, 7, 1, 2);
-    // Crown on lion head
-    ctxBannerLion.fillStyle = '#ffffff';
-    ctxBannerLion.fillRect(6, 5, 4, 1);
-    ctxBannerLion.fillStyle = '#f7cb45';
-    // Body & spine
-    ctxBannerLion.fillRect(7, 10, 3, 7);
-    // Front raised paws (rampant stance)
-    ctxBannerLion.fillRect(4, 8, 2, 2);
-    ctxBannerLion.fillRect(3, 7, 1, 2);
-    ctxBannerLion.fillRect(5, 11, 2, 2);
-    ctxBannerLion.fillRect(3, 12, 2, 1);
+    // Ornate Gold Filigree Border
+    ctxBannerLion.fillStyle = '#d4af37';
+    ctxBannerLion.fillRect(2, 2, 28, 2);
+    ctxBannerLion.fillRect(2, 2, 2, 56);
+    ctxBannerLion.fillRect(28, 2, 2, 56);
+    ctxBannerLion.fillStyle = '#ffd700';
+    ctxBannerLion.fillRect(4, 4, 24, 1);
+    ctxBannerLion.fillRect(4, 4, 1, 52);
+    ctxBannerLion.fillRect(27, 4, 1, 52);
+
+    // Swallowtail bottom fringe
+    ctxBannerLion.fillStyle = '#0b1329';
+    ctxBannerLion.fillRect(0, 60, 16, 4);
+    ctxBannerLion.fillRect(16, 60, 16, 4);
+    ctxBannerLion.clearRect(8, 56, 16, 8);
+
+    // Gold Tassels at bottom tips
+    ctxBannerLion.fillStyle = '#f5cb42';
+    ctxBannerLion.fillRect(2, 58, 4, 6);
+    ctxBannerLion.fillRect(26, 58, 4, 6);
+
+    // Crowned Golden Rampant Lion Crest
+    ctxBannerLion.fillStyle = '#ffffff'; // Platinum Crown
+    ctxBannerLion.fillRect(12, 10, 8, 3);
+    ctxBannerLion.fillRect(10, 8, 3, 2);
+    ctxBannerLion.fillRect(15, 8, 2, 2);
+    ctxBannerLion.fillRect(19, 8, 3, 2);
+
+    ctxBannerLion.fillStyle = '#ffd700';
+    // Lion Head & Mane
+    ctxBannerLion.fillRect(11, 13, 10, 8);
+    ctxBannerLion.fillRect(9, 15, 3, 4);
+    ctxBannerLion.fillRect(20, 15, 3, 4);
+    // Torso
+    ctxBannerLion.fillRect(13, 21, 6, 14);
+    // Paws & Claws
+    ctxBannerLion.fillRect(7, 17, 5, 4);
+    ctxBannerLion.fillRect(5, 15, 3, 3);
+    ctxBannerLion.fillRect(9, 23, 5, 3);
+    ctxBannerLion.fillRect(5, 24, 4, 3);
     // Hind legs
-    ctxBannerLion.fillRect(6, 17, 2, 4);
-    ctxBannerLion.fillRect(4, 20, 3, 2);
-    ctxBannerLion.fillRect(9, 17, 3, 3);
-    ctxBannerLion.fillRect(11, 19, 2, 2);
-    // Curled tufted tail
-    ctxBannerLion.fillRect(10, 12, 1, 4);
-    ctxBannerLion.fillRect(11, 11, 2, 2);
-    ctxBannerLion.fillRect(13, 9, 2, 3);
+    ctxBannerLion.fillRect(11, 35, 4, 8);
+    ctxBannerLion.fillRect(7, 41, 6, 4);
+    ctxBannerLion.fillRect(17, 35, 6, 6);
+    ctxBannerLion.fillRect(21, 39, 5, 4);
+    // Tail
+    ctxBannerLion.fillRect(19, 25, 2, 8);
+    ctxBannerLion.fillRect(21, 23, 4, 4);
+    ctxBannerLion.fillRect(25, 19, 4, 6);
 
-    // 18. Heraldic Cross Banner (Crimson velvet with ornate gold cross)
-    const [cBannerCross, ctxBannerCross] = this.createCanvas(16, 32);
-    ctxBannerCross.fillStyle = '#6b1318';
-    ctxBannerCross.fillRect(0, 0, 16, 30);
-    ctxBannerCross.fillStyle = '#d4a839';
-    ctxBannerCross.fillRect(1, 1, 14, 1);
-    ctxBannerCross.fillRect(1, 1, 1, 28);
-    ctxBannerCross.fillRect(14, 1, 1, 28);
+    // 18. Heraldic Cross Banner (32x64 Crimson Velvet & Gold Cross)
+    const [cBannerCross, ctxBannerCross] = this.createCanvas(32, 64);
+    ctxBannerCross.fillStyle = '#6e1218';
+    ctxBannerCross.fillRect(0, 0, 32, 60);
 
-    // Golden Cross
-    ctxBannerCross.fillStyle = '#f7d057';
-    ctxBannerCross.fillRect(7, 5, 2, 18); // Vertical bar
-    ctxBannerCross.fillRect(4, 9, 8, 2);  // Horizontal crossbar
-    // Flared cross tips
-    ctxBannerCross.fillRect(6, 4, 4, 1);
-    ctxBannerCross.fillRect(6, 23, 4, 1);
-    ctxBannerCross.fillRect(3, 8, 1, 4);
-    ctxBannerCross.fillRect(12, 8, 1, 4);
+    ctxBannerCross.fillStyle = '#d4af37';
+    ctxBannerCross.fillRect(2, 2, 28, 2);
+    ctxBannerCross.fillRect(2, 2, 2, 56);
+    ctxBannerCross.fillRect(28, 2, 2, 56);
+    ctxBannerCross.fillStyle = '#ffd700';
+    ctxBannerCross.fillRect(4, 4, 24, 1);
+    ctxBannerCross.fillRect(4, 4, 1, 52);
+    ctxBannerCross.fillRect(27, 4, 1, 52);
 
-    // 19. Stained Glass Gothic Window
-    const [cStained, ctxStained] = this.createCanvas(16, 32);
-    ctxStained.fillStyle = '#22252c';
-    ctxStained.fillRect(0, 0, 16, 32);
-    // Gothic Arch Mosaic Panes
-    const gemColors = ['#ad2626', '#1e4887', '#1f7048', '#b8891d', '#5d2678', '#267874'];
-    for (let py = 2; py < 30; py += 3) {
-      for (let px = 2; px < 14; px += 3) {
-        ctxStained.fillStyle = gemColors[(px * 4 + py * 2) % gemColors.length];
-        ctxStained.fillRect(px, py, 2, 2);
+    ctxBannerCross.fillStyle = '#42090d';
+    ctxBannerCross.fillRect(0, 60, 16, 4);
+    ctxBannerCross.fillRect(16, 60, 16, 4);
+    ctxBannerCross.clearRect(8, 56, 16, 8);
+
+    ctxBannerCross.fillStyle = '#f5cb42';
+    ctxBannerCross.fillRect(2, 58, 4, 6);
+    ctxBannerCross.fillRect(26, 58, 4, 6);
+
+    // Grand Byzantine Gilded Cross
+    ctxBannerCross.fillStyle = '#ffd700';
+    ctxBannerCross.fillRect(14, 10, 4, 36); // Vertical stem
+    ctxBannerCross.fillRect(8, 18, 16, 4);  // Horizontal bar
+    // Flared Fleur-de-lis terminal caps
+    ctxBannerCross.fillRect(12, 8, 8, 2);
+    ctxBannerCross.fillRect(12, 46, 8, 2);
+    ctxBannerCross.fillRect(6, 16, 2, 8);
+    ctxBannerCross.fillRect(24, 16, 2, 8);
+    // Center Radiant Jewel Diamond
+    ctxBannerCross.fillStyle = '#8ae5ff';
+    ctxBannerCross.fillRect(15, 19, 2, 2);
+
+    // 19. Stained Glass Gothic Window (32x64)
+    const [cStained, ctxStained] = this.createCanvas(32, 64);
+    ctxStained.fillStyle = '#181b22';
+    ctxStained.fillRect(0, 0, 32, 64);
+
+    const gems = ['#ad1f1f', '#19498a', '#1e7345', '#c29219', '#631f7d', '#1f7d73'];
+    for (let py = 4; py < 60; py += 4) {
+      for (let px = 4; px < 28; px += 4) {
+        ctxStained.fillStyle = gems[(px * 3 + py * 5) % gems.length];
+        ctxStained.fillRect(px, py, 3, 3);
       }
     }
     // Lead traceries
-    ctxStained.fillStyle = '#15171c';
-    ctxStained.fillRect(0, 0, 16, 2);
-    ctxStained.fillRect(0, 30, 16, 2);
-    ctxStained.fillRect(0, 0, 2, 32);
-    ctxStained.fillRect(14, 0, 2, 32);
-    ctxStained.fillRect(7, 0, 2, 32);
-    ctxStained.fillRect(0, 15, 16, 2);
+    ctxStained.fillStyle = '#0f1116';
+    ctxStained.fillRect(0, 0, 32, 4);
+    ctxStained.fillRect(0, 60, 32, 4);
+    ctxStained.fillRect(0, 0, 4, 64);
+    ctxStained.fillRect(28, 0, 4, 64);
+    ctxStained.fillRect(14, 0, 4, 64);
+    ctxStained.fillRect(0, 30, 32, 4);
 
-    // 20. Stone Tile Floor (Cathedral polished checkered grey flagstones)
-    const [cStoneTile, ctxStoneTile] = this.createCanvas(16, 16);
-    ctxStoneTile.fillStyle = '#7a7f8a';
-    ctxStoneTile.fillRect(0, 0, 8, 8);
-    ctxStoneTile.fillRect(8, 8, 8, 8);
-    ctxStoneTile.fillStyle = '#5c616b';
-    ctxStoneTile.fillRect(8, 0, 8, 8);
-    ctxStoneTile.fillRect(0, 8, 8, 8);
-    // Mortar lines
-    ctxStoneTile.fillStyle = '#363940';
-    ctxStoneTile.fillRect(0, 0, 16, 1);
-    ctxStoneTile.fillRect(0, 8, 16, 1);
-    ctxStoneTile.fillRect(0, 0, 1, 16);
-    ctxStoneTile.fillRect(8, 0, 1, 16);
+    // 20. Stone Tile Floor (32x32 Polished Checkered Marble & Slate)
+    const [cStoneTile, ctxStoneTile] = this.createCanvas(32, 32);
+    ctxStoneTile.fillStyle = '#6e7482'; // Light marble tile
+    ctxStoneTile.fillRect(0, 0, 16, 16);
+    ctxStoneTile.fillRect(16, 16, 16, 16);
 
-    // 21. Carved Stone Pillar
-    const [cPillar, ctxPillar] = this.createCanvas(16, 16);
-    for (let y = 0; y < 16; y++) {
-      for (let x = 0; x < 16; x++) {
-        const shade = (x % 4 === 0) ? '#4a4f58' : (x % 4 === 1) ? '#767c87' : '#616773';
+    ctxStoneTile.fillStyle = '#454a54'; // Dark slate tile
+    ctxStoneTile.fillRect(16, 0, 16, 16);
+    ctxStoneTile.fillRect(0, 16, 16, 16);
+
+    // Marble vein flecks
+    ctxStoneTile.fillStyle = '#858b99';
+    ctxStoneTile.fillRect(3, 4, 4, 1);
+    ctxStoneTile.fillRect(6, 9, 5, 1);
+    ctxStoneTile.fillRect(19, 20, 5, 1);
+    ctxStoneTile.fillRect(24, 25, 4, 1);
+
+    // Deep Mortar Seams
+    ctxStoneTile.fillStyle = '#21242b';
+    ctxStoneTile.fillRect(0, 0, 32, 1);
+    ctxStoneTile.fillRect(0, 16, 32, 1);
+    ctxStoneTile.fillRect(0, 0, 1, 32);
+    ctxStoneTile.fillRect(16, 0, 1, 32);
+
+    // 21. Carved Stone Pillar (32x32 Fluted Columns with 3D Ridges)
+    const [cPillar, ctxPillar] = this.createCanvas(32, 32);
+    for (let y = 0; y < 32; y++) {
+      for (let x = 0; x < 32; x++) {
+        const flutePhase = (x % 8);
+        let shade = '#616773';
+        if (flutePhase === 0) shade = '#363a42';
+        else if (flutePhase === 1) shade = '#4a505c';
+        else if (flutePhase === 2 || flutePhase === 3) shade = '#7a8190';
+        else if (flutePhase === 4) shade = '#8c93a3';
+        else if (flutePhase === 5 || flutePhase === 6) shade = '#6b7280';
+        else shade = '#424752';
+
         ctxPillar.fillStyle = shade;
         ctxPillar.fillRect(x, y, 1, 1);
       }
     }
-    ctxPillar.fillStyle = '#383d45';
-    ctxPillar.fillRect(0, 0, 16, 1);
-    ctxPillar.fillRect(0, 15, 16, 1);
+    // Horizontal carved capital trim bands
+    ctxPillar.fillStyle = '#2c3038';
+    ctxPillar.fillRect(0, 0, 32, 2);
+    ctxPillar.fillRect(0, 30, 32, 2);
 
-    // 22. Celestial Globe Texture
-    const [cGlobe, ctxGlobe] = this.createCanvas(16, 16);
-    ctxGlobe.fillStyle = '#224a73'; // Ocean azure
-    ctxGlobe.fillRect(0, 0, 16, 16);
-    // Continents
-    ctxGlobe.fillStyle = '#8f7743';
-    ctxGlobe.fillRect(3, 3, 5, 4);
-    ctxGlobe.fillRect(2, 5, 4, 5);
-    ctxGlobe.fillRect(9, 4, 5, 3);
-    ctxGlobe.fillRect(10, 8, 4, 5);
-    // Latitude / Equator ring
-    ctxGlobe.fillStyle = '#dfb550';
-    ctxGlobe.fillRect(0, 7, 16, 1);
+    // 22. Celestial Globe Texture (32x32 Ancient Astrolabe Map)
+    const [cGlobe, ctxGlobe] = this.createCanvas(32, 32);
+    ctxGlobe.fillStyle = '#1c3e66'; // Azure ocean
+    ctxGlobe.fillRect(0, 0, 32, 32);
 
-    // 23. Inscription Plaque ("VERITAS" / "WISDOM IS THE LIGHT")
+    // Continents & Landmasses in Gilded Ochre
+    ctxGlobe.fillStyle = '#947a46';
+    ctxGlobe.fillRect(5, 6, 9, 8);
+    ctxGlobe.fillRect(4, 10, 8, 10);
+    ctxGlobe.fillRect(18, 8, 10, 7);
+    ctxGlobe.fillRect(20, 16, 8, 10);
+
+    // Celestial Grid & Equator
+    ctxGlobe.fillStyle = '#e5b84c';
+    ctxGlobe.fillRect(0, 15, 32, 2);
+    ctxGlobe.fillRect(15, 0, 2, 32);
+
+    // Gold Constellation Stars
+    ctxGlobe.fillStyle = '#ffffff';
+    ctxGlobe.fillRect(8, 4, 1, 1);
+    ctxGlobe.fillRect(24, 6, 1, 1);
+    ctxGlobe.fillRect(10, 26, 1, 1);
+    ctxGlobe.fillRect(26, 24, 1, 1);
+
+    // 23. Inscription Plaque
     const [cPlaque, ctxPlaque] = this.createCanvas(16, 16);
     ctxPlaque.fillStyle = '#c7b28b';
     ctxPlaque.fillRect(0, 0, 16, 16);
@@ -485,13 +559,13 @@ export class TextureAtlas {
     // 24. Carved Shelf Category Plaques
     const makeCategoryPlaque = (label: string) => {
       const [c, ctx] = this.createCanvas(64, 16);
-      ctx.fillStyle = '#331d0d'; // Dark mahogany backing
+      ctx.fillStyle = '#261408';
       ctx.fillRect(0, 0, 64, 16);
-      ctx.fillStyle = '#a87d3b'; // Carved gold border
+      ctx.fillStyle = '#a87d3b';
       ctx.fillRect(1, 1, 62, 14);
-      ctx.fillStyle = '#241409';
+      ctx.fillStyle = '#1c0d05';
       ctx.fillRect(2, 2, 60, 12);
-      ctx.fillStyle = '#fce59f'; // Gilded embossed text
+      ctx.fillStyle = '#fce59f';
       ctx.font = 'bold 9px monospace';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
@@ -499,30 +573,30 @@ export class TextureAtlas {
       return this.wrapTexture(c);
     };
 
-    // 25. Dark Oak
-    const [cDarkOak, ctxDarkOak] = this.createCanvas(16, 16);
-    for (let y = 0; y < 16; y++) {
-      for (let x = 0; x < 16; x++) {
-        const rand = Math.random();
-        ctxDarkOak.fillStyle = rand > 0.5 ? '#362112' : '#2a190c';
+    // 25. Dark Oak (Polished Walnut Planks 32x32)
+    const [cDarkOak, ctxDarkOak] = this.createCanvas(32, 32);
+    for (let y = 0; y < 32; y++) {
+      for (let x = 0; x < 32; x++) {
+        const grain = Math.sin(y * 0.8 + x * 0.1);
+        ctxDarkOak.fillStyle = grain > 0.4 ? '#3d2515' : grain > -0.3 ? '#2e1b0e' : '#221308';
         ctxDarkOak.fillRect(x, y, 1, 1);
       }
     }
-    ctxDarkOak.fillStyle = '#1c1007';
-    ctxDarkOak.fillRect(0, 0, 16, 1);
-    ctxDarkOak.fillRect(0, 15, 16, 1);
+    ctxDarkOak.fillStyle = '#150a04';
+    ctxDarkOak.fillRect(0, 0, 32, 1);
+    ctxDarkOak.fillRect(0, 31, 32, 1);
 
-    // 26. Brass Metal
-    const [cBrass, ctxBrass] = this.createCanvas(16, 16);
-    for (let y = 0; y < 16; y++) {
-      for (let x = 0; x < 16; x++) {
-        const rand = Math.random();
-        ctxBrass.fillStyle = rand > 0.6 ? '#d9a84e' : rand > 0.3 ? '#b88937' : '#946c25';
+    // 26. Brass Metal (Polished & Shaded 32x32)
+    const [cBrass, ctxBrass] = this.createCanvas(32, 32);
+    for (let y = 0; y < 32; y++) {
+      for (let x = 0; x < 32; x++) {
+        const sheen = Math.sin((x + y) * 0.3);
+        ctxBrass.fillStyle = sheen > 0.5 ? '#f3cb62' : sheen > 0.0 ? '#d4a337' : '#9e731b';
         ctxBrass.fillRect(x, y, 1, 1);
       }
     }
-    ctxBrass.fillStyle = '#ffe08a';
-    ctxBrass.fillRect(0, 0, 16, 2);
+    ctxBrass.fillStyle = '#fff0a6';
+    ctxBrass.fillRect(0, 0, 32, 2);
 
     this.textures = {
       grassTop: this.wrapTexture(cGrass),
@@ -585,7 +659,7 @@ export class TextureAtlas {
       }),
       stoneBrick: new THREE.MeshStandardMaterial({
         map: this.textures.stoneBrick,
-        roughness: 0.8,
+        roughness: 0.65,
         metalness: 0.1,
         side: THREE.DoubleSide
       }),
@@ -597,209 +671,161 @@ export class TextureAtlas {
       }),
       woodPlanks: new THREE.MeshStandardMaterial({
         map: this.textures.woodPlanks,
-        roughness: 0.75,
+        roughness: 0.65,
         metalness: 0.05,
         side: THREE.DoubleSide
       }),
       woodBeam: new THREE.MeshStandardMaterial({
         map: this.textures.woodBeam,
-        roughness: 0.8,
+        roughness: 0.7,
         metalness: 0.05,
         side: THREE.DoubleSide
       }),
       water: new THREE.MeshStandardMaterial({
         map: this.textures.water,
-        roughness: 0.15,
-        metalness: 0.2,
-        side: THREE.DoubleSide,
+        roughness: 0.1,
+        metalness: 0.1,
         transparent: true,
-        opacity: 0.85
+        opacity: 0.8
       }),
       sand: new THREE.MeshStandardMaterial({
         map: this.textures.sand,
-        roughness: 0.95,
-        metalness: 0.0,
-        side: THREE.DoubleSide
+        roughness: 0.9,
+        metalness: 0.0
       }),
       carpetRed: new THREE.MeshStandardMaterial({
         map: this.textures.carpetRed,
-        roughness: 0.9,
-        metalness: 0.0,
+        roughness: 0.75,
+        metalness: 0.15,
         side: THREE.DoubleSide
       }),
       iron: new THREE.MeshStandardMaterial({
         map: this.textures.iron,
-        roughness: 0.4,
-        metalness: 0.7,
-        side: THREE.DoubleSide
+        roughness: 0.45,
+        metalness: 0.7
       }),
       bedGreen: new THREE.MeshStandardMaterial({
         map: this.textures.bedGreen,
-        roughness: 0.85,
-        metalness: 0.0,
-        side: THREE.DoubleSide
+        roughness: 0.8,
+        metalness: 0.0
       }),
       windowLattice: new THREE.MeshStandardMaterial({
         map: this.textures.windowLattice,
-        emissive: new THREE.Color(0xffd57a),
-        emissiveIntensity: 0.4,
-        roughness: 0.3,
-        side: THREE.DoubleSide
+        roughness: 0.5,
+        metalness: 0.1,
+        transparent: true
       }),
       mapScroll: new THREE.MeshStandardMaterial({
         map: this.textures.mapScroll,
         roughness: 0.9,
+        metalness: 0.0,
         side: THREE.DoubleSide
       }),
-
-      // Grand Library Materials
       bookshelfDense: new THREE.MeshStandardMaterial({
         map: this.textures.bookshelfDense,
-        roughness: 0.75,
-        metalness: 0.05,
-        side: THREE.DoubleSide
+        roughness: 0.6,
+        metalness: 0.15
       }),
       bookshelfRare: new THREE.MeshStandardMaterial({
         map: this.textures.bookshelfRare,
-        roughness: 0.65,
-        metalness: 0.15,
-        emissive: new THREE.Color(0x3a2254),
-        emissiveIntensity: 0.25,
-        side: THREE.DoubleSide
+        roughness: 0.5,
+        metalness: 0.25
       }),
       heraldicLionBanner: new THREE.MeshStandardMaterial({
         map: this.textures.heraldicLionBanner,
-        roughness: 0.9,
-        metalness: 0.1,
+        roughness: 0.6,
+        metalness: 0.2,
         side: THREE.DoubleSide
       }),
       heraldicCrossBanner: new THREE.MeshStandardMaterial({
         map: this.textures.heraldicCrossBanner,
-        roughness: 0.9,
-        metalness: 0.1,
+        roughness: 0.6,
+        metalness: 0.2,
         side: THREE.DoubleSide
       }),
       stainedGlassGothic: new THREE.MeshStandardMaterial({
         map: this.textures.stainedGlassGothic,
-        emissive: new THREE.Color(0xffd485),
-        emissiveIntensity: 0.75,
-        roughness: 0.2,
-        side: THREE.DoubleSide
+        roughness: 0.15,
+        metalness: 0.1,
+        transparent: true,
+        opacity: 0.92,
+        side: THREE.DoubleSide,
+        emissive: new THREE.Color(0xffeed6),
+        emissiveIntensity: 0.35
       }),
       stoneTileFloor: new THREE.MeshStandardMaterial({
         map: this.textures.stoneTileFloor,
-        roughness: 0.7,
-        metalness: 0.1,
+        roughness: 0.55,
+        metalness: 0.12,
         side: THREE.DoubleSide
       }),
       carvedStonePillar: new THREE.MeshStandardMaterial({
         map: this.textures.carvedStonePillar,
-        roughness: 0.8,
-        metalness: 0.08,
+        roughness: 0.6,
+        metalness: 0.1,
         side: THREE.DoubleSide
       }),
       globeTexture: new THREE.MeshStandardMaterial({
         map: this.textures.globeTexture,
-        roughness: 0.6,
-        metalness: 0.2,
-        side: THREE.DoubleSide
+        roughness: 0.4,
+        metalness: 0.25,
+        emissive: new THREE.Color(0xd4af37),
+        emissiveIntensity: 0.15
       }),
       inscriptionPlaque: new THREE.MeshStandardMaterial({
         map: this.textures.inscriptionPlaque,
-        roughness: 0.85,
-        metalness: 0.05,
+        roughness: 0.6,
+        metalness: 0.2,
         side: THREE.DoubleSide
       }),
       plaqueHistoria: new THREE.MeshStandardMaterial({
         map: this.textures.plaqueHistoria,
-        roughness: 0.6,
-        metalness: 0.2,
+        roughness: 0.5,
+        metalness: 0.3,
         side: THREE.DoubleSide
       }),
       plaquePhilosophia: new THREE.MeshStandardMaterial({
         map: this.textures.plaquePhilosophia,
-        roughness: 0.6,
-        metalness: 0.2,
+        roughness: 0.5,
+        metalness: 0.3,
         side: THREE.DoubleSide
       }),
       plaqueScientia: new THREE.MeshStandardMaterial({
         map: this.textures.plaqueScientia,
-        roughness: 0.6,
-        metalness: 0.2,
+        roughness: 0.5,
+        metalness: 0.3,
         side: THREE.DoubleSide
       }),
       plaqueTheologia: new THREE.MeshStandardMaterial({
         map: this.textures.plaqueTheologia,
-        roughness: 0.6,
-        metalness: 0.2,
+        roughness: 0.5,
+        metalness: 0.3,
         side: THREE.DoubleSide
       }),
       plaqueArcanum: new THREE.MeshStandardMaterial({
         map: this.textures.plaqueArcanum,
-        roughness: 0.6,
-        metalness: 0.2,
+        roughness: 0.5,
+        metalness: 0.3,
         side: THREE.DoubleSide
       }),
       plaqueMythologia: new THREE.MeshStandardMaterial({
         map: this.textures.plaqueMythologia,
-        roughness: 0.6,
-        metalness: 0.2,
+        roughness: 0.5,
+        metalness: 0.3,
         side: THREE.DoubleSide
       }),
       darkOak: new THREE.MeshStandardMaterial({
         map: this.textures.darkOak,
-        roughness: 0.8,
-        metalness: 0.05,
+        roughness: 0.6,
+        metalness: 0.08,
         side: THREE.DoubleSide
       }),
       brassMetal: new THREE.MeshStandardMaterial({
         map: this.textures.brassMetal,
         roughness: 0.35,
-        metalness: 0.8,
+        metalness: 0.65,
         side: THREE.DoubleSide
       })
     };
-  }
-
-  private bookSpineMatCache: Map<string, THREE.MeshStandardMaterial> = new Map();
-
-  public createBookMaterial(coverColor: string, accentColor = '#ffd88a'): THREE.MeshStandardMaterial {
-    const key = `${coverColor}_${accentColor}`;
-    if (this.bookSpineMatCache.has(key)) {
-      return this.bookSpineMatCache.get(key)!;
-    }
-
-    const [c, ctx] = this.createCanvas(16, 16);
-    // Base leather
-    ctx.fillStyle = coverColor;
-    ctx.fillRect(0, 0, 16, 16);
-
-    // Leather edge shading
-    ctx.fillStyle = 'rgba(0,0,0,0.35)';
-    ctx.fillRect(0, 0, 16, 1);
-    ctx.fillRect(0, 15, 16, 1);
-    ctx.fillRect(0, 0, 1, 16);
-    ctx.fillRect(15, 0, 1, 16);
-
-    // Gilded gold bands on spine
-    ctx.fillStyle = accentColor;
-    ctx.fillRect(2, 3, 12, 1);
-    ctx.fillRect(2, 12, 12, 1);
-
-    // Embossed gold symbol / title block
-    ctx.fillStyle = 'rgba(0,0,0,0.4)';
-    ctx.fillRect(5, 7, 6, 3);
-    ctx.fillStyle = accentColor;
-    ctx.fillRect(6, 8, 4, 1);
-
-    const tex = this.wrapTexture(c);
-    const mat = new THREE.MeshStandardMaterial({
-      map: tex,
-      roughness: 0.6,
-      metalness: 0.15
-    });
-
-    this.bookSpineMatCache.set(key, mat);
-    return mat;
   }
 }

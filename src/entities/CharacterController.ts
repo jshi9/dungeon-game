@@ -306,7 +306,7 @@ export class CharacterController {
       // X Movement & Step-Up Check
       const nextX = this.position.x + moveDistX;
       const targetGroundX = this.libraryManager.getElevation(nextX, this.position.z, this.position.y);
-      const isHeightStepBlockedX = targetGroundX > this.position.y + this.maxStepHeight;
+      const isHeightStepBlockedX = targetGroundX > this.position.y + 0.8;
       const blockedX =
         isHeightStepBlockedX ||
         this.libraryManager.isBlocked(nextX - r, this.position.z, this.position.y) ||
@@ -319,7 +319,7 @@ export class CharacterController {
       // Z Movement & Step-Up Check
       const nextZ = this.position.z + moveDistZ;
       const targetGroundZ = this.libraryManager.getElevation(this.position.x, nextZ, this.position.y);
-      const isHeightStepBlockedZ = targetGroundZ > this.position.y + this.maxStepHeight;
+      const isHeightStepBlockedZ = targetGroundZ > this.position.y + 0.8;
       const blockedZ =
         isHeightStepBlockedZ ||
         this.libraryManager.isBlocked(this.position.x, nextZ - r, this.position.y) ||
@@ -331,11 +331,9 @@ export class CharacterController {
 
       // Smooth Ground Height Resolution
       const targetGroundY = this.libraryManager.getElevation(this.position.x, this.position.z, this.position.y);
-      if (targetGroundY <= this.position.y + this.maxStepHeight + 0.1 || targetGroundY < this.position.y) {
-        this.position.y = THREE.MathUtils.damp(this.position.y, targetGroundY, 20, delta);
-        if (this.position.y < targetGroundY) {
-          this.position.y = targetGroundY;
-        }
+      this.position.y = THREE.MathUtils.damp(this.position.y, targetGroundY, 24, delta);
+      if (Math.abs(this.position.y - targetGroundY) < 0.05) {
+        this.position.y = targetGroundY;
       }
     }
   }

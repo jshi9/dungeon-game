@@ -379,14 +379,14 @@ export class Engine {
       if (this.libraryManager) this.libraryManager.setVisible(false);
 
       if (this.characterModel) {
-        this.characterModel.baseLanternIntensity = 2.0;
+        this.characterModel.baseLanternIntensity = 16.0;
         if (this.characterModel.fpsLanternLight) {
-          this.characterModel.fpsLanternLight.intensity = 2.0;
-          this.characterModel.fpsLanternLight.distance = 20;
+          this.characterModel.fpsLanternLight.intensity = 16.0;
+          this.characterModel.fpsLanternLight.distance = 30;
         }
         if (this.characterModel.tppLanternLight) {
-          this.characterModel.tppLanternLight.intensity = 2.0;
-          this.characterModel.tppLanternLight.distance = 20;
+          this.characterModel.tppLanternLight.intensity = 16.0;
+          this.characterModel.tppLanternLight.distance = 30;
         }
       }
 
@@ -403,14 +403,14 @@ export class Engine {
       if (this.libraryManager) this.libraryManager.setVisible(false);
 
       if (this.characterModel) {
-        this.characterModel.baseLanternIntensity = 5.0;
+        this.characterModel.baseLanternIntensity = 22.0;
         if (this.characterModel.fpsLanternLight) {
-          this.characterModel.fpsLanternLight.intensity = 5.0;
-          this.characterModel.fpsLanternLight.distance = 30;
+          this.characterModel.fpsLanternLight.intensity = 22.0;
+          this.characterModel.fpsLanternLight.distance = 34;
         }
         if (this.characterModel.tppLanternLight) {
-          this.characterModel.tppLanternLight.intensity = 5.0;
-          this.characterModel.tppLanternLight.distance = 30;
+          this.characterModel.tppLanternLight.intensity = 22.0;
+          this.characterModel.tppLanternLight.distance = 34;
         }
       }
 
@@ -425,14 +425,14 @@ export class Engine {
       if (this.libraryManager) this.libraryManager.setVisible(true);
 
       if (this.characterModel) {
-        this.characterModel.baseLanternIntensity = 4.0;
+        this.characterModel.baseLanternIntensity = 22.0;
         if (this.characterModel.fpsLanternLight) {
-          this.characterModel.fpsLanternLight.intensity = 4.0;
-          this.characterModel.fpsLanternLight.distance = 25;
+          this.characterModel.fpsLanternLight.intensity = 22.0;
+          this.characterModel.fpsLanternLight.distance = 34;
         }
         if (this.characterModel.tppLanternLight) {
-          this.characterModel.tppLanternLight.intensity = 4.0;
-          this.characterModel.tppLanternLight.distance = 25;
+          this.characterModel.tppLanternLight.intensity = 22.0;
+          this.characterModel.tppLanternLight.distance = 34;
         }
       }
 
@@ -499,6 +499,7 @@ export class Engine {
     } else {
       // Grand Cathedral Library update
       this.libraryManager.update(elapsedTime);
+      this.lightingManager.updateSunPosition(this.characterController.position);
 
       // Perform Raycasting against individual books on shelves and desks
       if (!this.bookReaderModal.getIsOpen() && !this.settingsModal.isOpen) {
