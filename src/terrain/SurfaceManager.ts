@@ -27,7 +27,7 @@ export class SurfaceChunk {
     const worldStartX = this.chunkX * this.size;
     const worldStartZ = this.chunkZ * this.size;
 
-    // Pre-sample heights of this chunk plus a 1-block border for seamless face stitching
+    // Pre-sample heights and biomes of this chunk plus a 1-block border for seamless stitching
     const heights: number[][] = [];
     const biomes: string[][] = [];
 
@@ -42,7 +42,6 @@ export class SurfaceChunk {
     }
 
     // Geometry vertex buffers for merged materials
-    // We group by material: grassTop, grassSide, dirt, stone, sand, water
     const buckets: Record<string, { positions: number[]; uvs: number[]; normals: number[] }> = {
       grassTop: { positions: [], uvs: [], normals: [] },
       grassSide: { positions: [], uvs: [], normals: [] },
@@ -52,27 +51,28 @@ export class SurfaceChunk {
       water: { positions: [], uvs: [], normals: [] }
     };
 
+    // Add quad with CCW triangle winding (v0, v1, v2, v3)
     const addQuad = (
       bucketKey: string,
-      p1: [number, number, number],
-      p2: [number, number, number],
-      p3: [number, number, number],
-      p4: [number, number, number],
+      v0: [number, number, number],
+      v1: [number, number, number],
+      v2: [number, number, number],
+      v3: [number, number, number],
       normal: [number, number, number],
       uvScale: [number, number] = [1, 1]
     ) => {
       const b = buckets[bucketKey];
       if (!b) return;
 
-      // Triangle 1: p1, p2, p3
-      b.positions.push(...p1, ...p2, ...p3);
+      // Triangle 1: v0, v1, v2
+      b.positions.push(...v0, ...v1, ...v2);
       b.normals.push(...normal, ...normal, ...normal);
-      b.uvs.push(0, 0, uvScale[0], 0, uvScale[0], uvScale[1]);
+      b.uvs.push(0, 0, 0, uvScale[1], uvScale[0], uvScale[1]);
 
-      // Triangle 2: p1, p3, p4
-      b.positions.push(...p1, ...p3, ...p4);
+      // Triangle 2: v0, v2, v3
+      b.positions.push(...v0, ...v2, ...v3);
       b.normals.push(...normal, ...normal, ...normal);
-      b.uvs.push(0, 0, uvScale[0], uvScale[1], 0, uvScale[1]);
+      b.uvs.push(0, 0, uvScale[0], uvScale[1], uvScale[0], 0);
     };
 
     for (let lz = 0; lz < this.size; lz++) {
@@ -82,7 +82,7 @@ export class SurfaceChunk {
         const wx = worldStartX + lx;
         const wz = worldStartZ + lz;
 
-        // 1. TOP FACE (y = h)
+        // 1. TOP HORIZONTAL FACE (+Y) with CCW winding: NW -> SW -> SE -> NE
         let topMat = 'grassTop';
         if (biome === 'water') topMat = 'water';
         else if (biome === 'sand') topMat = 'sand';
@@ -90,83 +90,86 @@ export class SurfaceChunk {
 
         addQuad(
           topMat,
-          [wx, h, wz],
-          [wx + 1, h, wz],
-          [wx + 1, h, wz + 1],
-          [wx, h, wz + 1],
-          [0, 1, 0]
+          [wx, h, wz],         // NW
+          [wx, h, wz + 1],     // SW
+          [wx + 1, h, wz + 1], // SE
+          [wx + 1, h, wz],     // NE
+          [0, 1, 0],
+          [1, 1]
         );
 
-        // 2. VERTICAL SIDE FACES (where neighbor height < current height)
-        // North face (z - 1)
+        // 2. VERTICAL SIDE WALLS (where neighbor height is lower)
+        // North face (z - 1) -> normal [0, 0, -1]
         const hNorth = heights[lz][lx + 1];
         if (h > hNorth) {
-          const sideMat = biome === 'stone' ? 'stone' : (h - hNorth > 1) ? 'dirt' : 'grassSide';
+          const dh = h - hNorth;
+          const sideMat = biome === 'stone' ? 'stone' : dh > 1 ? 'dirt' : 'grassSide';
           addQuad(
             sideMat,
-            [wx, h, wz],
-            [wx, hNorth, wz],
-            [wx + 1, hNorth, wz],
             [wx + 1, h, wz],
+            [wx + 1, hNorth, wz],
+            [wx, hNorth, wz],
+            [wx, h, wz],
             [0, 0, -1],
-            [1, h - hNorth]
+            [1, dh]
           );
         }
 
-        // South face (z + 1)
+        // South face (z + 1) -> normal [0, 0, 1]
         const hSouth = heights[lz + 2][lx + 1];
         if (h > hSouth) {
-          const sideMat = biome === 'stone' ? 'stone' : (h - hSouth > 1) ? 'dirt' : 'grassSide';
+          const dh = h - hSouth;
+          const sideMat = biome === 'stone' ? 'stone' : dh > 1 ? 'dirt' : 'grassSide';
           addQuad(
             sideMat,
-            [wx + 1, h, wz + 1],
-            [wx + 1, hSouth, wz + 1],
-            [wx, hSouth, wz + 1],
             [wx, h, wz + 1],
+            [wx, hSouth, wz + 1],
+            [wx + 1, hSouth, wz + 1],
+            [wx + 1, h, wz + 1],
             [0, 0, 1],
-            [1, h - hSouth]
+            [1, dh]
           );
         }
 
-        // West face (x - 1)
+        // West face (x - 1) -> normal [-1, 0, 0]
         const hWest = heights[lz + 1][lx];
         if (h > hWest) {
-          const sideMat = biome === 'stone' ? 'stone' : (h - hWest > 1) ? 'dirt' : 'grassSide';
+          const dh = h - hWest;
+          const sideMat = biome === 'stone' ? 'stone' : dh > 1 ? 'dirt' : 'grassSide';
           addQuad(
             sideMat,
-            [wx, h, wz + 1],
-            [wx, hWest, wz + 1],
-            [wx, hWest, wz],
             [wx, h, wz],
+            [wx, hWest, wz],
+            [wx, hWest, wz + 1],
+            [wx, h, wz + 1],
             [-1, 0, 0],
-            [1, h - hWest]
+            [1, dh]
           );
         }
 
-        // East face (x + 1)
+        // East face (x + 1) -> normal [1, 0, 0]
         const hEast = heights[lz + 1][lx + 2];
         if (h > hEast) {
-          const sideMat = biome === 'stone' ? 'stone' : (h - hEast > 1) ? 'dirt' : 'grassSide';
+          const dh = h - hEast;
+          const sideMat = biome === 'stone' ? 'stone' : dh > 1 ? 'dirt' : 'grassSide';
           addQuad(
             sideMat,
-            [wx + 1, h, wz],
-            [wx + 1, hEast, wz],
-            [wx + 1, hEast, wz + 1],
             [wx + 1, h, wz + 1],
+            [wx + 1, hEast, wz + 1],
+            [wx + 1, hEast, wz],
+            [wx + 1, h, wz],
             [1, 0, 0],
-            [1, h - hEast]
+            [1, dh]
           );
         }
 
-        // 3. PROCEDURAL SURFACE DECORATIONS (Trees, rocks, flora)
+        // 3. PROCEDURAL SURFACE DECORATIONS snapped to terrain height
         if (biome === 'grass' && h > this.noise.waterLevel) {
           const prn = Math.sin(wx * 12.9898 + wz * 78.233) * 43758.5453;
           const hash = prn - Math.floor(prn);
           if (hash > 0.94) {
-            // Pine tree
             this.createPineTree(wx + 0.5, h, wz + 0.5);
           } else if (hash > 0.88 && hash <= 0.90) {
-            // Boulder
             this.createBoulder(wx + 0.5, h, wz + 0.5);
           }
         }
@@ -191,16 +194,16 @@ export class SurfaceChunk {
       geom.setAttribute('uv', new THREE.Float32BufferAttribute(data.uvs, 2));
 
       const mesh = new THREE.Mesh(geom, matLookup[key]);
-      mesh.castShadow = (key !== 'water');
+      mesh.castShadow = key !== 'water';
       mesh.receiveShadow = true;
       this.meshGroup.add(mesh);
     }
   }
 
-  private createPineTree(x: number, y: number, z: number): void {
+  private createPineTree(x: number, baseTerrainY: number, z: number): void {
     const trunkGeom = new THREE.BoxGeometry(0.35, 1.2, 0.35);
     const trunkMesh = new THREE.Mesh(trunkGeom, this.atlas.materials.woodBeam);
-    trunkMesh.position.set(x, y + 0.6, z);
+    trunkMesh.position.set(x, baseTerrainY + 0.6, z);
     trunkMesh.castShadow = true;
     trunkMesh.receiveShadow = true;
     this.meshGroup.add(trunkMesh);
@@ -214,17 +217,17 @@ export class SurfaceChunk {
     for (const t of tiers) {
       const leafGeom = new THREE.BoxGeometry(t.size, t.h, t.size);
       const leafMesh = new THREE.Mesh(leafGeom, this.atlas.materials.grassTop);
-      leafMesh.position.set(x, y + t.py, z);
+      leafMesh.position.set(x, baseTerrainY + t.py, z);
       leafMesh.castShadow = true;
       leafMesh.receiveShadow = true;
       this.meshGroup.add(leafMesh);
     }
   }
 
-  private createBoulder(x: number, y: number, z: number): void {
+  private createBoulder(x: number, baseTerrainY: number, z: number): void {
     const rockGeom = new THREE.BoxGeometry(0.7, 0.5, 0.7);
     const rockMesh = new THREE.Mesh(rockGeom, this.atlas.materials.cobblestone);
-    rockMesh.position.set(x, y + 0.25, z);
+    rockMesh.position.set(x, baseTerrainY + 0.25, z);
     rockMesh.castShadow = true;
     rockMesh.receiveShadow = true;
     this.meshGroup.add(rockMesh);

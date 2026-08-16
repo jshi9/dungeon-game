@@ -113,7 +113,6 @@ export class TextureAtlas {
         const x2 = offsets[i + 1];
         const w = x2 - x1 - 1;
         const h = height - 1;
-        // Brick fill
         for (let dy = 0; dy < h; dy++) {
           for (let dx = 0; dx < w; dx++) {
             const rx = x1 + dx;
@@ -124,10 +123,8 @@ export class TextureAtlas {
             ctxBrick.fillRect(rx, ry, 1, 1);
           }
         }
-        // Top highlight
         ctxBrick.fillStyle = '#9e99a0';
         ctxBrick.fillRect(x1, startY, w, 1);
-        // Bottom/Right shadow
         ctxBrick.fillStyle = '#444048';
         ctxBrick.fillRect(x1, startY + h - 1, w, 1);
         ctxBrick.fillRect(x1 + w - 1, startY, 1, h);
@@ -164,9 +161,9 @@ export class TextureAtlas {
       ctxCobble.fillRect(s.x, s.y + s.h - 1, s.w, 1);
     }
 
-    // 6. Wood Planks (Floorboards matching reference image)
+    // 6. Wood Planks
     const [cWood, ctxWood] = this.createCanvas(16, 16);
-    ctxWood.fillStyle = '#3c2514'; // Plank seams
+    ctxWood.fillStyle = '#3c2514';
     ctxWood.fillRect(0, 0, 16, 16);
     const plankYs = [0, 4, 8, 12];
     for (let p = 0; p < plankYs.length; p++) {
@@ -178,13 +175,11 @@ export class TextureAtlas {
           ctxWood.fillStyle = baseColor;
           ctxWood.fillRect(x, y + dy, 1, 1);
         }
-        // Top highlight on each plank
         if (Math.random() > 0.3) {
           ctxWood.fillStyle = '#8f6437';
           ctxWood.fillRect(x, y, 1, 1);
         }
       }
-      // Nail dots
       const nailX1 = (p * 5 + 2) % 15;
       const nailX2 = (nailX1 + 8) % 15;
       ctxWood.fillStyle = '#26170c';
@@ -192,7 +187,7 @@ export class TextureAtlas {
       ctxWood.fillRect(nailX2, y + 1, 1, 1);
     }
 
-    // 7. Wood Beam (Pillars and structural frames)
+    // 7. Wood Beam
     const [cBeam, ctxBeam] = this.createCanvas(16, 16);
     for (let y = 0; y < 16; y++) {
       for (let x = 0; x < 16; x++) {
@@ -202,7 +197,7 @@ export class TextureAtlas {
       }
     }
 
-    // 8. Water (With stylized animated wave lines)
+    // 8. Water
     const [cWater, ctxWater] = this.createCanvas(16, 16);
     for (let y = 0; y < 16; y++) {
       for (let x = 0; x < 16; x++) {
@@ -228,17 +223,15 @@ export class TextureAtlas {
       }
     }
 
-    // 10. Carpet Red (with ornamental gold border from reference screenshot)
+    // 10. Carpet Red
     const [cCarpet, ctxCarpet] = this.createCanvas(16, 16);
-    ctxCarpet.fillStyle = '#831e1e'; // Deep crimson base
+    ctxCarpet.fillStyle = '#831e1e';
     ctxCarpet.fillRect(0, 0, 16, 16);
-    // Gold ornamental border
     ctxCarpet.fillStyle = '#cda250';
     ctxCarpet.fillRect(1, 1, 14, 1);
     ctxCarpet.fillRect(1, 14, 14, 1);
     ctxCarpet.fillRect(1, 1, 1, 14);
     ctxCarpet.fillRect(14, 1, 1, 14);
-    // Inner fringe pattern
     ctxCarpet.fillStyle = '#651414';
     ctxCarpet.fillRect(3, 3, 10, 10);
     for (let y = 4; y < 12; y += 2) {
@@ -261,28 +254,25 @@ export class TextureAtlas {
     ctxIron.fillRect(1, 1, 14, 1);
     ctxIron.fillRect(1, 1, 1, 14);
 
-    // 12. Bed Green Duvet (matching reference screenshot)
+    // 12. Bed Green Duvet
     const [cBed, ctxBed] = this.createCanvas(16, 16);
     ctxBed.fillStyle = '#2d4b3b';
     ctxBed.fillRect(0, 0, 16, 16);
-    // White pillow at top
     ctxBed.fillStyle = '#e8e8e8';
     ctxBed.fillRect(2, 1, 12, 4);
     ctxBed.fillStyle = '#c4c4c4';
     ctxBed.fillRect(2, 4, 12, 1);
-    // Fold line
     ctxBed.fillStyle = '#22382c';
     ctxBed.fillRect(0, 6, 16, 1);
     ctxBed.fillStyle = '#39604b';
     ctxBed.fillRect(0, 7, 16, 1);
 
-    // 13. Window Lattice (with warm interior sun rays)
+    // 13. Window Lattice
     const [cWindow, ctxWindow] = this.createCanvas(16, 16);
-    ctxWindow.fillStyle = '#754a24'; // Wood frame
+    ctxWindow.fillStyle = '#754a24';
     ctxWindow.fillRect(0, 0, 16, 16);
-    ctxWindow.fillStyle = '#ffe9b3'; // Bright warm glass
+    ctxWindow.fillStyle = '#ffe9b3';
     ctxWindow.fillRect(2, 2, 12, 12);
-    // Diamond lattice lines
     ctxWindow.fillStyle = '#8b6534';
     ctxWindow.fillRect(8, 2, 1, 12);
     ctxWindow.fillRect(2, 8, 12, 1);
@@ -291,14 +281,13 @@ export class TextureAtlas {
     ctxWindow.fillRect(4, 12, 1, 1);
     ctxWindow.fillRect(12, 12, 1, 1);
 
-    // 14. Map Scroll (Wall parchment from reference screenshot)
+    // 14. Map Scroll
     const [cMap, ctxMap] = this.createCanvas(16, 16);
-    ctxMap.fillStyle = '#d4be88'; // Parchment
+    ctxMap.fillStyle = '#d4be88';
     ctxMap.fillRect(0, 0, 16, 16);
-    ctxMap.fillStyle = '#8a5d2a'; // Wood rods
+    ctxMap.fillStyle = '#8a5d2a';
     ctxMap.fillRect(0, 0, 16, 1);
     ctxMap.fillRect(0, 15, 16, 1);
-    // Landmass ink spots
     ctxMap.fillStyle = '#4a351d';
     ctxMap.fillRect(3, 4, 5, 3);
     ctxMap.fillRect(4, 7, 6, 2);
@@ -331,74 +320,101 @@ export class TextureAtlas {
       grassTop: new THREE.MeshStandardMaterial({
         map: this.textures.grassTop,
         roughness,
-        metalness
+        metalness,
+        side: THREE.DoubleSide,
+        transparent: false
       }),
       grassSide: new THREE.MeshStandardMaterial({
         map: this.textures.grassSide,
         roughness,
-        metalness
+        metalness,
+        side: THREE.DoubleSide,
+        transparent: false
       }),
       dirt: new THREE.MeshStandardMaterial({
         map: this.textures.dirt,
         roughness: 0.95,
-        metalness: 0.0
+        metalness: 0.0,
+        side: THREE.DoubleSide,
+        transparent: false
       }),
       stoneBrick: new THREE.MeshStandardMaterial({
         map: this.textures.stoneBrick,
         roughness: 0.8,
-        metalness: 0.1
+        metalness: 0.1,
+        side: THREE.DoubleSide,
+        transparent: false
       }),
       cobblestone: new THREE.MeshStandardMaterial({
         map: this.textures.cobblestone,
         roughness: 0.85,
-        metalness: 0.1
+        metalness: 0.1,
+        side: THREE.DoubleSide,
+        transparent: false
       }),
       woodPlanks: new THREE.MeshStandardMaterial({
         map: this.textures.woodPlanks,
         roughness: 0.75,
-        metalness: 0.05
+        metalness: 0.05,
+        side: THREE.DoubleSide,
+        transparent: false
       }),
       woodBeam: new THREE.MeshStandardMaterial({
         map: this.textures.woodBeam,
         roughness: 0.8,
-        metalness: 0.05
+        metalness: 0.05,
+        side: THREE.DoubleSide,
+        transparent: false
       }),
       water: new THREE.MeshStandardMaterial({
         map: this.textures.water,
         roughness: 0.15,
         metalness: 0.2,
+        side: THREE.DoubleSide,
         transparent: true,
         opacity: 0.85
       }),
       sand: new THREE.MeshStandardMaterial({
         map: this.textures.sand,
         roughness: 0.95,
-        metalness: 0.0
+        metalness: 0.0,
+        side: THREE.DoubleSide,
+        transparent: false
       }),
       carpetRed: new THREE.MeshStandardMaterial({
         map: this.textures.carpetRed,
         roughness: 0.9,
-        metalness: 0.0
+        metalness: 0.0,
+        side: THREE.DoubleSide,
+        transparent: false
       }),
       iron: new THREE.MeshStandardMaterial({
         map: this.textures.iron,
         roughness: 0.4,
-        metalness: 0.7
+        metalness: 0.7,
+        side: THREE.DoubleSide,
+        transparent: false
       }),
       bedGreen: new THREE.MeshStandardMaterial({
         map: this.textures.bedGreen,
         roughness: 0.85,
-        metalness: 0.0
+        metalness: 0.0,
+        side: THREE.DoubleSide,
+        transparent: false
       }),
       windowLattice: new THREE.MeshStandardMaterial({
         map: this.textures.windowLattice,
         emissive: new THREE.Color(0xffd57a),
         emissiveIntensity: 0.4,
-        roughness: 0.3
+        roughness: 0.3,
+        side: THREE.DoubleSide,
+        transparent: false
       }),
       mapScroll: new THREE.MeshStandardMaterial({
         map: this.textures.mapScroll,
-        roughness: 0.9
+        roughness: 0.9,
+        side: THREE.DoubleSide,
+        transparent: false
       })
     };
   }
