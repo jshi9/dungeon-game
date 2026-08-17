@@ -50,9 +50,9 @@ export class GenerativeMathEngine {
       return this.generateMetallurgyProof(chapterIdx, pageIdx, realm, organization, seed);
     }
 
-    // 5. Optics, Prism Dispersion & Wave Mechanics
-    if (disc.includes('optics') || disc.includes('prism') || disc.includes('wave') || disc.includes('resonance') || disc.includes('dispersion') || disc.includes('light')) {
-      return this.generateOpticsProof(chapterIdx, pageIdx, realm, organization, seed);
+    // 5. Optics, Wave Dynamics & Electromagnetism
+    if (disc.includes('optics') || disc.includes('prism') || disc.includes('wave') || disc.includes('resonance') || disc.includes('dispersion') || disc.includes('light') || disc.includes('theory')) {
+      return this.generateOpticsAndElectrodynamicsProof(chapterIdx, pageIdx, realm, organization, seed);
     }
 
     // 6. Default: Architecture, Stonemasonry, Vault Mechanics & Structural Statics
@@ -196,9 +196,9 @@ export class GenerativeMathEngine {
   }
 
   // =========================================================================
-  // 5. OPTICS & WAVE DYNAMICS PROOFS
+  // 5. OPTICS, WAVE DYNAMICS & FIELD THEORIES
   // =========================================================================
-  private static generateOpticsProof(
+  private static generateOpticsAndElectrodynamicsProof(
     c: number,
     _p: number,
     realm: string,
@@ -207,11 +207,28 @@ export class GenerativeMathEngine {
   ): GeneratedProof {
     const waveLength = 480 + (seed % 18) * 12 + c * 35;
     const waveSpeed = (299.79 + (seed % 5) * 0.05).toFixed(2);
-    const prismAngle = (42 + (seed % 8) * 2 + c * 3);
+
+    if ((c + seed) % 2 === 0) {
+      // Maxwell-Ampere & Stokes' Curl Circulation Theorem
+      return {
+        theoremHeader: `AXIOM ${this.toRoman(c + 1)}: CLASSICAL FIELD CIRCULATION & FLUX CONTINUITY`,
+        premiseText: `In the etheric continuum of ${realm}, the circulating magnetic vector field $\\mathbf{B}$ and displacement current $\\mathbf{E}$ satisfy Maxwell's unified relation:`,
+        primaryEquation: `$$\\nabla \\times \\mathbf{B} = \\mu_0 \\mathbf{J} + \\mu_0 \\epsilon_0 \\frac{\\partial \\mathbf{E}}{\\partial t}, \\quad \\oint_C \\mathbf{F} \\cdot d\\mathbf{r} = \\iint_S (\\nabla \\times \\mathbf{F}) \\cdot d\\mathbf{S}$$`,
+        stepHeader: `[STOKES DIVERGENCE INTEGRAL RESOLUTION]:`,
+        stepLines: [
+          `1. Project the closed contour loop $C = \\partial S$ across the dielectric aperture:`,
+          `$$\\iint_S (\\nabla \\times \\mathbf{B}) \\cdot d\\mathbf{S} = \\mu_0 I_{\\text{enc}} + \\mu_0 \\epsilon_0 \\frac{d\\Phi_E}{dt}$$`
+        ],
+        matrixEquation: `$$\\begin{bmatrix} \\partial_y B_z - \\partial_z B_y \\\\ \\partial_z B_x - \\partial_x B_z \\\\ \\partial_x B_y - \\partial_y B_x \\end{bmatrix} = \\mu_0 \\begin{bmatrix} J_x \\\\ J_y \\\\ J_z \\end{bmatrix} + \\mu_0 \\epsilon_0 \\begin{bmatrix} \\dot{E}_x \\\\ \\dot{E}_y \\\\ \\dot{E}_z \\end{bmatrix}$$`,
+        secondaryEquation: `$$\\therefore c_e = \\frac{1}{\\sqrt{\\mu_0 \\epsilon_0}} = ${waveSpeed} \\times 10^6 \\ \\text{m/s} \\quad [\\text{Verified in } ${org}]$$`,
+        conclusionText: `Field energy propagation across ${realm} remains lossless and divergence-free.`,
+        qedText: `Quod Erat Demonstrandum • Q.E.D.`
+      };
+    }
 
     return {
       theoremHeader: `AXIOM ${this.toRoman(c + 1)}: ETHERIC WAVE DISPERSION & SPECTRAL CONTINUITY`,
-      premiseText: `In a homogeneous vitreous prism in ${realm} with apex angle $\\alpha = ${prismAngle}^\\circ$, wave packet $\\Phi(x,t)$ at $\\lambda = ${waveLength} \\ \\text{nm}$ satisfies:`,
+      premiseText: `In a homogeneous vitreous prism in ${realm}, wave packet $\\Phi(x,t)$ at $\\lambda = ${waveLength} \\ \\text{nm}$ satisfies:`,
       primaryEquation: `$$\\frac{\\partial^2 \\Phi}{\\partial t^2} - c_e^2 \\nabla^2 \\Phi + \\mu_0^2 \\Phi^3 = 0, \\quad \\text{where } c_e = ${waveSpeed} \\times 10^6 \\ \\text{m/s}$$`,
       stepHeader: `[GROUP & PHASE VELOCITY RESOLUTION]:`,
       stepLines: [

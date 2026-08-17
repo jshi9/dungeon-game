@@ -86,11 +86,24 @@ export class LibraryManager {
   }
 
   /**
-   * 1. Cathedral Floors, Checkered Marble, Crimson Runner Carpet & Grand Pillars
+   * Helper to scale UV coordinates on standard buffer geometries
+   */
+  private applyUVScale(geom: THREE.BufferGeometry, scaleX: number, scaleY: number): void {
+    const uvs = geom.attributes.uv;
+    if (!uvs) return;
+    for (let i = 0; i < uvs.count; i++) {
+      uvs.setXY(i, uvs.getX(i) * scaleX, uvs.getY(i) * scaleY);
+    }
+    uvs.needsUpdate = true;
+  }
+
+  /**
+   * 1. Multi-Texture Seamlessly Blended Cathedral Floors, Crimson Runner Carpet & Fluted Pillars
    */
   private buildCathedralArchitecture(): void {
-    // 1. Polished Checkered Stone Tile Floor
+    // Layer 1: Base Cathedral Diamond Slate Tile Floor
     const floorGeom = new THREE.PlaneGeometry(this.width, this.length);
+    this.applyUVScale(floorGeom, 7, 20);
     const floorMesh = new THREE.Mesh(floorGeom, this.atlas.materials.stoneTileFloor);
     floorMesh.rotation.x = -Math.PI / 2;
     floorMesh.position.set(0, 0, 16);
@@ -98,8 +111,50 @@ export class LibraryManager {
     this.ensureVisible(floorMesh);
     this.container.add(floorMesh);
 
-    // 2. Central Plush Crimson Runner Carpet with Gilded Trim
-    const carpetGeom = new THREE.PlaneGeometry(3.4, this.length - 2);
+    // Layer 2: Side Study Wing & Reading Alcove Dark Walnut Herringbone Parquet (Left & Right)
+    const parquetWidth = 3.6;
+    const leftParquetGeom = new THREE.PlaneGeometry(parquetWidth, this.length);
+    this.applyUVScale(leftParquetGeom, 2, 20);
+    const leftParquet = new THREE.Mesh(leftParquetGeom, this.atlas.materials.woodParquet);
+    leftParquet.rotation.x = -Math.PI / 2;
+    leftParquet.position.set(-5.2, 0.005, 16);
+    leftParquet.receiveShadow = true;
+    this.ensureVisible(leftParquet);
+
+    const rightParquetGeom = new THREE.PlaneGeometry(parquetWidth, this.length);
+    this.applyUVScale(rightParquetGeom, 2, 20);
+    const rightParquet = new THREE.Mesh(rightParquetGeom, this.atlas.materials.woodParquet);
+    rightParquet.rotation.x = -Math.PI / 2;
+    rightParquet.position.set(5.2, 0.005, 16);
+    rightParquet.receiveShadow = true;
+    this.ensureVisible(rightParquet);
+    this.container.add(leftParquet, rightParquet);
+
+    // Layer 3: Brass Inlay Threshold Strips separating the stone nave from parquet wings
+    const threshGeom = new THREE.PlaneGeometry(0.12, this.length);
+    this.applyUVScale(threshGeom, 1, 20);
+    const leftThresh = new THREE.Mesh(threshGeom, this.atlas.materials.brassMetal);
+    leftThresh.rotation.x = -Math.PI / 2;
+    leftThresh.position.set(-3.4, 0.008, 16);
+
+    const rightThresh = new THREE.Mesh(threshGeom, this.atlas.materials.brassMetal);
+    rightThresh.rotation.x = -Math.PI / 2;
+    rightThresh.position.set(3.4, 0.008, 16);
+    this.container.add(leftThresh, rightThresh);
+
+    // Layer 4: Central Processional Nave Aisle Obsidian Border
+    const naveStoneGeom = new THREE.PlaneGeometry(4.4, this.length - 2);
+    this.applyUVScale(naveStoneGeom, 2.5, 18);
+    const naveStoneMesh = new THREE.Mesh(naveStoneGeom, this.atlas.materials.dungeonFloor);
+    naveStoneMesh.rotation.x = -Math.PI / 2;
+    naveStoneMesh.position.set(0, 0.012, 16);
+    naveStoneMesh.receiveShadow = true;
+    this.ensureVisible(naveStoneMesh);
+    this.container.add(naveStoneMesh);
+
+    // Layer 5: Central Plush Crimson Velvet Runner Carpet with Gold Damask Embroidery
+    const carpetGeom = new THREE.PlaneGeometry(3.2, this.length - 3);
+    this.applyUVScale(carpetGeom, 1, 10);
     const carpetMesh = new THREE.Mesh(carpetGeom, this.atlas.materials.carpetRed);
     carpetMesh.rotation.x = -Math.PI / 2;
     carpetMesh.position.set(0, 0.02, 16);
@@ -107,18 +162,19 @@ export class LibraryManager {
     this.ensureVisible(carpetMesh);
     this.container.add(carpetMesh);
 
-    // Carpet Fringe Ends
-    const fringeGeom = new THREE.PlaneGeometry(3.4, 0.25);
+    // Carpet Antique Brass Fringe Ends
+    const fringeGeom = new THREE.PlaneGeometry(3.2, 0.25);
     const fringeNorth = new THREE.Mesh(fringeGeom, this.atlas.materials.brassMetal);
     fringeNorth.rotation.x = -Math.PI / 2;
-    fringeNorth.position.set(0, 0.025, 35.1);
+    fringeNorth.position.set(0, 0.025, 34.6);
     const fringeSouth = new THREE.Mesh(fringeGeom, this.atlas.materials.brassMetal);
     fringeSouth.rotation.x = -Math.PI / 2;
-    fringeSouth.position.set(0, 0.025, -3.1);
+    fringeSouth.position.set(0, 0.025, -2.6);
     this.container.add(fringeNorth, fringeSouth);
 
-    // 3. Vaulted Stone Ceiling
+    // 3. Vaulted Gothic Stone Ceiling
     const ceilGeom = new THREE.PlaneGeometry(this.width, this.length);
+    this.applyUVScale(ceilGeom, 7, 20);
     const ceilMesh = new THREE.Mesh(ceilGeom, this.atlas.materials.stoneBrick);
     ceilMesh.rotation.x = Math.PI / 2;
     ceilMesh.position.set(0, this.ceilingHeight, 16);
@@ -127,6 +183,7 @@ export class LibraryManager {
 
     // 4. Perimeter Stone Walls (North Apse & South Entrance) with Wainscotting
     const endWallGeom = new THREE.BoxGeometry(this.width, this.ceilingHeight, 1.0);
+    this.applyUVScale(endWallGeom, 6, 6);
     const northWall = new THREE.Mesh(endWallGeom, this.atlas.materials.stoneBrick);
     northWall.position.set(0, this.ceilingHeight / 2, 36);
     northWall.castShadow = true;
@@ -154,6 +211,7 @@ export class LibraryManager {
 
     const plinthGeom = new THREE.CylinderGeometry(0.80, 0.88, 0.7, 8);
     const pillarGeom = new THREE.CylinderGeometry(colRadius, colRadius, pillarHeight - 1.4, 12);
+    this.applyUVScale(pillarGeom, 2, 6);
     const ironBandGeom = new THREE.CylinderGeometry(colRadius + 0.04, colRadius + 0.04, 0.12, 12);
     const capitalGeom = new THREE.BoxGeometry(1.5, 0.7, 1.5);
 
@@ -1527,5 +1585,31 @@ export class LibraryManager {
       }
       posAttr.needsUpdate = true;
     }
+  }
+
+  public reseed(seed: number): void {
+    LibraryLoreGenerator.sessionSeed = seed;
+    this.container.traverse((child) => {
+      if (child instanceof THREE.Mesh) {
+        child.geometry.dispose();
+      }
+    });
+    this.container.clear();
+    this.raycastableBooks = [];
+    this.animatedLights = [];
+
+    this.buildCathedralArchitecture();
+    this.buildGothicRibbedVaultArches();
+    this.buildModularBookshelfWallsAndInstancedBooks();
+    this.buildRollingLadders();
+    this.buildUpperBalconiesAndStairs();
+    this.buildStudyDesksAndBenches();
+    this.buildCelestialGlobe();
+    this.buildGrandChandeliers();
+    this.buildWallCandleSconces();
+    this.buildHeraldicBannersAndPlaques();
+    this.buildFloorClutterAndPiles();
+    this.buildStainedGlassAndVolumetricLightRays();
+    this.buildFloatingDustParticles();
   }
 }

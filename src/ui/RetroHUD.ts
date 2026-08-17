@@ -11,14 +11,14 @@ export interface InventoryItem {
 }
 
 export const DEFAULT_HOTBAR_ITEMS: InventoryItem[] = [
-  { id: 'flashlight', name: 'High-Power Flashlight', icon: '🔦', description: 'Ultra-bright directional beam' },
-  { id: 'lantern', name: 'Ornate Brass Lantern', icon: '🏮', description: 'Cozy 360° warm candlelight glow' },
-  { id: 'sword', name: 'Iron Broadsword', icon: '⚔️', description: 'Hand-forged knight blade' },
+  { id: 'sword', name: 'Iron Broadsword', icon: '⚔️', description: 'Double-edged knight blade' },
+  { id: 'torch', name: 'Hearth Torch', icon: '🔥', description: 'Blazing wooden torch casting warm ambient firelight' },
   { id: 'shield', name: 'Oak Shield', icon: '🛡️', description: 'Reinforced iron-banded shield' },
+  { id: 'lantern', name: 'Ornate Brass Lantern', icon: '🏮', description: 'Cozy 360° warm candlelight glow' },
+  { id: 'flashlight', name: 'High-Power Flashlight', icon: '🔦', description: 'Ultra-bright directional beam' },
   { id: 'potion', name: 'Health Elixir', icon: '🧪', count: 3, description: 'Restores vitality and stamina' },
-  { id: 'compass', name: 'Golden Compass', icon: '🧭', description: 'Points towards dungeon center' },
-  { id: 'key', name: 'Dungeon Key', icon: '🔑', count: 1, description: 'Opens heavy iron-bound doors' },
-  { id: 'bread', name: 'Field Rations', icon: '🍞', count: 5, description: 'Hearty adventurer bread' }
+  { id: 'compass', name: 'Golden Compass', icon: '🧭', description: 'Points towards landmark objectives' },
+  { id: 'key', name: 'Dungeon Key', icon: '🔑', count: 1, description: 'Opens heavy iron-bound doors' }
 ];
 
 export interface HUDCallbacks {
@@ -59,6 +59,7 @@ export class RetroHUD {
 
   private frameCount: number = 0;
   private lastFpsUpdate: number = performance.now();
+  private lastTelemetryUpdate: number = 0;
 
   constructor(root: HTMLElement, callbacks: HUDCallbacks) {
     this.root = root;
@@ -139,8 +140,8 @@ export class RetroHUD {
         </div>
 
         <div class="retro-panel controls-guide">
-          <div><span class="key-badge">Click Book</span> : Read &nbsp;|&nbsp; <span class="key-badge">1</span>-<span class="key-badge">8</span> : Items &nbsp;|&nbsp; <span class="key-badge">W</span><span class="key-badge">A</span><span class="key-badge">S</span><span class="key-badge">D</span> : Move</div>
-          <div><span class="key-badge">M</span> : Switch Map &nbsp;|&nbsp; <span class="key-badge">N</span> : Grand Library &nbsp;|&nbsp; <span class="key-badge">Esc</span> : Settings</div>
+          <div><span class="key-badge">W</span><span class="key-badge">A</span><span class="key-badge">S</span><span class="key-badge">D</span> : Move &nbsp;|&nbsp; <span class="key-badge">Space</span> : Jump &nbsp;|&nbsp; <span class="key-badge">1</span>-<span class="key-badge">8</span> : Items</div>
+          <div><span class="key-badge">Click</span> : Look/Read &nbsp;|&nbsp; <span class="key-badge">M</span> : Map &nbsp;|&nbsp; <span class="key-badge">N</span> : Library &nbsp;|&nbsp; <span class="key-badge">Esc</span> : Settings</div>
         </div>
       </footer>
     `;
@@ -317,15 +318,9 @@ export class RetroHUD {
     chunkZ: number,
     yawRad: number
   ): void {
-    this.posValueEl.textContent = `X: ${posX.toFixed(1)} Y: ${posY.toFixed(1)} Z: ${posZ.toFixed(1)}`;
-    this.chunkValueEl.textContent = `[${chunkX}, ${chunkZ}]`;
-
-    let deg = (yawRad * 180) / Math.PI;
-    deg = ((deg % 360) + 360) % 360;
-    this.yawValueEl.textContent = `${deg.toFixed(0)}°`;
-
     this.frameCount++;
     const now = performance.now();
+
     if (now - this.lastFpsUpdate >= 500) {
       const fps = Math.round((this.frameCount * 1000) / (now - this.lastFpsUpdate));
       this.fpsValueEl.textContent = `${fps} FPS`;
@@ -333,14 +328,31 @@ export class RetroHUD {
       this.lastFpsUpdate = now;
     }
 
+    // Throttle DOM text mutations to every 100ms
+    if (now - this.lastTelemetryUpdate < 100) {
+      return;
+    }
+    this.lastTelemetryUpdate = now;
+
+    this.posValueEl.textContent = `X: ${posX.toFixed(1)} Y: ${posY.toFixed(1)} Z: ${posZ.toFixed(1)}`;
+    this.chunkValueEl.textContent = `[${chunkX}, ${chunkZ}]`;
+
+    let deg = (yawRad * 180) / Math.PI;
+    deg = ((deg % 360) + 360) % 360;
+    this.yawValueEl.textContent = `${deg.toFixed(0)}°`;
+
     const gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
     const hasGamepad = Array.from(gamepads).some((g) => g !== null && g.connected);
     if (hasGamepad) {
-      this.gamepadBadgeEl.textContent = 'CONNECTED';
-      this.gamepadBadgeEl.className = 'gamepad-badge connected';
+      if (this.gamepadBadgeEl.textContent !== 'CONNECTED') {
+        this.gamepadBadgeEl.textContent = 'CONNECTED';
+        this.gamepadBadgeEl.className = 'gamepad-badge connected';
+      }
     } else {
-      this.gamepadBadgeEl.textContent = 'DISCONNECTED';
-      this.gamepadBadgeEl.className = 'gamepad-badge disconnected';
+      if (this.gamepadBadgeEl.textContent !== 'DISCONNECTED') {
+        this.gamepadBadgeEl.textContent = 'DISCONNECTED';
+        this.gamepadBadgeEl.className = 'gamepad-badge disconnected';
+      }
     }
   }
 }

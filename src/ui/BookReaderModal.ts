@@ -1,15 +1,16 @@
 import { BookData, BookPage } from '../lore/LibraryLoreGenerator';
 import { SvgDiagramGenerator } from '../lore/SvgDiagramGenerator';
+import { MathRenderer } from '../lore/MathRenderer';
 
 export interface BookReaderCallbacks {
   onClose?: () => void;
 }
 
 /**
- * Authentic Medieval Two-Page Parchment Book Reader Modal
- * Restored to the classic, consistent spread design with equal-sized pages,
- * well-proportioned bottom navigation controls, generative SVG diagrams,
- * and mathematical equation rendering.
+ * Authentic Medieval Two-Page Vellum Manuscript Reader Modal
+ * Rendered with warm ivory parchment, rich illuminated drop caps,
+ * inked Celtic corner borders, KaTeX mathematical typesetting,
+ * and ornamental brass navigation controls.
  */
 export class BookReaderModal {
   private overlayEl: HTMLElement;
@@ -118,13 +119,20 @@ export class BookReaderModal {
     const hasPrev = this.currentPageIndex > 0;
     const hasNext = this.currentPageIndex + 2 < book.pages.length;
 
+    const fontClass = `font-${book.fontFamily || 'garamond'}`;
+    const sizeClass = `size-${book.fontSize || 'regular'}`;
+    const illumClass = book.layoutFormat === 'illuminated' ? 'has-illuminated-border' : '';
+
     this.modalEl.innerHTML = `
-      <div class="book-leather-binding" style="border-color: ${book.coverColor || '#5a301a'};">
-        <div class="book-ribbon-bookmark"></div>
+      <div class="book-leather-binding ${fontClass} ${sizeClass}" style="border-color: ${book.coverColor || '#5a301a'};">
+        <!-- Silk Ribbon Bookmark (Clickable to Close) -->
+        <div class="book-ribbon-bookmark" title="Bookmark / Close Manuscript" id="btn-ribbon-close"></div>
 
         <div class="book-pages-spread">
           <!-- LEFT PARCHMENT PAGE -->
-          <div class="parchment-page left-page">
+          <div class="parchment-page left-page ${illumClass}">
+            <div class="page-corner top-left">⚜</div>
+            <div class="page-corner bottom-left">⚜</div>
             <div class="page-inner">
               ${leftPage ? this.renderPageContent(leftPage, book, true) : ''}
               <div class="page-footer">
@@ -133,11 +141,13 @@ export class BookReaderModal {
             </div>
           </div>
 
-          <!-- BOOK SPINE CENTER CREASE -->
+          <!-- BOOK SPINE CENTER CREASE WITH SHADOW GRADIENT -->
           <div class="book-spine-crease"></div>
 
           <!-- RIGHT PARCHMENT PAGE -->
-          <div class="parchment-page right-page">
+          <div class="parchment-page right-page ${illumClass}">
+            <div class="page-corner top-right">⚜</div>
+            <div class="page-corner bottom-right">⚜</div>
             <div class="page-inner">
               ${rightPage ? this.renderPageContent(rightPage, book, false) : '<div class="blank-page-note">~ End of Volume ~</div>'}
               <div class="page-footer">
@@ -147,23 +157,23 @@ export class BookReaderModal {
           </div>
         </div>
 
-        <!-- BOTTOM NAVIGATION BAR -->
+        <!-- ORNAMENTAL BOTTOM NAVIGATION BAR -->
         <div class="book-nav-bar">
           <div class="nav-left-group">
-            <button id="btn-prev-page" class="retro-btn nav-page-btn" ${!hasPrev ? 'disabled' : ''}>
-              ◀ PREVIOUS
+            <button id="btn-prev-page" class="retro-btn nav-page-btn ornate-brass-btn" ${!hasPrev ? 'disabled' : ''}>
+              ◀ PREVIOUS PAGE
             </button>
           </div>
 
           <div class="nav-center-group">
-            <span class="page-indicator">Pages ${this.currentPageIndex + 1}–${Math.min(this.currentPageIndex + 2, book.pages.length)} of ${book.pages.length}</span>
+            <span class="page-indicator">Folios ${this.currentPageIndex + 1}–${Math.min(this.currentPageIndex + 2, book.pages.length)} of ${book.pages.length}</span>
           </div>
 
           <div class="nav-right-group">
-            <button id="btn-next-page" class="retro-btn nav-page-btn" ${!hasNext ? 'disabled' : ''}>
-              NEXT ▶
+            <button id="btn-next-page" class="retro-btn nav-page-btn ornate-brass-btn" ${!hasNext ? 'disabled' : ''}>
+              NEXT PAGE ▶
             </button>
-            <button id="btn-close-book" class="retro-btn close-book-btn">
+            <button id="btn-close-book" class="retro-btn close-book-btn ornate-brass-btn">
               ✕ CLOSE (ESC)
             </button>
           </div>
@@ -183,6 +193,11 @@ export class BookReaderModal {
     });
 
     this.modalEl.querySelector('#btn-close-book')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.close();
+    });
+
+    this.modalEl.querySelector('#btn-ribbon-close')?.addEventListener('click', (e) => {
       e.stopPropagation();
       this.close();
     });
@@ -244,7 +259,7 @@ export class BookReaderModal {
       default:
         return `
           <div class="chapter-header">${page.chapterTitle || ''}</div>
-          <div class="page-body-text">
+          <div class="page-body-text ${book.layoutFormat === 'two-column' ? 'layout-two-column' : book.layoutFormat === 'verse' ? 'layout-verse' : ''}">
             ${this.formatBodyText(page.content)}
           </div>
         `;
@@ -322,6 +337,7 @@ export class BookReaderModal {
           trimmed.startsWith('[CRYSTALLINE GIBBS') ||
           trimmed.startsWith('[EIGENVALUE DECOMPOSITION') ||
           trimmed.startsWith('[FORMAL DEDUCTIVE') ||
+          trimmed.startsWith('[STOKES') ||
           trimmed.startsWith('[PROOF')
         ) {
           return this.formatMathBlock(trimmed);
@@ -336,18 +352,18 @@ export class BookReaderModal {
         // 8. Standalone Math Display Equation: $$ ... $$
         if (trimmed.startsWith('$$') && trimmed.endsWith('$$')) {
           const eq = trimmed.slice(2, -2).trim();
-          return `<div class="math-display-eq">${MathRenderer.renderEquation(eq)}</div>`;
+          return `<div class="math-display-eq">${MathRenderer.renderDisplayEquation(eq)}</div>`;
         }
 
         // 9. Q.E.D. Seal
-        if (trimmed === '[Q.E.D. • Quod Erat Demonstrandum]' || trimmed === '[Q.E.D.]') {
+        if (trimmed.includes('Q.E.D') || trimmed.includes('Quod Erat Demonstrandum') || trimmed === '[Q.E.D.]') {
           return `<div class="math-qed-badge">❦ Quod Erat Demonstrandum • Q.E.D.</div>`;
         }
 
-        // 10. Regular Paragraphs
+        // 10. Regular Paragraph with Illuminated Drop Cap
         const renderedText = MathRenderer.renderInlineAndBlocks(trimmed);
 
-        if (idx === 0 && !trimmed.startsWith('*') && !trimmed.startsWith('•') && !trimmed.startsWith('[') && !trimmed.startsWith('╔') && !trimmed.startsWith('<')) {
+        if (idx === 0 && !trimmed.startsWith('*') && !trimmed.startsWith('•') && !trimmed.startsWith('[') && !trimmed.startsWith('╔') && !trimmed.startsWith('<') && !trimmed.startsWith('$')) {
           const firstChar = renderedText.charAt(0);
           const rest = renderedText.slice(1);
           return `<p class="first-paragraph"><span class="drop-cap">${firstChar}</span>${rest.replace(/\n/g, '<br/>')}</p>`;
@@ -423,7 +439,7 @@ export class BookReaderModal {
         }
       } else if (line.startsWith('$$') && line.endsWith('$$')) {
         const eq = line.slice(2, -2).trim();
-        html += `<div class="math-display-eq">${MathRenderer.renderEquation(eq)}</div>`;
+        html += `<div class="math-display-eq">${MathRenderer.renderDisplayEquation(eq)}</div>`;
       } else {
         html += `<div class="math-proof-line">${MathRenderer.renderInlineAndBlocks(line)}</div>`;
       }
@@ -431,182 +447,5 @@ export class BookReaderModal {
 
     html += '</div>';
     return html;
-  }
-}
-
-/**
- * Robust Mathematical & Scientific LaTeX Expression Renderer
- */
-class MathRenderer {
-  public static renderInlineAndBlocks(text: string): string {
-    // 1. Process Display Math: $$ ... $$
-    let result = text.replace(/\$\$([\s\S]+?)\$\$/g, (_match, eq) => {
-      return `<div class="math-display-eq">${this.renderEquation(eq.trim())}</div>`;
-    });
-
-    // 2. Process Inline Math: $ ... $
-    result = result.replace(/\$([^\$\n]+?)\$/g, (_match, eq) => {
-      return `<span class="math-inline-eq">${this.renderEquation(eq.trim())}</span>`;
-    });
-
-    return result;
-  }
-
-  public static renderEquation(raw: string): string {
-    let eq = raw.trim();
-
-    // A. Clean internal line breaks
-    eq = eq.replace(/\r?\n/g, ' ');
-
-    // B. Matrix Environments (\begin{bmatrix} ... \end{bmatrix} / \begin{pmatrix})
-    if (eq.includes('\\begin{bmatrix}') || eq.includes('\\begin{pmatrix}')) {
-      eq = this.renderMatrices(eq);
-    }
-
-    // C. Text & Named Functions (Run first so \text{...} isn't mangled by subscripts)
-    eq = eq.replace(/\\text\{([^{}]+)\}/g, '<span class="math-text">$1</span>');
-    eq = eq.replace(/\\pmod\{([^{}]+)\}/g, '<span class="math-text"> (mod $1)</span>');
-
-    // D. Bracket and Parenthesis commands
-    eq = eq.replace(/\\left\s*\(/g, '<span class="math-delim">(</span>');
-    eq = eq.replace(/\\right\s*\)/g, '<span class="math-delim">)</span>');
-    eq = eq.replace(/\\left\s*\[/g, '<span class="math-delim">[</span>');
-    eq = eq.replace(/\\right\s*\]/g, '<span class="math-delim">]</span>');
-    eq = eq.replace(/\\left\s*\\\{/g, '<span class="math-delim">{</span>');
-    eq = eq.replace(/\\right\s*\\\}/g, '<span class="math-delim">}</span>');
-
-    // E. Fractions (recursive for nested fractions like \frac{\sqrt{2}}{2})
-    eq = this.replaceFractions(eq);
-
-    // F. Square Roots
-    eq = eq.replace(/\\sqrt\{([^{}]+)\}/g, '<span class="math-sqrt">&radic;<span class="math-radicand">$1</span></span>');
-    eq = eq.replace(/\\sqrt\s*([0-9a-zA-Z]+)/g, '<span class="math-sqrt">&radic;<span class="math-radicand">$1</span></span>');
-
-    // G. Vectors & Hats
-    eq = eq.replace(/\\vec\{([^{}]+)\}/g, '<span class="math-vec"><span class="math-vec-arrow">&rarr;</span><span class="math-vec-base">$1</span></span>');
-    eq = eq.replace(/\\hat\{([^{}]+)\}/g, '<span class="math-hat"><span class="math-hat-sym">^</span><span class="math-vec-base">$1</span></span>');
-
-    // H. Integrals, Contour Integrals & Summations
-    eq = eq.replace(/\\oint_\{?\\mathcal\{S\}\}?/g, '<span class="math-op">&conint;</span><sub class="math-sub">𝒮</sub>');
-    eq = eq.replace(/\\oint/g, '<span class="math-op">&conint;</span>');
-    eq = eq.replace(/\\int_\{([^{}]+)\}\^\{([^{}]+)\}/g, '<span class="math-op">&int;</span><sub class="math-sub">$1</sub><sup class="math-sup">$2</sup>');
-    eq = eq.replace(/\\int_([0-9a-zA-Z\\]+)\^([0-9a-zA-Z\\]+)/g, '<span class="math-op">&int;</span><sub class="math-sub">$1</sub><sup class="math-sup">$2</sup>');
-    eq = eq.replace(/\\int/g, '<span class="math-op">&int;</span>');
-    eq = eq.replace(/\\sum_\{([^{}]+)\}\^\{([^{}]+)\}/g, '<span class="math-op">&sum;</span><sub class="math-sub">$1</sub><sup class="math-sup">$2</sup>');
-    eq = eq.replace(/\\sum/g, '<span class="math-op">&sum;</span>');
-    eq = eq.replace(/\\prod/g, '<span class="math-op">&prod;</span>');
-
-    // I. Del & Derivatives
-    eq = eq.replace(/\\nabla\^2/g, '&nabla;<sup class="math-sup">2</sup>');
-    eq = eq.replace(/\\nabla/g, '&nabla;');
-    eq = eq.replace(/\\partial/g, '&part;');
-
-    // J. Functions and Arrow Labels
-    eq = eq.replace(/\\xrightarrow\{([^}]+)\}/g, '<span class="math-arrow-labeled">&mdash;&mdash;($1)&rarr;</span>');
-    eq = eq.replace(/\\gcd\b/g, '<span class="math-func">gcd</span>');
-    eq = eq.replace(/\\det\b/g, '<span class="math-func">det</span>');
-    eq = eq.replace(/\\cos\b/g, '<span class="math-func">cos</span>');
-    eq = eq.replace(/\\sin\b/g, '<span class="math-func">sin</span>');
-    eq = eq.replace(/\\ln\b/g, '<span class="math-func">ln</span>');
-    eq = eq.replace(/\\exp\b/g, '<span class="math-func">exp</span>');
-    eq = eq.replace(/\\tan\b/g, '<span class="math-func">tan</span>');
-
-    // K. Greek Letters (Word-bounded)
-    eq = eq.replace(/\\alpha\b/g, 'α');
-    eq = eq.replace(/\\beta\b/g, 'β');
-    eq = eq.replace(/\\gamma\b/g, 'γ');
-    eq = eq.replace(/\\theta\b/g, 'θ');
-    eq = eq.replace(/\\lambda\b/g, 'λ');
-    eq = eq.replace(/\\mu\b/g, 'μ');
-    eq = eq.replace(/\\nu\b/g, 'ν');
-    eq = eq.replace(/\\omega\b/g, 'ω');
-    eq = eq.replace(/\\kappa\b/g, 'κ');
-    eq = eq.replace(/\\sigma\b/g, 'σ');
-    eq = eq.replace(/\\tau\b/g, 'τ');
-    eq = eq.replace(/\\phi\b/g, 'ϕ');
-    eq = eq.replace(/\\rho\b/g, 'ρ');
-    eq = eq.replace(/\\pi\b/g, 'π');
-    eq = eq.replace(/\\Psi\b/g, 'Ψ');
-    eq = eq.replace(/\\Phi\b/g, 'Φ');
-    eq = eq.replace(/\\Omega\b/g, 'Ω');
-    eq = eq.replace(/\\Delta\b/g, 'Δ');
-    eq = eq.replace(/\\mathbb\{Z\}/g, 'ℤ');
-    eq = eq.replace(/\\mathbb\{R\}/g, 'ℝ');
-    eq = eq.replace(/\\mathcal\{D\}/g, '𝒟');
-    eq = eq.replace(/\\mathcal\{M\}_\{?\\odot\}?/g, 'ℳ<sub class="math-sub">☉</sub>');
-    eq = eq.replace(/\\mathcal\{N\}/g, '𝒩');
-    eq = eq.replace(/\\mathcal\{H\}/g, 'ℋ');
-    eq = eq.replace(/\\mathcal\{S\}/g, '𝒮');
-    eq = eq.replace(/\\mathcal\{F\}/g, 'ℱ');
-
-    // L. Relational & Operator Symbols
-    eq = eq.replace(/\\le\b/g, '&le;');
-    eq = eq.replace(/\\ge\b/g, '&ge;');
-    eq = eq.replace(/\\pm\b/g, '&plusmn;');
-    eq = eq.replace(/\\cdot\b/g, '&sdot;');
-    eq = eq.replace(/\\times\b/g, '&times;');
-    eq = eq.replace(/\\equiv\b/g, '&equiv;');
-    eq = eq.replace(/\\approx\b/g, '&asymp;');
-    eq = eq.replace(/\\neq\b/g, '&ne;');
-    eq = eq.replace(/\\forall\b/g, '&forall;');
-    eq = eq.replace(/\\exists\b/g, '&exist;');
-    eq = eq.replace(/\\in\b/g, '&isin;');
-    eq = eq.replace(/\\land\b/g, '&and;');
-    eq = eq.replace(/\\lor\b/g, '&or;');
-    eq = eq.replace(/\\neg\b/g, '&not;');
-    eq = eq.replace(/\\vdash\b/g, '&#8866;');
-    eq = eq.replace(/\\implies\b/g, '&rArr;');
-    eq = eq.replace(/\\therefore\b/g, '&there4;');
-    eq = eq.replace(/\\downarrow\b/g, '&darr;');
-    eq = eq.replace(/\\uparrow\b/g, '&uarr;');
-    eq = eq.replace(/\\circ\b/g, '&deg;');
-
-    // M. Subscripts & Superscripts
-    eq = eq.replace(/\^\{([^{}]+)\}/g, '<sup class="math-sup">$1</sup>');
-    eq = eq.replace(/\^([0-9a-zA-Z°]+)/g, '<sup class="math-sup">$1</sup>');
-    eq = eq.replace(/_\{([^{}]+)\}/g, '<sub class="math-sub">$1</sub>');
-    eq = eq.replace(/_([0-9a-zA-Z]+)/g, '<sub class="math-sub">$1</sub>');
-
-    // N. Spacing
-    eq = eq.replace(/\\qquad/g, '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;');
-    eq = eq.replace(/\\quad/g, '&nbsp;&nbsp;&nbsp;&nbsp;');
-    eq = eq.replace(/\\,/g, '&nbsp;');
-    eq = eq.replace(/\\;/g, '&nbsp;&nbsp;');
-    eq = eq.replace(/\\ /g, '&nbsp;');
-
-    return eq;
-  }
-
-  private static replaceFractions(str: string): string {
-    let prev = '';
-    let current = str;
-    while (prev !== current && current.includes('\\frac')) {
-      prev = current;
-      current = current.replace(/\\frac\{([^{}]+)\}\{([^{}]+)\}/g, (_m, num, den) => {
-        return `<span class="math-frac"><span class="math-num">${num}</span><span class="math-den">${den}</span></span>`;
-      });
-    }
-    return current;
-  }
-
-  private static renderMatrices(raw: string): string {
-    return raw.replace(/\\begin\{([bp]matrix)\}([\s\S]*?)\\end\{\1\}/g, (_m, type, inner) => {
-      const isBmatrix = type === 'bmatrix';
-      const rows = inner.split('\\\\');
-      let matrixHtml = `<span class="math-matrix-wrapper"><table class="math-matrix-table ${isBmatrix ? 'bmatrix' : 'pmatrix'}"><tbody>`;
-
-      for (const row of rows) {
-        if (!row.trim()) continue;
-        matrixHtml += '<tr>';
-        const cells = row.split('&');
-        for (const cell of cells) {
-          matrixHtml += `<td>${this.renderEquation(cell.trim())}</td>`;
-        }
-        matrixHtml += '</tr>';
-      }
-
-      matrixHtml += '</tbody></table></span>';
-      return matrixHtml;
-    });
   }
 }

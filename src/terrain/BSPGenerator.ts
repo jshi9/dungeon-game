@@ -23,9 +23,11 @@ export class BSPNode {
   public left: BSPNode | null = null;
   public right: BSPNode | null = null;
   public room: Room | null = null;
+  private prng: () => number;
 
-  constructor(rect: Rect) {
+  constructor(rect: Rect, prng: () => number = Math.random) {
     this.rect = rect;
+    this.prng = prng;
   }
 
   public isLeaf(): boolean {
@@ -35,8 +37,7 @@ export class BSPNode {
   public split(minSize: number): boolean {
     if (!this.isLeaf()) return false;
 
-    // Decide split direction: if width is much bigger than height, split vertically; else horizontally
-    let splitH = Math.random() > 0.5;
+    let splitH = this.prng() > 0.5;
     if (this.rect.w > this.rect.h && this.rect.w / this.rect.h >= 1.25) {
       splitH = false;
     } else if (this.rect.h > this.rect.w && this.rect.h / this.rect.w >= 1.25) {
@@ -44,16 +45,16 @@ export class BSPNode {
     }
 
     const max = (splitH ? this.rect.h : this.rect.w) - minSize;
-    if (max <= minSize) return false; // Too small to split further
+    if (max <= minSize) return false;
 
-    const split = Math.floor(minSize + Math.random() * (max - minSize));
+    const split = Math.floor(minSize + this.prng() * (max - minSize));
 
     if (splitH) {
-      this.left = new BSPNode({ x: this.rect.x, z: this.rect.z, w: this.rect.w, h: split });
-      this.right = new BSPNode({ x: this.rect.x, z: this.rect.z + split, w: this.rect.w, h: this.rect.h - split });
+      this.left = new BSPNode({ x: this.rect.x, z: this.rect.z, w: this.rect.w, h: split }, this.prng);
+      this.right = new BSPNode({ x: this.rect.x, z: this.rect.z + split, w: this.rect.w, h: this.rect.h - split }, this.prng);
     } else {
-      this.left = new BSPNode({ x: this.rect.x, z: this.rect.z, w: split, h: this.rect.h });
-      this.right = new BSPNode({ x: this.rect.x + split, z: this.rect.z, w: this.rect.w - split, h: this.rect.h });
+      this.left = new BSPNode({ x: this.rect.x, z: this.rect.z, w: split, h: this.rect.h }, this.prng);
+      this.right = new BSPNode({ x: this.rect.x + split, z: this.rect.z, w: this.rect.w - split, h: this.rect.h }, this.prng);
     }
 
     return true;
@@ -68,9 +69,9 @@ export class BSPNode {
         const padding = 1;
         const maxW = Math.max(minRoomSize, node.rect.w - padding * 2);
         const maxH = Math.max(minRoomSize, node.rect.h - padding * 2);
-        
-        const rw = Math.max(minRoomSize, Math.floor(minRoomSize + Math.random() * (maxW - minRoomSize + 1)));
-        const rh = Math.max(minRoomSize, Math.floor(minRoomSize + Math.random() * (maxH - minRoomSize + 1)));
+
+        const rw = Math.max(minRoomSize, Math.floor(minRoomSize + this.prng() * (maxW - minRoomSize + 1)));
+        const rh = Math.max(minRoomSize, Math.floor(minRoomSize + this.prng() * (maxH - minRoomSize + 1)));
         const rx = node.rect.x + Math.floor((node.rect.w - rw) / 2);
         const rz = node.rect.z + Math.floor((node.rect.h - rh) / 2);
 
@@ -112,16 +113,29 @@ export class BSPDungeon {
   public rooms: Room[] = [];
   public corridors: Corridor[] = [];
   public spawnPoint: { x: number; z: number } = { x: 0, z: 0 };
+  public seed: number;
+  private prng: () => number;
 
-  constructor(width = 48, height = 48) {
+  constructor(width = 48, height = 48, seed: number = 424242) {
     this.width = width;
     this.height = height;
+    this.seed = seed;
+    this.prng = this.createPrng(seed);
     this.tiles = Array.from({ length: height }, () => Array(width).fill(0));
     this.generate();
   }
 
+  private createPrng(seed: number): () => number {
+    let s = (seed >>> 0) % 2147483647;
+    if (s <= 0) s += 2147483646;
+    return () => {
+      s = (s * 16807) % 2147483647;
+      return (s - 1) / 2147483646;
+    };
+  }
+
   private generate(): void {
-    const root = new BSPNode({ x: 1, z: 1, w: this.width - 2, h: this.height - 2 });
+    const root = new BSPNode({ x: 1, z: 1, w: this.width - 2, h: this.height - 2 }, this.prng);
     const minPartition = 10;
     const minRoom = 7;
 
@@ -140,97 +154,90 @@ export class BSPDungeon {
       splitNodes.push(...next);
     }
 
-    const types: Room['type'][] = ['quarters', 'hall', 'armory', 'cellar', 'shrine'];
-    this.rooms = root.createRooms(minRoom, types);
+    // Assign Room Types
+    const roomTypes: Room['type'][] = ['quarters', 'armory', 'hall', 'cellar', 'shrine'];
+    this.rooms = root.createRooms(minRoom, roomTypes);
 
-    // Carve rooms into floor tiles
+    // Carve Rooms into Grid
     for (const r of this.rooms) {
       for (let z = r.z; z < r.z + r.h; z++) {
         for (let x = r.x; x < r.x + r.w; x++) {
-          if (z >= 0 && z < this.height && x >= 0 && x < this.width) {
-            this.tiles[z][x] = 1; // Floor
-          }
+          this.tiles[z][x] = 1; // Floor
         }
       }
     }
 
-    // Connect partitions with corridors
-    this.createCorridors(root);
-
-    // Carve corridors into floor tiles
-    for (const c of this.corridors) {
-      this.carveCorridor(c.x1, c.z1, c.x2, c.z2);
-    }
-
-    // Surround all floors with walls
-    for (let z = 0; z < this.height; z++) {
-      for (let x = 0; x < this.width; x++) {
-        if (this.tiles[z][x] === 0) {
-          // Check if adjacent to floor
-          if (this.isAdjacentToFloor(x, z)) {
-            this.tiles[z][x] = 2; // Wall
-          }
+    // Connect Corridors between Siblings
+    const connectNodes = (node: BSPNode) => {
+      if (node.isLeaf()) return;
+      if (node.left && node.right) {
+        const roomA = node.left.getRoom();
+        const roomB = node.right.getRoom();
+        if (roomA && roomB) {
+          this.carveCorridor(roomA, roomB);
         }
       }
-    }
+      if (node.left) connectNodes(node.left);
+      if (node.right) connectNodes(node.right);
+    };
+    connectNodes(root);
 
-    // Set spawn point to center of room 0 (the quarters)
+    // Place Surrounding Walls
+    this.buildWalls();
+
+    // Set Spawn in First Room
     if (this.rooms.length > 0) {
-      const startRoom = this.rooms[0];
+      const first = this.rooms[0];
       this.spawnPoint = {
-        x: startRoom.x + Math.floor(startRoom.w / 2),
-        z: startRoom.z + Math.floor(startRoom.h / 2)
+        x: Math.floor(first.x + first.w / 2),
+        z: Math.floor(first.z + first.h / 2)
       };
     }
   }
 
-  private isAdjacentToFloor(x: number, z: number): boolean {
-    for (let dz = -1; dz <= 1; dz++) {
-      for (let dx = -1; dx <= 1; dx++) {
-        if (dx === 0 && dz === 0) continue;
-        const nx = x + dx;
-        const nz = z + dz;
-        if (nx >= 0 && nx < this.width && nz >= 0 && nz < this.height) {
-          if (this.tiles[nz][nx] === 1) return true;
+  private carveCorridor(rA: Room, rB: Room): void {
+    const ax = Math.floor(rA.x + rA.w / 2);
+    const az = Math.floor(rA.z + rA.h / 2);
+    const bx = Math.floor(rB.x + rB.w / 2);
+    const bz = Math.floor(rB.z + rB.h / 2);
+
+    let cx = ax;
+    let cz = az;
+
+    // Horizontal then Vertical corridor
+    while (cx !== bx) {
+      this.tiles[cz][cx] = 1;
+      cx += cx < bx ? 1 : -1;
+    }
+    while (cz !== bz) {
+      this.tiles[cz][cx] = 1;
+      cz += cz < bz ? 1 : -1;
+    }
+    this.tiles[bz][bx] = 1;
+
+    this.corridors.push({ x1: ax, z1: az, x2: bx, z2: bz });
+  }
+
+  private buildWalls(): void {
+    for (let z = 0; z < this.height; z++) {
+      for (let x = 0; x < this.width; x++) {
+        if (this.tiles[z][x] === 0) {
+          // If adjacent to any floor, it becomes a Wall (2)
+          const isAdjacentFloor =
+            (z > 0 && this.tiles[z - 1][x] === 1) ||
+            (z < this.height - 1 && this.tiles[z + 1][x] === 1) ||
+            (x > 0 && this.tiles[z][x - 1] === 1) ||
+            (x < this.width - 1 && this.tiles[z][x + 1] === 1) ||
+            (z > 0 && x > 0 && this.tiles[z - 1][x - 1] === 1) ||
+            (z > 0 && x < this.width - 1 && this.tiles[z - 1][x + 1] === 1) ||
+            (z < this.height - 1 && x > 0 && this.tiles[z + 1][x - 1] === 1) ||
+            (z < this.height - 1 && x < this.width - 1 && this.tiles[z + 1][x + 1] === 1);
+
+          if (isAdjacentFloor) {
+            this.tiles[z][x] = 2; // Wall
+          }
         }
       }
-    }
-    return false;
-  }
-
-  private createCorridors(node: BSPNode): void {
-    if (node.isLeaf()) return;
-    if (node.left && node.right) {
-      const roomA = node.left.getRoom();
-      const roomB = node.right.getRoom();
-      if (roomA && roomB) {
-        const ax = Math.floor(roomA.x + roomA.w / 2);
-        const az = Math.floor(roomA.z + roomA.h / 2);
-        const bx = Math.floor(roomB.x + roomB.w / 2);
-        const bz = Math.floor(roomB.z + roomB.h / 2);
-        this.corridors.push({ x1: ax, z1: az, x2: bx, z2: bz });
-      }
-      this.createCorridors(node.left);
-      this.createCorridors(node.right);
-    }
-  }
-
-  private carveCorridor(x1: number, z1: number, x2: number, z2: number): void {
-    let cx = x1;
-    let cz = z1;
-
-    // Horizontal then vertical
-    while (cx !== x2) {
-      if (cx >= 0 && cx < this.width && cz >= 0 && cz < this.height) {
-        this.tiles[cz][cx] = 1;
-      }
-      cx += cx < x2 ? 1 : -1;
-    }
-    while (cz !== z2) {
-      if (cx >= 0 && cx < this.width && cz >= 0 && cz < this.height) {
-        this.tiles[cz][cx] = 1;
-      }
-      cz += cz < z2 ? 1 : -1;
     }
   }
 }

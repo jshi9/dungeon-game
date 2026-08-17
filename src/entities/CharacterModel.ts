@@ -7,485 +7,404 @@ export class CharacterModel {
   public fpsViewmodelGroup: THREE.Group;
   public camera?: THREE.PerspectiveCamera;
 
-  // 1. Flashlight Dynamic Lighting System (Mounted directly to Camera)
+  // Dynamic Lighting Sources
+  public torchLight: THREE.PointLight;
+  public tppTorchLight: THREE.PointLight;
+  public cameraLanternLight: THREE.PointLight;
+  public tppLanternLight: THREE.PointLight;
   public flashlightSpot: THREE.SpotLight;
   public flashlightTarget: THREE.Object3D;
   public flashlightForwardLight: THREE.PointLight;
   public flashlightBulbLight: THREE.PointLight;
 
-  // 2. Camera-Mounted Lantern Dynamic Lighting System (Radiant 360° Candlelight Bubble)
-  public cameraLanternLight: THREE.PointLight;
   public get fpsLanternLight(): THREE.PointLight {
     return this.cameraLanternLight;
   }
 
-  // 3. First-Person Viewmodel Props (mounted to camera)
-  private fpsFlashlight: THREE.Group;
-  private fpsLantern: THREE.Group;
-  private fpsSword: THREE.Group;
-  private fpsShield: THREE.Group;
+  // FPS Viewmodel Props (Mounted directly to camera)
+  public fpsSwordGroup: THREE.Group;
+  public fpsTorchGroup: THREE.Group;
+  public fpsShieldGroup: THREE.Group;
+  public fpsLanternGroup: THREE.Group;
+  public fpsFlashlightGroup: THREE.Group;
+  public fpsFireMesh: THREE.Mesh;
+  public fpsFireSparks: THREE.Points;
 
-  // 4. Third-Person Body Parts & Handheld Props
+  // Third-Person Body Parts & Handheld Props
   private leftLegPivot: THREE.Group;
   private rightLegPivot: THREE.Group;
   private leftArmPivot: THREE.Group;
   private rightArmPivot: THREE.Group;
   private torsoMesh: THREE.Mesh;
-  private leftPauldron: THREE.Mesh;
-  private rightPauldron: THREE.Mesh;
   private headGroup: THREE.Group;
+  private capeMesh: THREE.Mesh;
 
-  private tppFlashlight: THREE.Group;
-  private tppLantern: THREE.Group;
-  public tppLanternLight: THREE.PointLight;
   private tppSword: THREE.Group;
+  private tppTorch: THREE.Group;
   private tppShield: THREE.Group;
+  private tppLantern: THREE.Group;
+  private tppFlashlight: THREE.Group;
 
-  public isFirstPerson: boolean = false;
-  public activeItemId: string | null = null;
-  public baseLanternIntensity: number = 22.0;
+  public isFirstPerson: boolean = true;
+  public activeItemId: string | null = null; // Spawns in with EMPTY hands by default
+  public isAttacking: boolean = false;
+  private attackTime: number = 0;
   private walkTime: number = 0;
 
   constructor(atlas: TextureAtlas, camera?: THREE.PerspectiveCamera) {
     this.camera = camera;
 
-    // Root group positioned in world space
     this.group = new THREE.Group();
     this.group.name = 'PlayerCharacter';
 
     // -------------------------------------------------------------
-    // A. ULTRA-BRIGHT FLASHLIGHT (Mounted directly to Camera)
+    // A. DYNAMIC LIGHT SOURCES
     // -------------------------------------------------------------
-    this.flashlightSpot = new THREE.SpotLight(0xffffff, 48.0, 160.0, Math.PI / 3.2, 0.25, 0.85);
+    // 1. Torch Light
+    this.torchLight = new THREE.PointLight(0xff8822, 16.0, 32.0, 1.2);
+    this.torchLight.position.set(-0.35, -0.15, -0.45);
+    this.torchLight.castShadow = false;
+    this.torchLight.visible = false;
+
+    this.tppTorchLight = new THREE.PointLight(0xff8822, 14.0, 26.0, 1.2);
+    this.tppTorchLight.position.set(-0.42, 0.95, 0.25);
+    this.tppTorchLight.visible = false;
+
+    // 2. Lantern Light
+    this.cameraLanternLight = new THREE.PointLight(0xffb844, 20.0, 32.0, 1.2);
+    this.cameraLanternLight.position.set(0.26, -0.20, -0.46);
+    this.cameraLanternLight.visible = false;
+
+    this.tppLanternLight = new THREE.PointLight(0xffb844, 18.0, 30.0, 1.2);
+    this.tppLanternLight.position.set(0.42, 0.85, 0.30);
+    this.tppLanternLight.visible = false;
+
+    // 3. Flashlight Light
+    this.flashlightSpot = new THREE.SpotLight(0xffffff, 45.0, 150.0, Math.PI / 3.2, 0.25, 0.85);
     this.flashlightSpot.position.set(0, 0, 0);
     this.flashlightSpot.castShadow = true;
     this.flashlightSpot.shadow.bias = -0.001;
-    this.flashlightSpot.shadow.mapSize.width = 1024;
-    this.flashlightSpot.shadow.mapSize.height = 1024;
+    this.flashlightSpot.visible = false;
 
     this.flashlightTarget = new THREE.Object3D();
-    this.flashlightTarget.name = 'FlashlightTarget';
     this.flashlightTarget.position.set(0, 0, -50.0);
     this.flashlightSpot.target = this.flashlightTarget;
 
-    this.flashlightForwardLight = new THREE.PointLight(0xffffff, 6.0, 45.0, 1.0);
-    this.flashlightForwardLight.position.set(0, 0, -6.0);
+    this.flashlightForwardLight = new THREE.PointLight(0xffffff, 5.0, 40.0, 1.0);
+    this.flashlightForwardLight.position.set(0, 0, -5.0);
+    this.flashlightForwardLight.visible = false;
 
-    this.flashlightBulbLight = new THREE.PointLight(0xffffff, 4.5, 16.0, 1.1);
+    this.flashlightBulbLight = new THREE.PointLight(0xffffff, 4.0, 14.0, 1.1);
     this.flashlightBulbLight.position.set(0.24, -0.20, -0.42);
+    this.flashlightBulbLight.visible = false;
 
     // -------------------------------------------------------------
-    // B. RADIANT ORNATE BRASS LANTERN LIGHT (Mounted directly to Camera)
-    // -------------------------------------------------------------
-    this.cameraLanternLight = new THREE.PointLight(0xffb844, this.baseLanternIntensity, 34.0, 1.2);
-    this.cameraLanternLight.position.set(0.24, -0.18, -0.42);
-    this.cameraLanternLight.castShadow = false;
-    this.cameraLanternLight.visible = false;
-
-    // -------------------------------------------------------------
-    // C. FIRST-PERSON VIEWMODEL (Mounted directly to camera)
+    // B. FIRST-PERSON VIEWMODEL (Mounted directly to camera)
     // -------------------------------------------------------------
     this.fpsViewmodelGroup = new THREE.Group();
     this.fpsViewmodelGroup.name = 'FPS_Viewmodel';
 
-    // 1. FPS Flashlight Prop
-    this.fpsFlashlight = new THREE.Group();
-    this.fpsFlashlight.position.set(0.24, -0.20, -0.42);
-    this.fpsFlashlight.rotation.set(0.04, -0.04, 0.0);
+    // 1. FPS Sword (Right Hand)
+    this.fpsSwordGroup = new THREE.Group();
+    this.fpsSwordGroup.position.set(0.32, -0.28, -0.45);
+    this.fpsSwordGroup.rotation.set(-0.35, 0.18, -0.15);
+    this.fpsSwordGroup.visible = false;
 
-    const fpsFlashBody = new THREE.Mesh(
-      new THREE.BoxGeometry(0.08, 0.08, 0.28),
-      atlas.materials.iron
+    const bladeGeom = new THREE.BoxGeometry(0.065, 0.85, 0.016);
+    const bladeMesh = new THREE.Mesh(bladeGeom, atlas.materials.steelBlade);
+    bladeMesh.position.set(0, 0.45, 0);
+    this.fpsSwordGroup.add(bladeMesh);
+
+    const guardGeom = new THREE.BoxGeometry(0.24, 0.035, 0.045);
+    const guardMesh = new THREE.Mesh(guardGeom, atlas.materials.iron);
+    guardMesh.position.set(0, 0.02, 0);
+    this.fpsSwordGroup.add(guardMesh);
+
+    const gripGeom = new THREE.CylinderGeometry(0.022, 0.022, 0.16, 6);
+    const gripMesh = new THREE.Mesh(gripGeom, atlas.materials.darkOak);
+    gripMesh.position.set(0, -0.07, 0);
+    this.fpsSwordGroup.add(gripMesh);
+
+    const pommelGeom = new THREE.SphereGeometry(0.035, 6, 6);
+    const pommelMesh = new THREE.Mesh(pommelGeom, atlas.materials.iron);
+    pommelMesh.position.set(0, -0.16, 0);
+    this.fpsSwordGroup.add(pommelMesh);
+
+    const rightGauntlet = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.14, 0.09), atlas.materials.iron);
+    rightGauntlet.position.set(0, -0.07, 0);
+    this.fpsSwordGroup.add(rightGauntlet);
+
+    this.fpsViewmodelGroup.add(this.fpsSwordGroup);
+
+    // 2. FPS Torch (Left Hand)
+    this.fpsTorchGroup = new THREE.Group();
+    this.fpsTorchGroup.position.set(-0.34, -0.26, -0.48);
+    this.fpsTorchGroup.rotation.set(0.12, 0.15, -0.05);
+    this.fpsTorchGroup.visible = false;
+
+    const torchWoodMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.035, 0.55, 6), atlas.materials.torchWood);
+    torchWoodMesh.position.set(0, 0.1, 0);
+    this.fpsTorchGroup.add(torchWoodMesh);
+
+    const headMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.045, 0.12, 8), atlas.materials.torchWood);
+    headMesh.position.set(0, 0.36, 0);
+    this.fpsTorchGroup.add(headMesh);
+
+    const leftGauntlet = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.14, 0.09), atlas.materials.iron);
+    leftGauntlet.position.set(0, 0.02, 0);
+    this.fpsTorchGroup.add(leftGauntlet);
+
+    const flameGeom = new THREE.ConeGeometry(0.075, 0.22, 6);
+    this.fpsFireMesh = new THREE.Mesh(flameGeom, atlas.materials.torchFire);
+    this.fpsFireMesh.position.set(0, 0.48, 0);
+    this.fpsTorchGroup.add(this.fpsFireMesh);
+
+    const sparkCount = 18;
+    const sparkPositions = new Float32Array(sparkCount * 3);
+    for (let i = 0; i < sparkCount; i++) {
+      sparkPositions[i * 3] = (Math.random() - 0.5) * 0.15;
+      sparkPositions[i * 3 + 1] = 0.45 + Math.random() * 0.35;
+      sparkPositions[i * 3 + 2] = (Math.random() - 0.5) * 0.15;
+    }
+    const sparkGeom = new THREE.BufferGeometry();
+    sparkGeom.setAttribute('position', new THREE.BufferAttribute(sparkPositions, 3));
+    this.fpsFireSparks = new THREE.Points(
+      sparkGeom,
+      new THREE.PointsMaterial({ color: 0xffaa22, size: 0.025, transparent: true, opacity: 0.85 })
     );
-    const fpsFlashBezel = new THREE.Mesh(
-      new THREE.BoxGeometry(0.12, 0.12, 0.08),
-      atlas.materials.iron
-    );
-    fpsFlashBezel.position.set(0, 0, -0.18);
+    this.fpsTorchGroup.add(this.fpsFireSparks);
 
-    const fpsFlashLens = new THREE.Mesh(
-      new THREE.BoxGeometry(0.10, 0.10, 0.02),
-      new THREE.MeshBasicMaterial({ color: 0xffffff })
-    );
-    fpsFlashLens.position.set(0, 0, -0.22);
-    this.fpsFlashlight.add(fpsFlashBody, fpsFlashBezel, fpsFlashLens);
-    this.fpsViewmodelGroup.add(this.fpsFlashlight);
+    this.fpsViewmodelGroup.add(this.fpsTorchGroup);
 
-    // 2. FPS High-Detail Ornate Brass Lantern Prop
-    this.fpsLantern = this.buildOrnateLantern(atlas, true);
-    this.fpsLantern.position.set(0.26, -0.24, -0.46);
-    this.fpsLantern.rotation.set(0.06, -0.08, 0.02);
-    this.fpsViewmodelGroup.add(this.fpsLantern);
-
-    // 3. FPS Sword Prop
-    this.fpsSword = new THREE.Group();
-    this.fpsSword.position.set(0.26, -0.24, -0.42);
-    this.fpsSword.rotation.set(-0.45, 0.2, -0.1);
-
-    const fpsBlade = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.75, 0.03), atlas.materials.iron);
-    fpsBlade.position.set(0, 0.38, 0);
-    const fpsGuard = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.04, 0.06), atlas.materials.iron);
-    const fpsGrip = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.18, 0.05), atlas.materials.woodBeam);
-    fpsGrip.position.set(0, -0.10, 0);
-    this.fpsSword.add(fpsBlade, fpsGuard, fpsGrip);
-    this.fpsViewmodelGroup.add(this.fpsSword);
-
-    // 4. FPS Shield Prop
-    this.fpsShield = new THREE.Group();
-    this.fpsShield.position.set(-0.28, -0.22, -0.42);
-    this.fpsShield.rotation.set(0.1, 0.35, -0.1);
+    // 3. FPS Shield (Left Hand)
+    this.fpsShieldGroup = new THREE.Group();
+    this.fpsShieldGroup.position.set(-0.28, -0.22, -0.42);
+    this.fpsShieldGroup.rotation.set(0.1, 0.35, -0.1);
+    this.fpsShieldGroup.visible = false;
 
     const fpsShieldPlate = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.60, 0.05), atlas.materials.woodPlanks);
     const fpsShieldBoss = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.15, 0.08), atlas.materials.iron);
     fpsShieldBoss.position.set(0, 0, 0.03);
-    this.fpsShield.add(fpsShieldPlate, fpsShieldBoss);
-    this.fpsViewmodelGroup.add(this.fpsShield);
+    this.fpsShieldGroup.add(fpsShieldPlate, fpsShieldBoss);
+    this.fpsViewmodelGroup.add(this.fpsShieldGroup);
 
-    // Attach viewmodel, flashlight, and lantern lights directly to camera
+    // 4. FPS Lantern (Right Hand)
+    this.fpsLanternGroup = new THREE.Group();
+    this.fpsLanternGroup.position.set(0.26, -0.24, -0.46);
+    this.fpsLanternGroup.visible = false;
+
+    const fpsLanternBody = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.22, 0.14), atlas.materials.darkOak);
+    const fpsLanternCage = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.04, 0.16), atlas.materials.iron);
+    fpsLanternCage.position.set(0, 0.12, 0);
+    this.fpsLanternGroup.add(fpsLanternBody, fpsLanternCage);
+    this.fpsViewmodelGroup.add(this.fpsLanternGroup);
+
+    // 5. FPS Flashlight (Held neatly in lower-right hand)
+    this.fpsFlashlightGroup = new THREE.Group();
+    this.fpsFlashlightGroup.position.set(0.28, -0.28, -0.46);
+    this.fpsFlashlightGroup.rotation.set(-0.15, -0.05, 0.08);
+    this.fpsFlashlightGroup.visible = false;
+
+    // Sleek antique cylindrical tube body
+    const fpsFlashBody = new THREE.Mesh(new THREE.CylinderGeometry(0.024, 0.028, 0.28, 8), atlas.materials.iron);
+    fpsFlashBody.rotation.x = Math.PI / 2;
+    fpsFlashBody.position.set(0, 0, 0.08);
+
+    // Brass front bezel ring & lens
+    const fpsFlashBezel = new THREE.Mesh(new THREE.CylinderGeometry(0.038, 0.028, 0.06, 8), atlas.materials.brassMetal);
+    fpsFlashBezel.rotation.x = Math.PI / 2;
+    fpsFlashBezel.position.set(0, 0, -0.08);
+
+    const fpsFlashLens = new THREE.Mesh(new THREE.CylinderGeometry(0.032, 0.032, 0.01, 8), atlas.materials.stainedGlassGothic);
+    fpsFlashLens.rotation.x = Math.PI / 2;
+    fpsFlashLens.position.set(0, 0, -0.11);
+
+    // Right armored gauntlet holding the torch
+    const fpsFlashGauntlet = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.10, 0.08), atlas.materials.iron);
+    fpsFlashGauntlet.position.set(0, -0.02, 0.12);
+
+    this.fpsFlashlightGroup.add(fpsFlashBody, fpsFlashBezel, fpsFlashLens, fpsFlashGauntlet);
+    this.fpsViewmodelGroup.add(this.fpsFlashlightGroup);
+
+    // Mount to camera
     if (this.camera) {
       this.camera.add(this.fpsViewmodelGroup);
+      this.camera.add(this.torchLight);
+      this.camera.add(this.cameraLanternLight);
       this.camera.add(this.flashlightSpot);
       this.camera.add(this.flashlightTarget);
       this.camera.add(this.flashlightForwardLight);
       this.camera.add(this.flashlightBulbLight);
-      this.camera.add(this.cameraLanternLight);
     }
 
     // -------------------------------------------------------------
-    // D. THIRD-PERSON CHARACTER BODY
+    // C. THIRD-PERSON CHARACTER BODY
     // -------------------------------------------------------------
     this.bodyGroup = new THREE.Group();
     this.bodyGroup.name = 'TPP_PlayerBody';
     this.group.add(this.bodyGroup);
 
-    const armorMat = atlas.materials.iron;
-    const darkClothMat = new THREE.MeshStandardMaterial({
-      color: 0x22262e,
-      roughness: 0.8,
-      side: THREE.DoubleSide
-    });
-    const skinMat = new THREE.MeshStandardMaterial({
-      color: 0xd9a066,
-      roughness: 0.6,
-      side: THREE.DoubleSide
-    });
-    const hairMat = new THREE.MeshStandardMaterial({
-      color: 0x1b1822,
-      roughness: 0.9,
-      side: THREE.DoubleSide
-    });
+    const plateArmorMat = atlas.materials.iron;
+    const capeMat = atlas.materials.crimsonCloth;
 
-    // 1. Legs
+    // Legs
     this.leftLegPivot = new THREE.Group();
     this.leftLegPivot.position.set(-0.16, 0.70, 0);
-    const leftLegMesh = new THREE.Mesh(new THREE.BoxGeometry(0.20, 0.70, 0.22), darkClothMat);
+    const leftLegMesh = new THREE.Mesh(new THREE.BoxGeometry(0.20, 0.70, 0.22), plateArmorMat);
     leftLegMesh.position.set(0, -0.35, 0);
     leftLegMesh.castShadow = true;
-    leftLegMesh.receiveShadow = true;
     this.leftLegPivot.add(leftLegMesh);
     this.bodyGroup.add(this.leftLegPivot);
 
     this.rightLegPivot = new THREE.Group();
     this.rightLegPivot.position.set(0.16, 0.70, 0);
-    const rightLegMesh = new THREE.Mesh(new THREE.BoxGeometry(0.20, 0.70, 0.22), darkClothMat);
+    const rightLegMesh = new THREE.Mesh(new THREE.BoxGeometry(0.20, 0.70, 0.22), plateArmorMat);
     rightLegMesh.position.set(0, -0.35, 0);
     rightLegMesh.castShadow = true;
-    rightLegMesh.receiveShadow = true;
     this.rightLegPivot.add(rightLegMesh);
     this.bodyGroup.add(this.rightLegPivot);
 
-    // 2. Torso & Pauldrons
-    this.torsoMesh = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.70, 0.36), armorMat);
+    // Torso & Pauldrons
+    this.torsoMesh = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.70, 0.36), plateArmorMat);
     this.torsoMesh.position.set(0, 1.05, 0);
     this.torsoMesh.castShadow = true;
-    this.torsoMesh.receiveShadow = true;
     this.bodyGroup.add(this.torsoMesh);
 
-    const pauldronGeom = new THREE.BoxGeometry(0.22, 0.20, 0.40);
-    this.leftPauldron = new THREE.Mesh(pauldronGeom, armorMat);
-    this.leftPauldron.position.set(-0.35, 1.35, 0);
-    this.leftPauldron.castShadow = true;
+    // Dark Crimson Knight's Cape
+    this.capeMesh = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.95, 0.05), capeMat);
+    this.capeMesh.position.set(0, 0.95, -0.22);
+    this.capeMesh.castShadow = true;
+    this.bodyGroup.add(this.capeMesh);
 
-    this.rightPauldron = new THREE.Mesh(pauldronGeom, armorMat);
-    this.rightPauldron.position.set(0.35, 1.35, 0);
-    this.rightPauldron.castShadow = true;
-    this.bodyGroup.add(this.leftPauldron, this.rightPauldron);
-
-    // 3. Arms
+    // Arms
     const armGeom = new THREE.BoxGeometry(0.16, 0.58, 0.18);
-
     this.leftArmPivot = new THREE.Group();
     this.leftArmPivot.position.set(-0.36, 1.35, 0);
-    const leftArmMesh = new THREE.Mesh(armGeom, armorMat);
-    leftArmMesh.position.set(0, -0.26, 0);
-    leftArmMesh.castShadow = true;
-    this.leftArmPivot.add(leftArmMesh);
+    const lArm = new THREE.Mesh(armGeom, plateArmorMat);
+    lArm.position.set(0, -0.26, 0);
+    lArm.castShadow = true;
+    this.leftArmPivot.add(lArm);
     this.bodyGroup.add(this.leftArmPivot);
 
     this.rightArmPivot = new THREE.Group();
     this.rightArmPivot.position.set(0.36, 1.35, 0);
-    const rightArmMesh = new THREE.Mesh(armGeom, armorMat);
-    rightArmMesh.position.set(0, -0.26, 0);
-    rightArmMesh.castShadow = true;
-    this.rightArmPivot.add(rightArmMesh);
+    const rArm = new THREE.Mesh(armGeom, plateArmorMat);
+    rArm.position.set(0, -0.26, 0);
+    rArm.castShadow = true;
+    this.rightArmPivot.add(rArm);
     this.bodyGroup.add(this.rightArmPivot);
 
-    // 4. Head & Hair
+    // Knight's Greathelm Head
     this.headGroup = new THREE.Group();
     this.headGroup.position.set(0, 1.55, 0);
-    const face = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.38, 0.38), skinMat);
-    face.castShadow = true;
-    const hair = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.24, 0.42), hairMat);
-    hair.position.set(0, 0.14, -0.02);
-    hair.castShadow = true;
-    this.headGroup.add(face, hair);
+    const helm = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.42, 0.38), plateArmorMat);
+    helm.castShadow = true;
+    const visor = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.06, 0.40), new THREE.MeshBasicMaterial({ color: 0x0a0a0e }));
+    visor.position.set(0, 0.02, 0.02);
+    this.headGroup.add(helm, visor);
     this.bodyGroup.add(this.headGroup);
 
-    // 5. TPP Handheld Flashlight Prop
-    this.tppFlashlight = new THREE.Group();
-    this.tppFlashlight.position.set(0.42, 0.85, 0.25);
+    // TPP Torch
+    this.tppTorch = new THREE.Group();
+    this.tppTorch.position.set(-0.42, 0.95, 0.25);
+    this.tppTorch.visible = false;
+    const tppStick = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.04, 0.6, 6), atlas.materials.torchWood);
+    const tppFire = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.22, 6), atlas.materials.torchFire);
+    tppFire.position.set(0, 0.38, 0);
+    this.tppTorch.add(tppStick, tppFire, this.tppTorchLight);
+    this.bodyGroup.add(this.tppTorch);
 
-    const tppFlashBody = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.12, 0.36), atlas.materials.iron);
-    tppFlashBody.castShadow = true;
-    const tppFlashBezel = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.16, 0.10), atlas.materials.iron);
-    tppFlashBezel.position.set(0, 0, -0.22);
-    tppFlashBezel.castShadow = true;
-    const tppFlashLens = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.13, 0.02), new THREE.MeshBasicMaterial({ color: 0xffffff }));
-    tppFlashLens.position.set(0, 0, -0.27);
-    this.tppFlashlight.add(tppFlashBody, tppFlashBezel, tppFlashLens);
-    this.bodyGroup.add(this.tppFlashlight);
-
-    // 6. TPP Handheld Lantern Prop
-    this.tppLantern = this.buildOrnateLantern(atlas, false);
-    this.tppLantern.position.set(0.44, 0.85, 0.30);
-
-    this.tppLanternLight = new THREE.PointLight(0xffb844, 18.0, 34.0, 1.2);
-    this.tppLanternLight.position.set(0, 0.10, 0);
-    this.tppLanternLight.castShadow = false;
-    this.tppLanternLight.visible = false;
-    this.tppLantern.add(this.tppLanternLight);
-    this.bodyGroup.add(this.tppLantern);
-
-    // 7. TPP Sword & Shield Props
+    // TPP Sword
     this.tppSword = new THREE.Group();
-    this.tppSword.position.set(0.42, 0.85, 0.35);
-    this.tppSword.rotation.set(-0.3, 0, 0.2);
-    const tBlade = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.85, 0.04), atlas.materials.iron);
-    tBlade.position.set(0, 0.42, 0);
-    tBlade.castShadow = true;
-    const tGuard = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.05, 0.08), atlas.materials.iron);
-    const tGrip = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.20, 0.06), atlas.materials.woodBeam);
-    tGrip.position.set(0, -0.12, 0);
-    this.tppSword.add(tBlade, tGuard, tGrip);
+    this.tppSword.position.set(0.42, 0.95, 0.30);
+    this.tppSword.rotation.set(-0.35, 0, 0.2);
+    this.tppSword.visible = false;
+    const tppBlade = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.85, 0.02), atlas.materials.steelBlade);
+    tppBlade.position.set(0, 0.42, 0);
+    tppBlade.castShadow = true;
+    this.tppSword.add(tppBlade);
     this.bodyGroup.add(this.tppSword);
 
+    // TPP Shield
     this.tppShield = new THREE.Group();
     this.tppShield.position.set(-0.46, 0.95, 0.15);
-    this.tppShield.rotation.set(0, -0.3, 0);
+    this.tppShield.visible = false;
     const tShieldPlate = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.70, 0.06), atlas.materials.woodPlanks);
     tShieldPlate.castShadow = true;
-    const tShieldBoss = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.18, 0.10), atlas.materials.iron);
-    tShieldBoss.position.set(0, 0, 0.04);
-    this.tppShield.add(tShieldPlate, tShieldBoss);
+    this.tppShield.add(tShieldPlate);
     this.bodyGroup.add(this.tppShield);
 
-    // Initial state: Empty hands by default
+    // TPP Lantern
+    this.tppLantern = new THREE.Group();
+    this.tppLantern.position.set(0.44, 0.85, 0.30);
+    this.tppLantern.visible = false;
+    const tLanternBody = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.24, 0.16), atlas.materials.darkOak);
+    this.tppLantern.add(tLanternBody, this.tppLanternLight);
+    this.bodyGroup.add(this.tppLantern);
+
+    // TPP Flashlight
+    this.tppFlashlight = new THREE.Group();
+    this.tppFlashlight.position.set(0.42, 0.85, 0.25);
+    this.tppFlashlight.visible = false;
+    const tFlashBody = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.12, 0.36), atlas.materials.iron);
+    this.tppFlashlight.add(tFlashBody);
+    this.bodyGroup.add(this.tppFlashlight);
+
     this.setActiveItem(null);
     this.setFirstPerson(true);
   }
 
-  /**
-   * Constructs an ornate 3D voxel brass adventurer's lantern
-   */
-  private buildOrnateLantern(atlas: TextureAtlas, isFps: boolean): THREE.Group {
-    const lanternGroup = new THREE.Group();
-    const scale = isFps ? 1.0 : 1.15;
-
-    const brassMat = atlas.materials.brassMetal;
-    const darkIronMat = atlas.materials.iron;
-
-    const glassMat = new THREE.MeshStandardMaterial({
-      color: 0xfffae6,
-      transparent: true,
-      opacity: 0.45,
-      roughness: 0.1,
-      metalness: 0.1,
-      depthWrite: false
-    });
-
-    const candleWaxMat = new THREE.MeshStandardMaterial({
-      color: 0xfff8db,
-      roughness: 0.45
-    });
-
-    const flameMat = new THREE.MeshBasicMaterial({
-      color: 0xffbb22
-    });
-
-    const innerGlowMat = new THREE.MeshBasicMaterial({
-      color: 0xffdd66,
-      transparent: true,
-      opacity: 0.65,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false
-    });
-
-    // 1. Stepped Brass Base Tray
-    const basePlate = new THREE.Mesh(
-      new THREE.BoxGeometry(0.14 * scale, 0.03 * scale, 0.14 * scale),
-      brassMat
-    );
-    basePlate.position.set(0, 0.015 * scale, 0);
-    lanternGroup.add(basePlate);
-
-    // 4 Corner Brass Ball Feet
-    const footOffsets = [[-0.05, -0.05], [0.05, -0.05], [-0.05, 0.05], [0.05, 0.05]];
-    footOffsets.forEach(([fx, fz]) => {
-      const foot = new THREE.Mesh(
-        new THREE.BoxGeometry(0.025 * scale, 0.015 * scale, 0.025 * scale),
-        darkIronMat
-      );
-      foot.position.set(fx * scale, 0.007 * scale, fz * scale);
-      lanternGroup.add(foot);
-    });
-
-    // 2. 4 Vertical Corner Brass Framing Struts (Cage)
-    const strutGeom = new THREE.BoxGeometry(0.015 * scale, 0.16 * scale, 0.015 * scale);
-    const strutOffsets = [[-0.055, -0.055], [0.055, -0.055], [-0.055, 0.055], [0.055, 0.055]];
-    strutOffsets.forEach(([sx, sz]) => {
-      const strut = new THREE.Mesh(strutGeom, brassMat);
-      strut.position.set(sx * scale, 0.11 * scale, sz * scale);
-      lanternGroup.add(strut);
-    });
-
-    // 3. Translucent Glass Chamber Enclosure
-    const glassPane = new THREE.Mesh(
-      new THREE.BoxGeometry(0.11 * scale, 0.15 * scale, 0.11 * scale),
-      glassMat
-    );
-    glassPane.position.set(0, 0.11 * scale, 0);
-    lanternGroup.add(glassPane);
-
-    // 4. Internal Candle Stub & Glowing Flame
-    const candleWax = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.02 * scale, 0.02 * scale, 0.05 * scale, 6),
-      candleWaxMat
-    );
-    candleWax.position.set(0, 0.055 * scale, 0);
-
-    const candleWick = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.003 * scale, 0.003 * scale, 0.015 * scale, 4),
-      darkIronMat
-    );
-    candleWick.position.set(0, 0.085 * scale, 0);
-
-    const flame = new THREE.Mesh(
-      new THREE.ConeGeometry(0.02 * scale, 0.055 * scale, 6),
-      flameMat
-    );
-    flame.position.set(0, 0.11 * scale, 0);
-
-    const flameGlowCore = new THREE.Mesh(
-      new THREE.SphereGeometry(0.04 * scale, 8, 8),
-      innerGlowMat
-    );
-    flameGlowCore.position.set(0, 0.11 * scale, 0);
-
-    lanternGroup.add(candleWax, candleWick, flame, flameGlowCore);
-
-    // 5. Tiered Sloped Brass Roof & Vent Chimney
-    const roofCornice = new THREE.Mesh(
-      new THREE.BoxGeometry(0.145 * scale, 0.025 * scale, 0.145 * scale),
-      brassMat
-    );
-    roofCornice.position.set(0, 0.195 * scale, 0);
-
-    const roofPyramid = new THREE.Mesh(
-      new THREE.BoxGeometry(0.10 * scale, 0.035 * scale, 0.10 * scale),
-      brassMat
-    );
-    roofPyramid.position.set(0, 0.22 * scale, 0);
-
-    const chimney = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.025 * scale, 0.035 * scale, 0.035 * scale, 8),
-      brassMat
-    );
-    chimney.position.set(0, 0.25 * scale, 0);
-
-    // 6. Top Hanging Ring & Arched Wire Bail Handle
-    const topRing = new THREE.Mesh(
-      new THREE.TorusGeometry(0.028 * scale, 0.006 * scale, 6, 12),
-      brassMat
-    );
-    topRing.position.set(0, 0.285 * scale, 0);
-
-    const bailHandle = new THREE.Mesh(
-      new THREE.TorusGeometry(0.065 * scale, 0.005 * scale, 6, 14, Math.PI),
-      darkIronMat
-    );
-    bailHandle.position.set(0, 0.20 * scale, 0);
-    bailHandle.rotation.z = Math.PI / 2;
-
-    lanternGroup.add(roofCornice, roofPyramid, chimney, topRing, bailHandle);
-
-    return lanternGroup;
-  }
-
-  public attachToCamera(camera: THREE.PerspectiveCamera): void {
-    this.camera = camera;
-    if (this.fpsViewmodelGroup.parent !== camera) {
-      camera.add(this.fpsViewmodelGroup);
-      camera.add(this.flashlightSpot);
-      camera.add(this.flashlightTarget);
-      camera.add(this.flashlightForwardLight);
-      camera.add(this.flashlightBulbLight);
-      camera.add(this.cameraLanternLight);
-    }
+  public triggerAttack(): void {
+    if (this.isAttacking) return;
+    this.isAttacking = true;
+    this.attackTime = 0;
   }
 
   public setActiveItem(itemId: string | null): void {
     this.activeItemId = itemId;
 
-    const isFlashlight = itemId === 'flashlight';
-    const isLantern = itemId === 'lantern';
     const isSword = itemId === 'sword';
+    const isTorch = itemId === 'torch';
     const isShield = itemId === 'shield';
+    const isLantern = itemId === 'lantern';
+    const isFlashlight = itemId === 'flashlight';
 
-    // 1. Update FPS Viewmodel Elements
-    this.fpsFlashlight.visible = isFlashlight;
-    this.fpsLantern.visible = isLantern;
-    this.fpsSword.visible = isSword;
-    this.fpsShield.visible = isShield || isSword;
+    // 1. FPS Props Visibility
+    this.fpsSwordGroup.visible = isSword && this.isFirstPerson;
+    this.fpsTorchGroup.visible = isTorch && this.isFirstPerson;
+    this.fpsShieldGroup.visible = isShield && this.isFirstPerson;
+    this.fpsLanternGroup.visible = isLantern && this.isFirstPerson;
+    this.fpsFlashlightGroup.visible = isFlashlight && this.isFirstPerson;
 
-    // 2. Update TPP Character Elements
-    this.tppFlashlight.visible = isFlashlight;
-    this.tppLantern.visible = isLantern;
-    this.tppSword.visible = isSword;
-    this.tppShield.visible = isShield || isSword;
+    // 2. TPP Props Visibility
+    this.tppSword.visible = isSword && !this.isFirstPerson;
+    this.tppTorch.visible = isTorch && !this.isFirstPerson;
+    this.tppShield.visible = isShield && !this.isFirstPerson;
+    this.tppLantern.visible = isLantern && !this.isFirstPerson;
+    this.tppFlashlight.visible = isFlashlight && !this.isFirstPerson;
 
-    // 3. Dynamic Flashlight Light Sources (Mounted to Camera)
-    this.flashlightSpot.visible = isFlashlight;
-    this.flashlightForwardLight.visible = isFlashlight;
-    this.flashlightBulbLight.visible = isFlashlight;
+    // 3. Dynamic Light Sources
+    this.torchLight.visible = isTorch && this.isFirstPerson;
+    this.tppTorchLight.visible = isTorch && !this.isFirstPerson;
 
-    // 4. Dynamic Lantern Light Sources
     this.cameraLanternLight.visible = isLantern && this.isFirstPerson;
     this.tppLanternLight.visible = isLantern && !this.isFirstPerson;
+
+    this.flashlightSpot.visible = isFlashlight && this.isFirstPerson;
+    this.flashlightForwardLight.visible = isFlashlight && this.isFirstPerson;
+    this.flashlightBulbLight.visible = isFlashlight && this.isFirstPerson;
   }
 
   public setFirstPerson(isFPP: boolean): void {
     this.isFirstPerson = isFPP;
-
-    // In FPP, viewmodel is active, body is hidden
     this.fpsViewmodelGroup.visible = isFPP;
     this.bodyGroup.visible = !isFPP;
 
+    // Refresh active item props visibility based on new perspective
     this.setActiveItem(this.activeItemId);
   }
 
-  public updateLightAim(_cameraWorldPos: THREE.Vector3, _lookDir: THREE.Vector3): void {
-    // Lights are locked to camera
-  }
+  public updateLightAim(_cameraWorldPos: THREE.Vector3, _lookDir: THREE.Vector3): void {}
 
   public updateAnimation(isMoving: boolean, delta: number, speed: number): void {
     const validDelta = (Number.isFinite(delta) && delta > 0) ? Math.min(delta, 0.1) : 0.016;
@@ -493,54 +412,65 @@ export class CharacterModel {
 
     this.walkTime += validDelta;
 
-    if (isMoving) {
-      const walkRate = this.walkTime * validSpeed * 10.0;
-      const legAngle = Math.sin(walkRate) * 0.65;
+    // 1. Attack Animation (Active when sword or unarmed)
+    if (this.isAttacking) {
+      this.attackTime += validDelta * 5.0; // 0.2s quick satisfying slash
 
-      // TPP limb rotations
+      if (this.attackTime <= 0.4) {
+        // Windup: Raise sword
+        const t = this.attackTime / 0.4;
+        this.fpsSwordGroup.position.set(0.32 + t * 0.1, -0.28 + t * 0.2, -0.45 - t * 0.1);
+        this.fpsSwordGroup.rotation.set(-0.35 + t * 0.6, 0.18 + t * 0.4, -0.15 - t * 0.5);
+      } else if (this.attackTime <= 1.0) {
+        // Fast diagonal downward slash across screen
+        const t = (this.attackTime - 0.4) / 0.6;
+        this.fpsSwordGroup.position.set(0.42 - t * 0.55, -0.08 - t * 0.35, -0.55 + t * 0.1);
+        this.fpsSwordGroup.rotation.set(0.25 - t * 1.4, 0.58 - t * 1.1, -0.65 + t * 1.2);
+      } else {
+        // Recover to rest
+        this.isAttacking = false;
+        this.attackTime = 0;
+      }
+    } else {
+      // Return sword to idle stance
+      this.fpsSwordGroup.position.lerp(new THREE.Vector3(0.32, -0.28, -0.45), 10 * validDelta);
+      this.fpsSwordGroup.rotation.x = THREE.MathUtils.lerp(this.fpsSwordGroup.rotation.x, -0.35, 10 * validDelta);
+      this.fpsSwordGroup.rotation.y = THREE.MathUtils.lerp(this.fpsSwordGroup.rotation.y, 0.18, 10 * validDelta);
+      this.fpsSwordGroup.rotation.z = THREE.MathUtils.lerp(this.fpsSwordGroup.rotation.z, -0.15, 10 * validDelta);
+    }
+
+    // 2. Walking Bobbing & Sway
+    if (isMoving) {
+      const walkRate = this.walkTime * validSpeed * 9.0;
+      const legAngle = Math.sin(walkRate) * 0.6;
+
       this.leftLegPivot.rotation.x = legAngle;
       this.rightLegPivot.rotation.x = -legAngle;
-      this.leftArmPivot.rotation.x = -legAngle * 0.7;
-      this.rightArmPivot.rotation.x = legAngle * 0.7;
-      this.bodyGroup.position.y = Math.abs(Math.sin(walkRate * 2.0)) * 0.05;
+      this.leftArmPivot.rotation.x = -legAngle * 0.6;
+      this.rightArmPivot.rotation.x = legAngle * 0.6;
 
-      // FPS Viewmodel subtle breathing & walk sway
-      const bobY = -Math.abs(Math.cos(walkRate)) * 0.012;
-      const bobX = Math.sin(walkRate) * 0.012;
+      // Viewmodel breathing bob
+      const bobY = -Math.abs(Math.cos(walkRate)) * 0.015;
+      const bobX = Math.sin(walkRate * 0.5) * 0.012;
       this.fpsViewmodelGroup.position.set(bobX, bobY, 0);
 
-      // TPP Handheld Item Sway
-      this.tppFlashlight.rotation.z = Math.sin(walkRate) * 0.15;
-      this.tppFlashlight.position.y = 0.85 + Math.cos(walkRate) * 0.03;
-
-      this.tppLantern.rotation.z = Math.sin(walkRate) * 0.2;
-      this.tppLantern.position.y = 0.85 + Math.cos(walkRate) * 0.03;
+      // Cape wave
+      this.capeMesh.rotation.x = 0.2 + Math.abs(Math.sin(walkRate)) * 0.15;
     } else {
       this.leftLegPivot.rotation.x *= 0.82;
       this.rightLegPivot.rotation.x *= 0.82;
       this.leftArmPivot.rotation.x *= 0.82;
       this.rightArmPivot.rotation.x *= 0.82;
-      this.bodyGroup.position.y *= 0.82;
-
-      // Smoothly return FPS viewmodel to rest
-      this.fpsViewmodelGroup.position.lerp(new THREE.Vector3(0, 0, 0), 10 * validDelta);
-
-      this.tppFlashlight.rotation.z *= 0.82;
-      this.tppFlashlight.position.y = 0.85;
-
-      this.tppLantern.rotation.z *= 0.82;
-      this.tppLantern.position.y = 0.85;
+      this.fpsViewmodelGroup.position.lerp(new THREE.Vector3(0, 0, 0), 8 * validDelta);
+      this.capeMesh.rotation.x *= 0.85;
     }
 
-    // Natural warm candle flicker for lantern
-    if (this.activeItemId === 'lantern') {
-      const flicker = Math.sin(this.walkTime * 7.5) * 1.5 + Math.cos(this.walkTime * 13.0) * 0.8;
-      const intensity = Math.max(12.0, this.baseLanternIntensity + flicker);
-      if (this.isFirstPerson) {
-        this.cameraLanternLight.intensity = intensity;
-      } else {
-        this.tppLanternLight.intensity = intensity;
-      }
+    // 3. Torch Flame Dancing & Dynamic Light Flicker (Only when torch is equipped)
+    if (this.activeItemId === 'torch') {
+      const flameFlicker = Math.sin(this.walkTime * 14.0) * 0.08 + Math.cos(this.walkTime * 22.0) * 0.04;
+      this.fpsFireMesh.scale.set(1.0 + flameFlicker, 1.0 + flameFlicker * 1.5, 1.0 + flameFlicker);
+      this.torchLight.intensity = 15.0 + Math.sin(this.walkTime * 12.0) * 2.5 + Math.cos(this.walkTime * 19.0) * 1.5;
+      this.tppTorchLight.intensity = this.torchLight.intensity;
     }
   }
 }

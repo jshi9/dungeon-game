@@ -10,6 +10,7 @@ window.addEventListener('DOMContentLoaded', () => {
   }
 
   const engine = new Engine(canvas, hudRoot);
+  (window as any).engine = engine;
   engine.start();
 
   console.log('Retro-3D Dungeon & Surface Engine initialized successfully.');

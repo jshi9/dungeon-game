@@ -35,8 +35,10 @@ export class RenderPipeline {
     });
 
     this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap; // Smooth realistic shadows
+    this.renderer.shadowMap.type = THREE.PCFShadowMap; // High-performance crisp shadows
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.renderer.toneMappingExposure = 1.0;
     this.renderer.setPixelRatio(1); // Keep 1:1 pixel grid for crisp upscale
 
     // 2. Offscreen Low-Resolution Render Target
@@ -135,6 +137,10 @@ export class RenderPipeline {
     this.internalHeight = height;
     this.renderTarget.setSize(width, height);
     this.blitMaterial.uniforms.uResolution.value.set(width, height);
+  }
+
+  public setExposure(exposure: number): void {
+    this.renderer.toneMappingExposure = THREE.MathUtils.clamp(exposure, 0.8, 2.0);
   }
 
   public resize(): void {

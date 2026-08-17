@@ -13,6 +13,7 @@ export interface CameraRigOptions {
   followSpeed?: number;
   rotateSpeed?: number;
   mouseSensitivity?: number;
+  renderDistanceChunks?: number;
 }
 
 export class CameraRig {
@@ -21,7 +22,7 @@ export class CameraRig {
 
   public perspective: CameraPerspective = 'FPP';
   public mouseSensitivity: number = 1.0;
-  public fov: number = 72;
+  public fov: number = 75;
 
   public targetPosition: THREE.Vector3 = new THREE.Vector3();
   public currentPosition: THREE.Vector3 = new THREE.Vector3();
@@ -42,6 +43,13 @@ export class CameraRig {
   public followSpeed: number = 18.0;
   public rotateSpeed: number = 2.5;
 
+  // Camera Dynamics & Bobbing
+  public headBobbingEnabled: boolean = true;
+  public cameraSmoothingEnabled: boolean = true;
+  private bobTimer: number = 0;
+  private bobOffsetY: number = 0;
+  private bobOffsetX: number = 0;
+
   private isDraggingRightMouse: boolean = false;
   private previousMouseX: number = 0;
   private previousMouseY: number = 0;
@@ -52,12 +60,14 @@ export class CameraRig {
   constructor(options: CameraRigOptions = {}) {
     this.perspective = options.perspective ?? 'FPP';
     this.mouseSensitivity = options.mouseSensitivity ?? 1.0;
-    this.fov = options.fov ?? 72;
+    this.fov = options.fov ?? 75;
 
     this.root = new THREE.Group();
     this.root.name = 'CameraRigRoot';
 
-    this.camera = new THREE.PerspectiveCamera(this.fov, 16 / 9, 0.05, 250);
+    const rd = options.renderDistanceChunks ?? 4;
+    const farPlane = (rd * 16) * 1.5;
+    this.camera = new THREE.PerspectiveCamera(this.fov, 16 / 9, 0.05, farPlane);
     this.camera.name = 'MainCamera';
     this.camera.rotation.order = 'YXZ';
     this.root.add(this.camera);
@@ -66,8 +76,14 @@ export class CameraRig {
     this.bindInputs();
   }
 
+  public updateRenderDistance(renderDistanceChunks: number, chunkSize: number = 16): void {
+    const farPlane = Math.max(120, (renderDistanceChunks * chunkSize) * 1.5);
+    this.camera.far = farPlane;
+    this.camera.updateProjectionMatrix();
+  }
+
   public setFov(fov: number): void {
-    this.fov = THREE.MathUtils.clamp(fov, 40, 100);
+    this.fov = THREE.MathUtils.clamp(fov, 50, 100);
     this.camera.fov = this.fov;
     this.camera.updateProjectionMatrix();
   }
@@ -78,13 +94,11 @@ export class CameraRig {
     if (mode === 'FPP') {
       this.targetDistance = 0.0;
       this.distance = 0.0;
-      this.camera.fov = this.fov;
       this.camera.near = 0.05;
       this.camera.updateProjectionMatrix();
     } else {
       this.targetDistance = 14.0;
       if (instant) this.distance = 14.0;
-      this.camera.fov = this.fov;
       this.camera.near = 0.1;
       this.camera.updateProjectionMatrix();
     }
@@ -107,8 +121,12 @@ export class CameraRig {
     const dirZ = -cosYaw * cosPitch;
 
     if (this.perspective === 'FPP') {
-      // In FPP: Camera at player eye level
-      this.camera.position.set(this.targetPosition.x, this.targetPosition.y, this.targetPosition.z);
+      // In FPP: Mount at player eye level + head bob offset
+      const posX = this.targetPosition.x + (this.headBobbingEnabled ? this.bobOffsetX : 0);
+      const posY = this.targetPosition.y + (this.headBobbingEnabled ? this.bobOffsetY : 0);
+      const posZ = this.targetPosition.z;
+
+      this.camera.position.set(posX, posY, posZ);
       this.camera.rotation.set(this.pitch, this.yaw, 0, 'YXZ');
     } else {
       // In TPP: Orbit focus target is player center (X, Y+1.2, Z) with 0 lateral offset
@@ -204,7 +222,9 @@ export class CameraRig {
     gamepadRightStickX: number = 0,
     gamepadRightStickY: number = 0,
     qPressed: boolean = false,
-    ePressed: boolean = false
+    ePressed: boolean = false,
+    isMoving: boolean = false,
+    speedRatio: number = 0
   ): void {
     const validDelta = (Number.isFinite(delta) && delta > 0) ? Math.min(delta, 0.1) : 0.016;
 
@@ -216,7 +236,7 @@ export class CameraRig {
       this.targetYaw -= this.rotateSpeed * validDelta;
     }
 
-    // 2. Gamepad Right Analog Stick (Horizontal & Vertical)
+    // 2. Gamepad Right Stick
     if (Math.abs(gamepadRightStickX) > 0.15) {
       this.targetYaw -= gamepadRightStickX * this.rotateSpeed * validDelta * 1.5;
     }
@@ -225,16 +245,25 @@ export class CameraRig {
       this.targetPitch = Math.max(-CameraRig.MAX_PITCH, Math.min(CameraRig.MAX_PITCH, this.targetPitch));
     }
 
-    // 3. Transform Updates
+    // 3. Head Bobbing & View Sway
+    if (this.perspective === 'FPP' && this.headBobbingEnabled && isMoving) {
+      this.bobTimer += validDelta * (10.0 * Math.max(0.5, speedRatio));
+      this.bobOffsetY = Math.sin(this.bobTimer) * 0.06 * Math.min(1.0, speedRatio);
+      this.bobOffsetX = Math.cos(this.bobTimer * 0.5) * 0.03 * Math.min(1.0, speedRatio);
+    } else {
+      this.bobOffsetY = THREE.MathUtils.damp(this.bobOffsetY, 0, 12, validDelta);
+      this.bobOffsetX = THREE.MathUtils.damp(this.bobOffsetX, 0, 12, validDelta);
+    }
+
+    // 4. Transform Updates
     if (this.perspective === 'FPP') {
-      // Direct tracking in FPP for crisp zero-latency camera movement
       this.yaw = this.targetYaw;
       this.pitch = this.targetPitch;
       this.currentPosition.copy(this.targetPosition);
     } else {
-      // Smooth interpolation in TPP
-      this.yaw = THREE.MathUtils.damp(this.yaw, this.targetYaw, 16, validDelta);
-      this.pitch = THREE.MathUtils.damp(this.pitch, this.targetPitch, 16, validDelta);
+      const lerpSpeed = this.cameraSmoothingEnabled ? 16 : 40;
+      this.yaw = THREE.MathUtils.damp(this.yaw, this.targetYaw, lerpSpeed, validDelta);
+      this.pitch = THREE.MathUtils.damp(this.pitch, this.targetPitch, lerpSpeed, validDelta);
       this.distance = THREE.MathUtils.damp(this.distance, this.targetDistance, 14, validDelta);
       this.currentPosition.copy(this.targetPosition);
     }

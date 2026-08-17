@@ -12,11 +12,11 @@ export class DungeonManager {
   public torchLights: TorchLightInfo[] = [];
   public solidGrid: boolean[][]; // [z][x] is true if blocked by wall/furniture
 
-  constructor(scene: THREE.Scene, atlas: TextureAtlas, width = 48, height = 48) {
+  constructor(scene: THREE.Scene, atlas: TextureAtlas, width = 48, height = 48, seed = 424242) {
     this.scene = scene;
     this.atlas = atlas;
     this.propsFactory = new PropsFactory(atlas);
-    this.dungeon = new BSPDungeon(width, height);
+    this.dungeon = new BSPDungeon(width, height, seed);
     this.container = new THREE.Group();
     this.container.name = 'DungeonWorld';
     this.solidGrid = Array.from({ length: height }, () => Array(width).fill(false));
@@ -162,7 +162,7 @@ export class DungeonManager {
       fGeom.setAttribute('position', new THREE.Float32BufferAttribute(floorPositions, 3));
       fGeom.setAttribute('normal', new THREE.Float32BufferAttribute(floorNormals, 3));
       fGeom.setAttribute('uv', new THREE.Float32BufferAttribute(floorUvs, 2));
-      const floorMesh = new THREE.Mesh(fGeom, this.atlas.materials.woodPlanks);
+      const floorMesh = new THREE.Mesh(fGeom, this.atlas.materials.dungeonFloor);
       floorMesh.receiveShadow = true;
       this.container.add(floorMesh);
     }
@@ -328,6 +328,19 @@ export class DungeonManager {
                       Math.cos(time * (t.flickerSpeed * 1.7) + t.flickerPhase * 2) * 0.3;
       t.light.intensity = Math.max(3.2, t.baseIntensity + flicker);
     }
+  }
+
+  public reseed(seed: number): void {
+    this.container.traverse((child) => {
+      if (child instanceof THREE.Mesh) {
+        child.geometry.dispose();
+      }
+    });
+    this.container.clear();
+    this.torchLights = [];
+    this.solidGrid = Array.from({ length: this.dungeon.height }, () => Array(this.dungeon.width).fill(false));
+    this.dungeon = new BSPDungeon(this.dungeon.width, this.dungeon.height, seed);
+    this.build3DMap();
   }
 
   public setVisible(visible: boolean): void {
