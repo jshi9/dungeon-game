@@ -1,32 +1,100 @@
 export type DarkFantasyGenre =
-  // 1. Forbidden Magic & Arcane Texts (Formulas / LaTeX Allowed)
+  // 🫀 1. Living & Sentient Volumes (The Biological Texts)
+  | 'Parasitic Grimoires'
+  | 'Mimic Lexicons'
+  | 'Symbiotic Journals'
+  | 'Crying Folios'
+  | 'Chained Codices'
+
+  // 🩸 2. Cosmic Horror & The Blind Realms (The Unraveling Texts)
+  | 'Madness Manifestos'
+  | 'Planar Atlases'
+  | 'Astral Voyagers\' Logs'
+  | 'Echo Texts'
+
+  // 💀 3. Death-Craft & Necrotic Lore (The Bone Texts)
+  | 'Mortuary Liturgies'
+  | 'Lichdom Blueprints'
+  | 'Sepulcher Registries'
+  | 'Ossuary Architecture'
+
+  // ⏳ 4. Forbidden Chronologies & Grim History (The Erased Texts)
+  | 'Censored Dynasties'
+  | 'Pre-Fall Geographies'
+  | 'Doomsday Presages'
+  | 'Martyr Logs'
+
+  // 🌿 5. Corrupted Nature & Toxic Bestiaries (The Terrestrial Texts)
+  | 'Grave-Botanicals'
+  | 'Monstrous Taxonomies'
+  | 'Venom Compendiums'
+  | 'Lycanthropic Lineages'
+
+  // ⚖️ 6. Blasphemous Philosophy & False Faiths (The Heretical Texts)
+  | 'Anti-Theology'
+  | 'Sectarian Liturgies'
+  | 'Delusion Diaries'
+
+  // 📜 7. Forbidden Magic & Arcane Texts (Spells & Stats - LaTeX Allowed)
   | 'Necromancy Grimoires'
   | 'Demonology Codices'
   | 'Abyssal Gazeteers'
   | 'Alchemical Formulae'
   | 'Hemomancy Scrolls'
-  // 2. World Lore & Grim History (Prose Only)
+
+  // 🏛️ 8. World Lore & Grim History (Plot & Background)
   | 'Apocalyptic Chronicles'
   | 'Genealogies of Damned Lineages'
   | 'Inquisition Journals'
   | 'Monarchic Decrees'
   | 'Mythological Cycle Books'
-  // 3. Bestiaries & Field Guides (Prose & Tactical Notes)
+
+  // 🌿 9. Bestiaries & Field Guides (Gameplay Hints)
   | 'Cryptid Anatomies'
   | 'Heresiographies'
   | 'Flora Morbida'
-  // 4. Dark Philosophy & Fiction (Atmospheric Prose & Poetry)
+
+  // 🎭 10. Dark Philosophy & Fiction (Atmosphere & Flavour)
   | 'Heretical Philosophies'
   | 'Tragic Plays'
   | 'Malediction Poetry'
-  // 5. Practical & Lost Knowledge (Technical & Cipher-Heavy)
+
+  // 🛠️ 11. Practical & Lost Knowledge (Crafting & Skills)
   | 'Architectural Layouts'
   | 'Blacksmithing Manuals'
-  | 'Cipher Keys';
+  | 'Cipher Keys'
+
+  // 📖 12. Major Fiction Genres
+  | 'Fantasy'
+  | 'Science Fiction'
+  | 'Romance'
+  | 'Mystery'
+  | 'Thriller & Suspense'
+  | 'Horror'
+  | 'Historical Fiction'
+  | 'Literary Fiction'
+  | 'Young Adult'
+
+  // 📚 13. Major Non-Fiction Genres
+  | 'Biography & Memoir'
+  | 'Self-Help'
+  | 'True Crime'
+  | 'History'
+  | 'Cookbooks & Food'
+  | 'Travel';
 
 export type BookGenre = DarkFantasyGenre;
 
 export type MainBookClassification =
+  | 'Living & Sentient Volumes'
+  | 'Cosmic Horror & Blind Realms'
+  | 'Death-Craft & Necrotic Lore'
+  | 'Forbidden Chronologies'
+  | 'Corrupted Nature & Bestiaries'
+  | 'Blasphemous Philosophy'
+  | 'Forbidden Magic & Arcane Texts'
+  | 'World Lore & Grim History'
+  | 'Practical & Lost Knowledge'
   | 'Fiction'
   | 'Non-Fiction'
   | 'Academic Texts & Grammar'
@@ -77,7 +145,11 @@ export type BookWritingStyle =
   | 'epic-verse'
   | 'philosophical-dialogue'
   | 'gothic-fiction'
-  | 'dramatic-play';
+  | 'dramatic-play'
+  | 'biological-log'
+  | 'cosmic-manifesto'
+  | 'recipe-guide'
+  | 'investigative-journal';
 
 export interface ChapterOutlineBeat {
   chapterIndex: number;
@@ -118,6 +190,7 @@ export interface BookPage {
   hasMathProof?: boolean;
   marginalNote?: string;
   isLoadingPlaceholder?: boolean;
+  isProceduralFallback?: boolean;
 }
 
 export interface BookMetadata {
@@ -145,7 +218,8 @@ export interface BookData extends BookMetadata {
   isLoaded: boolean;
   isFullyPrefetched?: boolean;
   isAIGenerated?: boolean;
+  isProceduralFallback?: boolean;
   summary?: string;
-  blueprint?: BookBlueprint;
   prefetchedPagesCount?: number;
+  blueprint?: BookBlueprint;
 }

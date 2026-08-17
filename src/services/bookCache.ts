@@ -1,7 +1,7 @@
 import { BookData, BookBlueprint } from '../lore/BookTypes';
 
-const DB_NAME = 'Retro3D_Library_DB';
-const DB_VERSION = 1;
+const DB_NAME = 'Retro3D_Library_DB_v2';
+const DB_VERSION = 2;
 const STORE_BOOKS = 'books';
 const STORE_BLUEPRINTS = 'blueprints';
 
@@ -65,12 +65,28 @@ export class BookCache {
           const raw = localStorage.getItem(k);
           if (raw) {
             const data: BookData = JSON.parse(raw);
-            this.memoryCache.set(data.id, data);
-            this.memoryCache.set(this.sanitizeKey(data.title), data);
+            if (!this.hasDuplicatePages(data)) {
+              this.memoryCache.set(data.id, data);
+              this.memoryCache.set(this.sanitizeKey(data.title), data);
+            } else {
+              localStorage.removeItem(k);
+            }
           }
         }
       }
     } catch {}
+  }
+
+  private hasDuplicatePages(book: BookData): boolean {
+    if (!book.pages || book.pages.length < 6) return false;
+    for (let i = 4; i < book.pages.length - 1; i++) {
+      const p1 = book.pages[i];
+      const p2 = book.pages[i + 1];
+      if (p1 && p2 && p1.content && p2.content && p1.content.trim() === p2.content.trim()) {
+        return true;
+      }
+    }
+    return false;
   }
 
   public getBook(idOrTitle: string): BookData | null {
@@ -86,7 +102,14 @@ export class BookCache {
 
   public async getBookAsync(idOrTitle: string): Promise<BookData | null> {
     const mem = this.getBook(idOrTitle);
-    if (mem) return mem;
+    if (mem) {
+      if (this.hasDuplicatePages(mem)) {
+        this.memoryCache.delete(idOrTitle);
+        this.memoryCache.delete(this.sanitizeKey(idOrTitle));
+        return null;
+      }
+      return mem;
+    }
 
     if (!this.isDbReady || !this.db) {
       return null;
@@ -99,11 +122,15 @@ export class BookCache {
         const req = store.get(idOrTitle);
 
         req.onsuccess = () => {
-          if (req.result) {
-            const book = req.result as BookData;
-            this.memoryCache.set(book.id, book);
-            this.memoryCache.set(this.sanitizeKey(book.title), book);
-            resolve(book);
+          const res = req.result as BookData | undefined;
+          if (res) {
+            if (this.hasDuplicatePages(res)) {
+              resolve(null);
+              return;
+            }
+            this.memoryCache.set(res.id, res);
+            this.memoryCache.set(this.sanitizeKey(res.title), res);
+            resolve(res);
           } else {
             resolve(null);
           }
@@ -120,19 +147,18 @@ export class BookCache {
     this.memoryCache.set(book.id, book);
     this.memoryCache.set(this.sanitizeKey(book.title), book);
 
-    // Save to localStorage
     try {
-      const storageKey = `retro3d_deep_book_${this.sanitizeKey(book.id)}`;
-      localStorage.setItem(storageKey, JSON.stringify(book));
+      localStorage.setItem(`retro3d_deep_book_${book.id}`, JSON.stringify(book));
     } catch {}
 
-    // Save to IndexedDB
     if (this.isDbReady && this.db) {
       try {
         const tx = this.db.transaction(STORE_BOOKS, 'readwrite');
         const store = tx.objectStore(STORE_BOOKS);
         store.put(book);
-      } catch {}
+      } catch (err) {
+        console.warn('[BookCache] Error writing book to IndexedDB:', err);
+      }
     }
   }
 
@@ -156,7 +182,9 @@ export class BookCache {
         const tx = this.db.transaction(STORE_BLUEPRINTS, 'readwrite');
         const store = tx.objectStore(STORE_BLUEPRINTS);
         store.put(blueprint);
-      } catch {}
+      } catch (err) {
+        console.warn('[BookCache] Error writing blueprint to IndexedDB:', err);
+      }
     }
   }
 }

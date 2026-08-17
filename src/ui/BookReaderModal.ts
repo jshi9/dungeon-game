@@ -142,7 +142,10 @@ export class BookReaderModal {
     const clamped = Math.max(0, Math.min(targetIndex - (targetIndex % 2), maxPages - 1));
     this.currentPageIndex = clamped;
 
-    if (this.currentPageIndex >= this.currentBook.pages.length) {
+    const isLeftPopulated = this.currentBook.pages[this.currentPageIndex] != null;
+    const isRightPopulated = this.currentPageIndex + 1 >= maxPages || this.currentBook.pages[this.currentPageIndex + 1] != null;
+
+    if (!isLeftPopulated || !isRightPopulated) {
       this.isAwaitingPrefetch = true;
       this.render();
       await bookGeneratorService.ensurePageAvailable(this.currentBook, this.currentPageIndex);
@@ -158,8 +161,10 @@ export class BookReaderModal {
     if (this.currentPageIndex + 2 < maxPages) {
       this.currentPageIndex += 2;
 
-      // If page is still being prefetched in background
-      if (this.currentPageIndex >= this.currentBook.pages.length) {
+      const isLeftPopulated = this.currentBook.pages[this.currentPageIndex] != null;
+      const isRightPopulated = this.currentPageIndex + 1 >= maxPages || this.currentBook.pages[this.currentPageIndex + 1] != null;
+
+      if (!isLeftPopulated || !isRightPopulated) {
         this.isAwaitingPrefetch = true;
         this.render();
         await bookGeneratorService.ensurePageAvailable(this.currentBook, this.currentPageIndex);
