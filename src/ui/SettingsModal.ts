@@ -1,5 +1,6 @@
 import { CameraPerspective } from '../camera/CameraRig';
 import { SettingsManager, ParticleDensity } from '../core/SettingsManager';
+import { aiConfigManager, AIProvider } from '../config/aiConfig';
 
 export interface SettingsModalCallbacks {
   onPerspectiveChange: (mode: CameraPerspective) => void;
@@ -125,6 +126,25 @@ export class SettingsModal {
               <option value="320x180" ${s.resolution === '320x180' ? 'selected' : ''}>320x180 (Ultra Retro Pixel)</option>
               <option value="960x540" ${s.resolution === '960x540' ? 'selected' : ''}>960x540 (High-Def Pixel)</option>
             </select>
+          </div>
+
+          <!-- 10. AI Scriptorium Book Generator -->
+          <div class="setting-row">
+            <div class="label-with-val">
+              <label class="setting-label">AI SCRIPTORIUM (REAL-TIME LORE GENERATOR)</label>
+              <span id="ai-status-badge" class="setting-value-badge">${aiConfigManager.hasActiveKey() ? '🟢 AI ACTIVE (' + aiConfigManager.getProvider().toUpperCase() + ')' : '⚪ OFFLINE (SCRIPT WEAVER)'}</span>
+            </div>
+            <div class="btn-toggle-group" style="margin-bottom: 8px;">
+              <button id="btn-ai-gemini" class="retro-btn ${aiConfigManager.getProvider() === 'gemini' ? 'active-mode' : ''}">Gemini</button>
+              <button id="btn-ai-openai" class="retro-btn ${aiConfigManager.getProvider() === 'openai' ? 'active-mode' : ''}">OpenAI</button>
+              <button id="btn-ai-groq" class="retro-btn ${aiConfigManager.getProvider() === 'groq' ? 'active-mode' : ''}">Groq</button>
+              <button id="btn-ai-offline" class="retro-btn ${aiConfigManager.getProvider() === 'offline' ? 'active-mode' : ''}">Offline</button>
+            </div>
+            <div style="display: flex; gap: 8px; align-items: center;">
+              <input id="input-ai-key" type="password" placeholder="Paste API Key here (or use .env)" value="${aiConfigManager.getApiKey()}" class="retro-slider" style="flex: 1; padding: 6px 10px; font-family: monospace; font-size: 11px;" />
+              <button id="btn-save-ai-key" class="retro-btn" style="padding: 6px 12px; font-size: 11px;">Save Key</button>
+              <button id="btn-clear-ai-key" class="retro-btn" style="padding: 6px 12px; font-size: 11px;">Clear</button>
+            </div>
           </div>
 
           <!-- Controls Reference -->
@@ -276,6 +296,57 @@ export class SettingsModal {
       const [w, h] = selectRes.value.split('x').map(Number);
       this.settingsManager.update({ resolution: selectRes.value });
       this.callbacks.onResolutionChange(w, h);
+    });
+
+    // AI Scriptorium Settings
+    const btnAiGemini = this.element.querySelector('#btn-ai-gemini') as HTMLButtonElement;
+    const btnAiOpenai = this.element.querySelector('#btn-ai-openai') as HTMLButtonElement;
+    const btnAiGroq = this.element.querySelector('#btn-ai-groq') as HTMLButtonElement;
+    const btnAiOffline = this.element.querySelector('#btn-ai-offline') as HTMLButtonElement;
+    const inputAiKey = this.element.querySelector('#input-ai-key') as HTMLInputElement;
+    const btnSaveKey = this.element.querySelector('#btn-save-ai-key') as HTMLButtonElement;
+    const btnClearKey = this.element.querySelector('#btn-clear-ai-key') as HTMLButtonElement;
+    const aiStatusBadge = this.element.querySelector('#ai-status-badge') as HTMLElement;
+
+    const updateAiUi = () => {
+      const p = aiConfigManager.getProvider();
+      [btnAiGemini, btnAiOpenai, btnAiGroq, btnAiOffline].forEach((b) => b?.classList.remove('active-mode'));
+      if (p === 'gemini') btnAiGemini?.classList.add('active-mode');
+      else if (p === 'openai') btnAiOpenai?.classList.add('active-mode');
+      else if (p === 'groq') btnAiGroq?.classList.add('active-mode');
+      else btnAiOffline?.classList.add('active-mode');
+
+      if (aiConfigManager.hasActiveKey()) {
+        aiStatusBadge.textContent = `🟢 AI ACTIVE (${p.toUpperCase()})`;
+      } else {
+        aiStatusBadge.textContent = '⚪ OFFLINE (SCRIPT WEAVER)';
+      }
+    };
+
+    const setProvider = (provider: AIProvider) => {
+      aiConfigManager.setProvider(provider);
+      updateAiUi();
+    };
+
+    btnAiGemini?.addEventListener('click', () => setProvider('gemini'));
+    btnAiOpenai?.addEventListener('click', () => setProvider('openai'));
+    btnAiGroq?.addEventListener('click', () => setProvider('groq'));
+    btnAiOffline?.addEventListener('click', () => setProvider('offline'));
+
+    btnSaveKey?.addEventListener('click', () => {
+      const key = inputAiKey.value.trim();
+      aiConfigManager.setApiKey(key);
+      updateAiUi();
+      btnSaveKey.textContent = 'Saved!';
+      setTimeout(() => {
+        btnSaveKey.textContent = 'Save Key';
+      }, 1500);
+    });
+
+    btnClearKey?.addEventListener('click', () => {
+      inputAiKey.value = '';
+      aiConfigManager.setApiKey('');
+      updateAiUi();
     });
 
     btnCloseX.addEventListener('click', () => this.hide());

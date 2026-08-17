@@ -1579,6 +1579,247 @@ body.pointer-locked * {
   cursor: not-allowed;
 }
 
+/* -------------------------------------------------------------
+ * GENERATIVE SCRIPTORIUM & LOADING SHIMMER ANIMATIONS
+ * ------------------------------------------------------------- */
+.loading-spread {
+  min-height: 480px;
+}
+
+.loading-parchment-shimmer {
+  background: linear-gradient(
+    110deg,
+    #fbf7ee 8%,
+    #f2e4c9 18%,
+    #fbf7ee 33%
+  );
+  background-size: 200% 100%;
+  animation: parchmentShimmer 2.2s infinite ease-in-out;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+@keyframes parchmentShimmer {
+  0% { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
+
+.scribe-loading-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 32px 24px;
+  width: 100%;
+  box-sizing: border-box;
+  z-index: 5;
+}
+
+.mystical-rune-circle {
+  width: 76px;
+  height: 76px;
+  border-radius: 50%;
+  border: 2px dashed #9e7547;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 20px;
+  background: radial-gradient(circle, rgba(212, 175, 55, 0.25) 0%, rgba(212, 175, 55, 0) 70%);
+  animation: runeSpin 12s linear infinite, runeGlow 2.5s ease-in-out infinite alternate;
+}
+
+@keyframes runeSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes runeGlow {
+  from { box-shadow: 0 0 8px rgba(184, 134, 11, 0.3); border-color: #8c6a47; }
+  to { box-shadow: 0 0 24px rgba(212, 175, 55, 0.7); border-color: #d4af37; }
+}
+
+.rune-glyph {
+  font-size: 20px;
+  color: #5a2c14;
+  letter-spacing: 3px;
+  user-select: none;
+  font-weight: bold;
+}
+
+.scribe-loading-title {
+  font-family: 'Cinzel', Georgia, serif;
+  font-size: 18px;
+  color: #3b190f;
+  margin: 0 0 6px 0;
+  letter-spacing: 2px;
+  font-weight: 900;
+  text-shadow: 1px 1px 0 rgba(255, 255, 255, 0.6);
+}
+
+.scribe-loading-sub {
+  font-size: 13.5px;
+  font-style: italic;
+  color: #6d4b2b;
+  margin-bottom: 22px;
+}
+
+.scribe-quill-animation {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+  width: 70%;
+  max-width: 280px;
+}
+
+.quill-icon {
+  font-size: 24px;
+  animation: quillWrite 1.6s ease-in-out infinite alternate;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
+}
+
+@keyframes quillWrite {
+  0% { transform: translateY(0) rotate(-10deg); }
+  50% { transform: translateY(-4px) rotate(5deg); }
+  100% { transform: translateY(2px) rotate(-5deg); }
+}
+
+.ink-pulse-line {
+  flex: 1;
+  height: 4px;
+  background: rgba(140, 106, 71, 0.25);
+  border-radius: 2px;
+  position: relative;
+  overflow: hidden;
+}
+
+.ink-pulse-line::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 40%;
+  background: linear-gradient(90deg, transparent, #8b1e1e, #d4af37, transparent);
+  border-radius: 2px;
+  animation: inkFlow 1.8s ease-in-out infinite;
+}
+
+@keyframes inkFlow {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(300%); }
+}
+
+.scribe-loading-status {
+  font-family: Georgia, serif;
+  font-size: 12.5px;
+  font-style: italic;
+  color: #5c3b1e;
+  max-width: 320px;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.ghost-text-container {
+  width: 85%;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.ghost-line {
+  height: 12px;
+  background: rgba(140, 106, 71, 0.14);
+  border-radius: 3px;
+  animation: ghostPulse 1.8s ease-in-out infinite alternate;
+}
+
+.ghost-line.ghost-header {
+  width: 60%;
+  height: 16px;
+  margin: 0 auto 16px auto;
+  background: rgba(90, 44, 20, 0.22);
+}
+
+.ghost-line.full { width: 100%; }
+.ghost-line.almost { width: 88%; }
+.ghost-line.med { width: 72%; }
+.ghost-line.short { width: 45%; }
+
+@keyframes ghostPulse {
+  0% { opacity: 0.35; }
+  100% { opacity: 0.85; }
+}
+
+/* Error Fallback Box */
+.book-error-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 40px 24px;
+  height: 100%;
+  box-sizing: border-box;
+}
+
+.book-error-icon {
+  font-size: 36px;
+  margin-bottom: 12px;
+  color: #8b1e1e;
+}
+
+.book-error-title {
+  font-family: 'Cinzel', Georgia, serif;
+  font-size: 16px;
+  font-weight: bold;
+  color: #5c1810;
+  margin-bottom: 8px;
+}
+
+.book-error-msg {
+  font-size: 13.5px;
+  font-style: italic;
+  color: #4a2e1d;
+  max-width: 380px;
+  line-height: 1.5;
+  margin-bottom: 20px;
+}
+
+.book-error-retry-btn {
+  background: #3e2213;
+  color: #ffd88a;
+  border: 1px solid #d4af37;
+  padding: 8px 18px;
+  font-family: 'Cinzel', Georgia, serif;
+  font-size: 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.book-error-retry-btn:hover {
+  background: #5c351f;
+  color: #ffffff;
+  box-shadow: 0 0 12px rgba(212, 175, 55, 0.5);
+}
+
+.ai-badge {
+  position: absolute;
+  top: 8px;
+  right: 12px;
+  font-family: 'Courier New', monospace;
+  font-size: 9.5px;
+  letter-spacing: 0.5px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: rgba(140, 106, 71, 0.18);
+  color: #7d4e24;
+  border: 1px solid rgba(140, 106, 71, 0.3);
+  pointer-events: none;
+}
+
 .page-indicator {
   font-size: 11px;
   color: #d1b894;
