@@ -176,6 +176,7 @@ export class Engine {
       onToggleMode: () => this.switchModeWithTransition(),
       onSelectResolution: (w: number, h: number) => this.renderPipeline.setResolution(w, h),
       onToggleFullscreen: () => this.toggleFullscreen(),
+      onToggleSpectator: () => this.toggleSpectatorMode(),
       onSelectItem: (item: any) => {
         this.characterModel.setActiveItem(item ? item.id : null);
       }
@@ -215,10 +216,10 @@ export class Engine {
     const targetMode = world.mode || 'surface';
 
     // 4. Set Initial Player Positions on the exact ground level
-    // Surface: Spawn along the winding cobblestone trail facing the castle
+    // Surface: Spawn along the winding cobblestone trail facing the mountains
     let startX = this.surfaceManager.noise.getTrailCenterX(0);
     let startZ = 0;
-    if (world.playerPos && typeof world.playerPos.x === 'number') {
+    if (world.playerPos && typeof world.playerPos.x === 'number' && (world.playerPos.x !== 0 || world.playerPos.z !== 0)) {
       startX = world.playerPos.x;
       startZ = world.playerPos.z;
     }
@@ -240,48 +241,49 @@ export class Engine {
   }
 
   private populateWorldNPCs(): void {
-    // 1. Hooded Black Sorcerer & Red Toadstool Mushrooms by the forest pine tree (Image 1)
-    const sorcZ = -14;
-    const sorcX = this.surfaceManager.noise.getTrailCenterX(sorcZ) + 2.6;
+    const noise = this.surfaceManager.noise;
+
+    // 1. Hooded Black Sorcerer & Red Toadstools by forest trail
+    const sorcZ = -14.0;
+    const sorcX = noise.getTrailCenterX(sorcZ) + 2.8;
     const sorcY = this.surfaceManager.getElevation(sorcX, sorcZ);
     this.darkFantasyNPCManager.spawnHoodedSorcerer(sorcX, sorcY, sorcZ, -2.2);
 
-    // Forest mushroom clusters (Image 1)
+    // Forest mushroom fairy rings
     this.darkFantasyNPCManager.spawnMushroomCluster(sorcX - 0.8, sorcY, sorcZ - 0.4, 5);
     this.darkFantasyNPCManager.spawnMushroomCluster(sorcX + 1.2, sorcY, sorcZ + 1.0, 4);
 
-    const shroom2Z = -45;
-    const shroom2X = this.surfaceManager.noise.getTrailCenterX(shroom2Z) - 2.8;
-    const shroom2Y = this.surfaceManager.getElevation(shroom2X, shroom2Z);
-    this.darkFantasyNPCManager.spawnMushroomCluster(shroom2X, shroom2Y, shroom2Z, 5);
-
-    // 2. Crimson-Cloaked Brotherhood along the mountain road (Image 2 & 5)
-    const m1Z = -28;
-    const m1X = this.surfaceManager.noise.getTrailCenterX(m1Z) - 2.8;
-    const m1Y = this.surfaceManager.getElevation(m1X, m1Z);
-    this.darkFantasyNPCManager.spawnCrimsonMage(m1X, m1Y, m1Z, 0.4, true);
-
-    const m2Z = -30;
-    const m2X = this.surfaceManager.noise.getTrailCenterX(m2Z) + 2.6;
-    const m2Y = this.surfaceManager.getElevation(m2X, m2Z);
-    this.darkFantasyNPCManager.spawnCrimsonMage(m2X, m2Y, m2Z, -2.5, true);
-
-    // 3. Contemplative Seated Plate Knight on the mountain cliff (Image 4)
-    const kZ = -75;
-    const kX = this.surfaceManager.noise.getTrailCenterX(kZ) + 8.5;
-    const kY = this.surfaceManager.getElevation(kX, kZ);
-    this.darkFantasyNPCManager.spawnSittingKnight(kX, kY, kZ, -0.6);
-
-    // 4. Skeleton Sentinels Guarding Castle Gate (Image 3)
-    const s1Z = -134;
-    const s1X = -3.2;
-    const s1Y = this.surfaceManager.getElevation(s1X, s1Z);
-    this.darkFantasyNPCManager.spawnSkeletonSentinel(s1X, s1Y, s1Z, 0);
-
-    const s2Z = -134;
-    const s2X = 3.2;
-    const s2Y = this.surfaceManager.getElevation(s2X, s2Z);
-    this.darkFantasyNPCManager.spawnSkeletonSentinel(s2X, s2Y, s2Z, 0);
+    // 2. Procedural NPCs at Seed Landmarks & Structures
+    for (const struct of noise.structures) {
+      if (struct.type === 'citadel') {
+        // Two Skeleton Sentinels flanking the Citadel Gates
+        const gateZ = struct.z + 7.5;
+        const gateX1 = struct.x - 3.2;
+        const gateX2 = struct.x + 3.2;
+        const gateY1 = this.surfaceManager.getElevation(gateX1, gateZ);
+        const gateY2 = this.surfaceManager.getElevation(gateX2, gateZ);
+        this.darkFantasyNPCManager.spawnSkeletonSentinel(gateX1, gateY1, gateZ, 0);
+        this.darkFantasyNPCManager.spawnSkeletonSentinel(gateX2, gateY2, gateZ, 0);
+      } else if (struct.type === 'watchtower') {
+        // Contemplative Seated Knight at the watchtower overlook
+        const kwX = struct.x + 2.2;
+        const kwZ = struct.z + 1.8;
+        const kwY = this.surfaceManager.getElevation(kwX, kwZ);
+        this.darkFantasyNPCManager.spawnSittingKnight(kwX, kwY, kwZ, struct.rotationY + 1.2);
+      } else if (struct.type === 'crypt_gate') {
+        // Ancient Skeleton Sentinel guarding the crypt
+        const crX = struct.x;
+        const crZ = struct.z + 1.2;
+        const crY = this.surfaceManager.getElevation(crX, crZ);
+        this.darkFantasyNPCManager.spawnSkeletonSentinel(crX, crY, crZ, struct.rotationY);
+      } else if (struct.type === 'shrine') {
+        // Crimson-Cloaked Priest praying at roadside shrine
+        const smX = struct.x + 1.0;
+        const smZ = struct.z + 0.8;
+        const smY = this.surfaceManager.getElevation(smX, smZ);
+        this.darkFantasyNPCManager.spawnCrimsonMage(smX, smY, smZ, struct.rotationY - Math.PI / 2, true);
+      }
+    }
   }
 
   public saveCurrentGameState(): void {
@@ -321,9 +323,8 @@ export class Engine {
   public setRenderDistance(chunks: number): void {
     this.cameraRig.updateRenderDistance(chunks, 16);
     this.lightingManager.updateRenderDistance(chunks, 16);
-    if (this.isGameStarted && this.currentMode === 'surface') {
-      this.surfaceManager.update(this.characterController.position.x, this.characterController.position.z);
-    }
+    this.surfaceManager.setRenderRadius(chunks);
+    this.settingsManager.update({ renderDistance: chunks });
   }
 
   public setParticleDensity(_density: ParticleDensity): void {}
@@ -428,6 +429,12 @@ export class Engine {
       if (e.code === 'KeyF' && !this.settingsModal.isOpen && !this.titleScreenModal.isOpen) {
         this.toggleFullscreen();
       }
+
+      // 'V' key for Spectator / NoClip Fly Mode
+      if (e.code === 'KeyV' && this.isGameStarted && !this.settingsModal.isOpen && !this.bookReaderModal.getIsOpen() && !this.titleScreenModal.isOpen) {
+        e.preventDefault();
+        this.toggleSpectatorMode();
+      }
     }, { capture: true });
 
     window.addEventListener('keyup', (e) => {
@@ -483,6 +490,17 @@ export class Engine {
     if (this.isGameStarted && !this.settingsModal.isOpen && !this.bookReaderModal.getIsOpen() && !this.titleScreenModal.isOpen) {
       this.canvas.requestPointerLock();
     }
+  }
+
+  public toggleSpectatorMode(): boolean {
+    const isSpec = this.characterController.toggleSpectator();
+    this.hud.setSpectator(isSpec);
+    return isSpec;
+  }
+
+  public setSpectatorMode(enabled: boolean): void {
+    this.characterController.setSpectator(enabled);
+    this.hud.setSpectator(enabled);
   }
 
   public toggleFullscreen(): void {
@@ -617,8 +635,8 @@ export class Engine {
     const qPressed = !this.settingsModal.isOpen && !this.bookReaderModal.getIsOpen() && !!this.keys['KeyQ'];
     const ePressed = !this.settingsModal.isOpen && !this.bookReaderModal.getIsOpen() && !!this.keys['KeyE'];
 
-    // 2. Update Character Movement relative to camera yaw
-    this.characterController.update(delta, this.cameraRig.getYaw());
+    // 2. Update Character Movement relative to camera yaw and pitch
+    this.characterController.update(delta, this.cameraRig.getYaw(), this.cameraRig.getPitch());
 
     // 3. Update Camera Rig with position, rotation, and head bobbing
     this.cameraRig.setTarget(

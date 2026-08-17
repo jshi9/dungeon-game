@@ -175,10 +175,10 @@ export class LightingManager {
   }
 
   public updateRenderDistance(renderDistanceChunks: number, _chunkSize: number = 16): void {
-    const density = 0.015 * (4 / Math.max(2, renderDistanceChunks));
+    const density = Math.max(0.0012, 0.015 * (4 / Math.max(2, renderDistanceChunks)));
     this.surfaceFog.density = density;
 
-    const d = Math.max(28, renderDistanceChunks * 6.5);
+    const d = Math.min(140, Math.max(28, renderDistanceChunks * 6.5));
     this.dirLight.shadow.camera.left = -d;
     this.dirLight.shadow.camera.right = d;
     this.dirLight.shadow.camera.top = d;

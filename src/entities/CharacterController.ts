@@ -26,6 +26,11 @@ export class CharacterController {
   public playerHeight: number = 1.8;
   public maxStepHeight: number = 1.35; // Allows smooth walking up 1-block steps & hills without jumping
 
+  // Spectator / NoClip Mode
+  public isSpectator: boolean = false;
+  public spectatorFlySpeed: number = 20.0;
+  public spectatorSprintMultiplier: number = 2.4;
+
   private keys: Record<string, boolean> = {};
   public isMoving: boolean = false;
   public facingAngle: number = 0;
@@ -44,6 +49,30 @@ export class CharacterController {
     this.bindKeyboard();
   }
 
+  public setSpectator(enabled: boolean): void {
+    this.isSpectator = enabled;
+    this.velocity.set(0, 0, 0);
+    if (!enabled) {
+      if (this.currentMode === 'surface' && this.surfaceManager) {
+        const groundY = this.surfaceManager.getElevation(this.position.x, this.position.z);
+        if (this.position.y < groundY) {
+          this.position.y = groundY;
+        }
+      } else if (this.currentMode === 'dungeon') {
+        if (this.position.y < 0) this.position.y = 0;
+      } else if (this.currentMode === 'library' && this.libraryManager) {
+        const libY = this.libraryManager.getElevation(this.position.x, this.position.z, this.position.y);
+        if (this.position.y < libY) this.position.y = libY;
+      }
+      this.isGrounded = false;
+    }
+  }
+
+  public toggleSpectator(): boolean {
+    this.setSpectator(!this.isSpectator);
+    return this.isSpectator;
+  }
+
   private bindKeyboard(): void {
     window.addEventListener('keydown', (e) => {
       this.keys[e.code] = true;
@@ -60,18 +89,20 @@ export class CharacterController {
   }
 
   public setPosition(x: number, y: number, z: number): void {
-    let groundY = y;
-    if (this.currentMode === 'surface' && this.surfaceManager) {
-      groundY = this.surfaceManager.getElevation(x, z);
-    } else if (this.currentMode === 'dungeon') {
-      groundY = 0;
-    } else if (this.currentMode === 'library' && this.libraryManager) {
-      groundY = this.libraryManager.getElevation(x, z, y);
+    let finalY = y;
+    if (!this.isSpectator) {
+      if (this.currentMode === 'surface' && this.surfaceManager) {
+        finalY = this.surfaceManager.getElevation(x, z);
+      } else if (this.currentMode === 'dungeon') {
+        finalY = 0;
+      } else if (this.currentMode === 'library' && this.libraryManager) {
+        finalY = this.libraryManager.getElevation(x, z, y);
+      }
     }
 
-    this.position.set(x, groundY, z);
+    this.position.set(x, finalY, z);
     this.velocity.set(0, 0, 0);
-    this.isGrounded = true;
+    this.isGrounded = !this.isSpectator;
     this.model.group.position.copy(this.position);
   }
 
@@ -116,15 +147,100 @@ export class CharacterController {
     };
   }
 
-  public update(delta: number, cameraYaw: number): void {
+  public update(delta: number, cameraYaw: number, cameraPitch: number = 0): void {
     const validDelta = (Number.isFinite(delta) && delta > 0) ? Math.min(delta, 0.1) : 0.016;
 
     // If input is paused (e.g. settings modal or book reader open), decelerate smoothly to 0
     if (this.isInputPaused) {
       this.velocity.x = THREE.MathUtils.damp(this.velocity.x, 0, this.deceleration, validDelta);
+      this.velocity.y = THREE.MathUtils.damp(this.velocity.y, 0, this.deceleration, validDelta);
       this.velocity.z = THREE.MathUtils.damp(this.velocity.z, 0, this.deceleration, validDelta);
       this.isMoving = false;
-      this.integratePhysics(validDelta);
+      if (!this.isSpectator) {
+        this.integratePhysics(validDelta);
+      } else {
+        this.position.addScaledVector(this.velocity, validDelta);
+      }
+      this.model.group.position.copy(this.position);
+      this.model.updateAnimation(false, validDelta, 0);
+      return;
+    }
+
+    // ==========================================
+    // SPECTATOR / NOCLIP 3D FLIGHT MODE
+    // ==========================================
+    if (this.isSpectator) {
+      let inputX = 0;
+      let inputZ = 0;
+      let inputY = 0;
+
+      if (this.keys['KeyW'] || this.keys['ArrowUp']) inputZ -= 1;
+      if (this.keys['KeyS'] || this.keys['ArrowDown']) inputZ += 1;
+      if (this.keys['KeyA'] || this.keys['ArrowLeft']) inputX -= 1;
+      if (this.keys['KeyD'] || this.keys['ArrowRight']) inputX += 1;
+
+      // Space = Fly Up, Shift / C = Fly Down
+      if (this.keys['Space']) inputY += 1;
+      if (this.keys['ShiftLeft'] || this.keys['ShiftRight'] || this.keys['KeyC']) inputY -= 1;
+
+      const isBoosting = !!(this.keys['ControlLeft'] || this.keys['ControlRight'] || this.keys['KeyQ']);
+
+      const gp = this.getGamepadInput();
+      if (Math.hypot(gp.moveX, gp.moveZ) > 0.1) {
+        inputX = gp.moveX;
+        inputZ = gp.moveZ;
+      }
+      if (gp.jump) inputY += 1;
+      if (gp.sprint) inputY -= 1;
+
+      const cosPitch = Math.cos(cameraPitch);
+      const sinPitch = Math.sin(cameraPitch);
+      const sinYaw = Math.sin(cameraYaw);
+      const cosYaw = Math.cos(cameraYaw);
+
+      // 3D forward vector incorporates camera pitch (fly towards where you look)
+      const forwardX = -sinYaw * cosPitch;
+      const forwardY = sinPitch;
+      const forwardZ = -cosYaw * cosPitch;
+
+      // Strafe vector is perpendicular along horizontal plane
+      const rightX = cosYaw;
+      const rightZ = -sinYaw;
+
+      let dirX = rightX * inputX + forwardX * (-inputZ);
+      let dirY = forwardY * (-inputZ) + inputY;
+      let dirZ = rightZ * inputX + forwardZ * (-inputZ);
+
+      const dirLen = Math.hypot(dirX, dirY, dirZ);
+      if (dirLen > 1.0) {
+        dirX /= dirLen;
+        dirY /= dirLen;
+        dirZ /= dirLen;
+      }
+
+      this.isMoving = dirLen > 0.05;
+
+      const currentSpeed = isBoosting
+        ? this.spectatorFlySpeed * this.spectatorSprintMultiplier
+        : this.spectatorFlySpeed;
+
+      const targetVelX = dirX * currentSpeed;
+      const targetVelY = dirY * currentSpeed;
+      const targetVelZ = dirZ * currentSpeed;
+
+      const accel = this.isMoving ? 28.0 : 20.0;
+      this.velocity.x = THREE.MathUtils.damp(this.velocity.x, targetVelX, accel, validDelta);
+      this.velocity.y = THREE.MathUtils.damp(this.velocity.y, targetVelY, accel, validDelta);
+      this.velocity.z = THREE.MathUtils.damp(this.velocity.z, targetVelZ, accel, validDelta);
+
+      // Direct Noclip Translation through all obstacles and terrain
+      this.position.x += this.velocity.x * validDelta;
+      this.position.y += this.velocity.y * validDelta;
+      this.position.z += this.velocity.z * validDelta;
+
+      this.isGrounded = false;
+      this.facingAngle = cameraYaw;
+      this.model.group.rotation.y = cameraYaw;
       this.model.group.position.copy(this.position);
       this.model.updateAnimation(false, validDelta, 0);
       return;

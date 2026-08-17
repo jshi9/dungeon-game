@@ -1,6 +1,16 @@
 import { createNoise2D } from 'simplex-noise';
 
-export type BiomeType = 'forest' | 'trail' | 'alpine' | 'cliff' | 'snow' | 'citadel';
+export type BiomeType = 'meadow' | 'forest' | 'alpine' | 'snow' | 'swamp' | 'citadel' | 'trail';
+
+export interface StructurePOI {
+  id: string;
+  type: 'citadel' | 'watchtower' | 'crypt_gate' | 'shrine' | 'campsite';
+  x: number;
+  y: number;
+  z: number;
+  radius: number;
+  rotationY: number;
+}
 
 export interface TerrainSample {
   height: number;
@@ -9,28 +19,81 @@ export interface TerrainSample {
   biomeType: BiomeType;
   slope: number;
   isTrail: boolean;
-  trailFactor: number; // 1.0 on center of trail, 0.0 off trail
+  trailFactor: number;
 }
 
 export class NoiseGenerator {
-  private noise2D: (x: number, y: number) => number;
-  private detailNoise2D: (x: number, y: number) => number;
-  private ridgeNoise2D: (x: number, y: number) => number;
+  public seed: number;
+  private continentalNoise: (x: number, y: number) => number;
+  private erosionNoise: (x: number, y: number) => number;
+  private peaksNoise: (x: number, y: number) => number;
+  private detailNoise: (x: number, y: number) => number;
+  private tempNoise: (x: number, y: number) => number;
+  private humidityNoise: (x: number, y: number) => number;
 
   public baseHeight: number = 6.0;
 
+  // Seed-derived Fourier trail parameters
+  private trailAmp1: number;
+  private trailFreq1: number;
+  private trailPhase1: number;
+  private trailAmp2: number;
+  private trailFreq2: number;
+  private trailPhase2: number;
+  private trailAmp3: number;
+  private trailFreq3: number;
+  private trailPhase3: number;
+
+  // Seed-derived procedural structures
+  public structures: StructurePOI[] = [];
+  public citadelPOI!: StructurePOI;
+
   constructor(seed: number = 12345) {
+    this.seed = seed;
+
     const prng1 = this.createPrng(seed);
     const prng2 = this.createPrng(seed + 1013);
     const prng3 = this.createPrng(seed + 2039);
+    const prng4 = this.createPrng(seed + 3079);
+    const prng5 = this.createPrng(seed + 4127);
+    const prng6 = this.createPrng(seed + 5233);
 
-    this.noise2D = createNoise2D(prng1);
-    this.detailNoise2D = createNoise2D(prng2);
-    this.ridgeNoise2D = createNoise2D(prng3);
+    this.continentalNoise = createNoise2D(prng1);
+    this.erosionNoise = createNoise2D(prng2);
+    this.peaksNoise = createNoise2D(prng3);
+    this.detailNoise = createNoise2D(prng4);
+    this.tempNoise = createNoise2D(prng5);
+    this.humidityNoise = createNoise2D(prng6);
+
+    // Derive deterministic trail harmonics from seed
+    const sRand1 = this.hashSeed(seed, 1);
+    const sRand2 = this.hashSeed(seed, 2);
+    const sRand3 = this.hashSeed(seed, 3);
+    const sRand4 = this.hashSeed(seed, 4);
+    const sRand5 = this.hashSeed(seed, 5);
+    const sRand6 = this.hashSeed(seed, 6);
+    const sRand7 = this.hashSeed(seed, 7);
+    const sRand8 = this.hashSeed(seed, 8);
+    const sRand9 = this.hashSeed(seed, 9);
+
+    this.trailAmp1 = 10.0 + sRand1 * 10.0;
+    this.trailFreq1 = 0.016 + sRand2 * 0.014;
+    this.trailPhase1 = sRand3 * Math.PI * 2;
+
+    this.trailAmp2 = 5.0 + sRand4 * 6.0;
+    this.trailFreq2 = 0.006 + sRand5 * 0.006;
+    this.trailPhase2 = sRand6 * Math.PI * 2;
+
+    this.trailAmp3 = 2.5 + sRand7 * 3.0;
+    this.trailFreq3 = 0.038 + sRand8 * 0.02;
+    this.trailPhase3 = sRand9 * Math.PI * 2;
+
+    // Build procedural structures based on seed
+    this.generateSeededStructures();
   }
 
   private createPrng(seed: number) {
-    let s = seed % 2147483647;
+    let s = Math.abs(seed | 0) % 2147483647;
     if (s <= 0) s += 2147483646;
     return () => {
       s = (s * 16807) % 2147483647;
@@ -38,12 +101,99 @@ export class NoiseGenerator {
     };
   }
 
+  public hashSeed(seed: number, salt: number): number {
+    let h = (seed * 374761393 + salt * 668265263) | 0;
+    h = Math.imul(h ^ (h >>> 13), 1274126177);
+    return ((h ^ (h >>> 16)) >>> 0) / 4294967295;
+  }
+
   /**
-   * Smooth, organic winding mountain road spline:
-   * Smoothly bends through the valley with gentle curvature
+   * Procedural Landmark Generation per Seed:
+   * 1. Citadel / Castle at northern mountain summit
+   * 2. Ruined Watchtowers on high ridges
+   * 3. Ancient Crypt Gateways on rock walls
+   * 4. Roadside Shrines along the trail
+   */
+  private generateSeededStructures(): void {
+    this.structures = [];
+
+    // 1. Primary Gothic Citadel / Summit Fortress
+    const cZ = -110.0 - this.hashSeed(this.seed, 101) * 50.0;
+    const cX = this.getTrailCenterX(cZ) + (this.hashSeed(this.seed, 102) * 12.0 - 6.0);
+    const cY = 24.0 + this.hashSeed(this.seed, 103) * 6.0;
+
+    this.citadelPOI = {
+      id: 'citadel_primary',
+      type: 'citadel',
+      x: cX,
+      y: cY,
+      z: cZ,
+      radius: 28.0,
+      rotationY: this.hashSeed(this.seed, 104) * Math.PI * 2
+    };
+    this.structures.push(this.citadelPOI);
+
+    // 2. Ruined Stone Watchtowers (2 towers at strategic high ridges)
+    for (let i = 0; i < 2; i++) {
+      const tZ = -35.0 - i * 50.0 + (this.hashSeed(this.seed, 201 + i) * 20.0 - 10.0);
+      const side = (this.hashSeed(this.seed, 202 + i) > 0.5 ? 1 : -1);
+      const tX = this.getTrailCenterX(tZ) + side * (16.0 + this.hashSeed(this.seed, 203 + i) * 14.0);
+      const tY = 16.0 + this.hashSeed(this.seed, 204 + i) * 8.0;
+
+      this.structures.push({
+        id: `watchtower_${i}`,
+        type: 'watchtower',
+        x: tX,
+        y: tY,
+        z: tZ,
+        radius: 8.0,
+        rotationY: this.hashSeed(this.seed, 205 + i) * Math.PI * 2
+      });
+    }
+
+    // 3. Ancient Crypt Gateways (Nestled into cliffsides)
+    const crZ = -65.0 + (this.hashSeed(this.seed, 301) * 30.0 - 15.0);
+    const crSide = this.hashSeed(this.seed, 302) > 0.5 ? 1 : -1;
+    const crX = this.getTrailCenterX(crZ) + crSide * (18.0 + this.hashSeed(this.seed, 303) * 10.0);
+    const crY = 14.0;
+    this.structures.push({
+      id: 'crypt_gate_1',
+      type: 'crypt_gate',
+      x: crX,
+      y: crY,
+      z: crZ,
+      radius: 6.0,
+      rotationY: crSide > 0 ? -Math.PI / 2 : Math.PI / 2
+    });
+
+    // 4. Roadside Wayfarer Shrines
+    for (let i = 0; i < 3; i++) {
+      const sZ = -18.0 - i * 36.0 + (this.hashSeed(this.seed, 401 + i) * 10.0 - 5.0);
+      const sSide = (i % 2 === 0) ? 1 : -1;
+      const sX = this.getTrailCenterX(sZ) + sSide * (4.2 + this.hashSeed(this.seed, 402 + i) * 1.5);
+      const sY = this.getTrailElevation(sZ);
+
+      this.structures.push({
+        id: `shrine_${i}`,
+        type: 'shrine',
+        x: sX,
+        y: sY,
+        z: sZ,
+        radius: 4.0,
+        rotationY: sSide > 0 ? -Math.PI / 2 : Math.PI / 2
+      });
+    }
+  }
+
+  /**
+   * Seed-derived smooth multi-harmonic mountain road spline
    */
   public getTrailCenterX(z: number): number {
-    return Math.sin(z * 0.024) * 14.0 + Math.cos(z * 0.008) * 8.0;
+    return (
+      Math.sin(z * this.trailFreq1 + this.trailPhase1) * this.trailAmp1 +
+      Math.cos(z * this.trailFreq2 + this.trailPhase2) * this.trailAmp2 +
+      Math.sin(z * this.trailFreq3 + this.trailPhase3) * this.trailAmp3
+    );
   }
 
   public getTrailDistance(x: number, z: number): number {
@@ -52,64 +202,84 @@ export class NoiseGenerator {
   }
 
   /**
-   * Smooth, monotonically ascending road spine elevation
-   * (Zero abrupt dips or sharp rollercoasters)
+   * Continuous, monotonically ascending road spine elevation
    */
   public getTrailElevation(z: number): number {
-    // Spans from spawn (z ~ 0) at y=6.5m to castle plateau (z = -140) at y=26.0m
-    const progress = Math.max(0, -z / 140.0);
+    const cZ = this.citadelPOI.z;
+    const progress = Math.max(0, -z / Math.abs(cZ));
     const t = Math.min(1.0, progress);
-    // Cubic smoothstep progression
     const smoothT = t * t * (3.0 - 2.0 * t);
-    const roadBase = 6.5 + smoothT * 19.5;
-    // Subtle, long-wavelength grading (wavelength 120m, max 0.6m amplitude)
-    const gentleGrade = Math.sin(z * 0.035) * 0.5;
-    return roadBase + gentleGrade;
+    const roadBase = this.baseHeight + smoothT * (this.citadelPOI.y - this.baseHeight);
+    const grade = Math.sin(z * 0.03 + this.trailPhase2) * 0.6;
+    return roadBase + grade;
   }
 
   /**
-   * Biome-specific raw terrain generation
+   * Biome determination by 2D Temperature & Humidity field + elevation
    */
-  public getRawElevation(worldX: number, worldZ: number): number {
-    // 1. Biome determination by Z coordinate & distance
-    // Forest Plains: z > -50
-    // Mountain Pass & Alpine Valleys: -50 >= z > -120
-    // Castle Citadel Plateau: z <= -120
-
-    // Forest Biome (Gentle rolling meadow slopes, soft mounds)
-    const forestNoise = this.noise2D(worldX * 0.012, worldZ * 0.012) * 4.5 +
-                        this.detailNoise2D(worldX * 0.03, worldZ * 0.03) * 1.5;
-    const forestH = this.baseHeight + forestNoise;
-
-    // Alpine Mountain Ridges (Flanking the sides of the central valley)
-    const valleyDist = Math.abs(worldX - this.getTrailCenterX(worldZ));
-    const mountainFlankFactor = Math.min(1.0, Math.max(0, (valleyDist - 8.0) / 22.0));
-    
-    // Stratified mountain crags
-    const cragBase = Math.abs(this.ridgeNoise2D(worldX * 0.015, worldZ * 0.015)) * 24.0;
-    const cragDetail = this.detailNoise2D(worldX * 0.04, worldZ * 0.04) * 4.0;
-    const mountainH = this.baseHeight + 8.0 + (cragBase + cragDetail) * mountainFlankFactor;
-
-    // Smooth transition from Forest to Mountain Valley
-    let rawH = forestH;
-    if (worldZ < -40.0) {
-      const transT = Math.min(1.0, (-worldZ - 40.0) / 30.0);
-      const smoothTrans = transT * transT * (3.0 - 2.0 * transT);
-      rawH = forestH * (1.0 - smoothTrans) + mountainH * smoothTrans;
+  public getBiomeType(worldX: number, worldZ: number, elevation: number, slope: number): BiomeType {
+    const distToCitadel = Math.hypot(worldX - this.citadelPOI.x, worldZ - this.citadelPOI.z);
+    if (distToCitadel < this.citadelPOI.radius + 4.0) {
+      return 'citadel';
     }
 
-    // 2. Castle Citadel Plateau (z ~ -140, radius ~ 45m)
-    const castleDist = Math.hypot(worldX, worldZ - (-140));
-    if (castleDist < 55.0) {
-      const plateauTargetH = 26.0;
-      if (castleDist < 28.0) {
-        // Perfectly flat courtyard & citadel foundation
-        rawH = plateauTargetH;
-      } else {
-        // Smooth terraced cliff edge
-        const tPlateau = (castleDist - 28.0) / 27.0;
-        const smoothP = tPlateau * tPlateau * (3.0 - 2.0 * tPlateau);
-        rawH = plateauTargetH * (1.0 - smoothP) + rawH * smoothP;
+    const distToTrail = this.getTrailDistance(worldX, worldZ);
+    if (distToTrail < 3.2) {
+      return 'trail';
+    }
+
+    const temp = (this.tempNoise(worldX * 0.008, worldZ * 0.008) + 1.0) * 0.5 - (elevation / 40.0) * 0.35;
+    const humidity = (this.humidityNoise(worldX * 0.008, worldZ * 0.008) + 1.0) * 0.5;
+
+    if (elevation > 32.0 || temp < 0.22) {
+      return 'snow';
+    }
+    if (slope > 0.62 || (elevation > 17.0 && humidity < 0.40)) {
+      return 'alpine';
+    }
+    if (humidity > 0.68 && temp > 0.48 && elevation < 14.0) {
+      return 'swamp';
+    }
+    if (humidity > 0.42 || elevation > 12.0) {
+      return 'forest';
+    }
+    return 'meadow';
+  }
+
+  /**
+   * Raw 2D Seeded Terrain Elevation (Continentalness + Erosion + Peaks)
+   */
+  public getRawElevation(worldX: number, worldZ: number): number {
+    // 1. Continental Macro Noise
+    const cont = this.continentalNoise(worldX * 0.007, worldZ * 0.007);
+    const macroH = (cont + 1.0) * 0.5 * 10.0;
+
+    // 2. Erosion / Valley modulation
+    const erosion = (this.erosionNoise(worldX * 0.014, worldZ * 0.014) + 1.0) * 0.5;
+    const valleyDist = this.getTrailDistance(worldX, worldZ);
+    const valleyWidth = 14.0 + erosion * 18.0;
+    const mountainFlankFactor = Math.min(1.0, Math.max(0, (valleyDist - 6.0) / valleyWidth));
+
+    // 3. Sharp Mountain Ridges & Peaks
+    const ridge = Math.abs(this.peaksNoise(worldX * 0.016, worldZ * 0.016)) * 26.0;
+    const detail = this.detailNoise(worldX * 0.042, worldZ * 0.042) * 3.5;
+
+    // Base combined landscape
+    let rawH = this.baseHeight + macroH * 0.4 + (ridge + detail) * mountainFlankFactor;
+
+    // 4. Structure Flattening & Terracing (Citadel, Watchtowers, Shrines)
+    for (const struct of this.structures) {
+      const dist = Math.hypot(worldX - struct.x, worldZ - struct.z);
+      if (dist < struct.radius * 1.6) {
+        const innerR = struct.radius * 0.75;
+        const outerR = struct.radius * 1.6;
+        if (dist <= innerR) {
+          rawH = struct.y;
+        } else {
+          const t = (dist - innerR) / (outerR - innerR);
+          const smoothT = t * t * (3.0 - 2.0 * t);
+          rawH = struct.y * (1.0 - smoothT) + rawH * smoothT;
+        }
       }
     }
 
@@ -117,24 +287,20 @@ export class NoiseGenerator {
   }
 
   /**
-   * Final continuous elevation factoring in smooth road grading
+   * Final Continuous Elevation incorporating Road Spline Grading
    */
   public getElevation(worldX: number, worldZ: number): number {
     const rawH = this.getRawElevation(worldX, worldZ);
     const distToTrail = this.getTrailDistance(worldX, worldZ);
     const roadH = this.getTrailElevation(worldZ);
 
-    // Trail road corridor grading:
-    // Inner roadbed (dist <= 2.8m): perfectly flat, smooth road surface
-    // Road shoulder (2.8m < dist <= 6.5m): smooth Hermite slope terracing to natural landscape
     const roadWidth = 2.8;
-    const shoulderWidth = 3.8; // Total influence = 6.6m
+    const shoulderWidth = 3.8;
 
     if (distToTrail <= roadWidth) {
       return roadH;
     } else if (distToTrail < roadWidth + shoulderWidth) {
       const t = (distToTrail - roadWidth) / shoulderWidth;
-      // Smoothstep Hermite curve: f(t) = 3t^2 - 2t^3
       const blend = t * t * (3.0 - 2.0 * t);
       return roadH * (1.0 - blend) + rawH * blend;
     }
@@ -159,26 +325,17 @@ export class NoiseGenerator {
     const dz = (hz1 - hz0) / (2 * eps);
     const slope = Math.sqrt(dx * dx + dz * dz);
 
+    const biomeType = this.getBiomeType(worldX, worldZ, h, slope);
+
     let biome: TerrainSample['biome'] = 'grass';
-    let biomeType: BiomeType = 'forest';
-
-    const castleDist = Math.hypot(worldX, worldZ - (-140));
-
-    if (castleDist < 30.0) {
+    if (biomeType === 'citadel' || biomeType === 'trail') {
       biome = 'trail';
-      biomeType = 'citadel';
-    } else if (isTrail) {
-      biome = 'trail';
-      biomeType = 'trail';
-    } else if (h > 35.0) {
+    } else if (biomeType === 'snow') {
       biome = 'snow';
-      biomeType = 'snow';
-    } else if (slope > 0.65 || (h > 20.0 && worldZ < -55.0)) {
+    } else if (biomeType === 'alpine') {
       biome = 'stone';
-      biomeType = 'alpine';
     } else {
       biome = 'grass';
-      biomeType = 'forest';
     }
 
     return {

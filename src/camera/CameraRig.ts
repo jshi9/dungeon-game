@@ -77,7 +77,7 @@ export class CameraRig {
   }
 
   public updateRenderDistance(renderDistanceChunks: number, chunkSize: number = 16): void {
-    const farPlane = Math.max(120, (renderDistanceChunks * chunkSize) * 1.5);
+    const farPlane = Math.max(160, (renderDistanceChunks * chunkSize) * 1.6 + 64);
     this.camera.far = farPlane;
     this.camera.updateProjectionMatrix();
   }

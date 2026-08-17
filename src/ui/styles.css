@@ -124,6 +124,19 @@ body.pointer-locked * {
   box-shadow: 0 0 8px rgba(255, 170, 85, 0.4);
 }
 
+.retro-btn.spectator-active {
+  background: #501d54;
+  border-color: #f772e8;
+  color: #fff;
+  box-shadow: 0 0 12px rgba(247, 114, 232, 0.6);
+  animation: pulse-spectator 1.8s infinite alternate;
+}
+
+@keyframes pulse-spectator {
+  from { box-shadow: 0 0 6px rgba(247, 114, 232, 0.4); }
+  to { box-shadow: 0 0 14px rgba(247, 114, 232, 0.8); }
+}
+
 .retro-select {
   background: #2a2336;
   color: #eeddbb;

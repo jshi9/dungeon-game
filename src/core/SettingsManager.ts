@@ -3,7 +3,7 @@ import { CameraPerspective } from '../camera/CameraRig';
 export type ParticleDensity = 'off' | 'medium' | 'ultra';
 
 export interface GameSettings {
-  renderDistance: number; // 2 to 12 chunks
+  renderDistance: number; // 2 to 50 chunks
   fov: number;            // 60 to 100 degrees
   mouseSensitivity: number; // 0.2 to 3.0
   particleDensity: ParticleDensity;
@@ -49,7 +49,7 @@ export class SettingsManager {
   public load(): void {
     try {
       const rd = localStorage.getItem('retro3d_render_distance');
-      if (rd) this.settings.renderDistance = Math.max(2, Math.min(12, parseInt(rd, 10) || 4));
+      if (rd) this.settings.renderDistance = Math.max(2, Math.min(50, parseInt(rd, 10) || 4));
 
       const fov = localStorage.getItem('retro3d_fov');
       if (fov) this.settings.fov = Math.max(60, Math.min(100, parseInt(fov, 10) || 75));

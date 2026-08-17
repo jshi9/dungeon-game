@@ -50,7 +50,7 @@ export class SettingsModal {
               <label class="setting-label">RENDER DISTANCE</label>
               <span id="val-render-distance" class="setting-value-badge">${s.renderDistance} Chunks (${this.getRenderDistLabel(s.renderDistance)})</span>
             </div>
-            <input id="slider-render-distance" type="range" min="2" max="12" step="1" value="${s.renderDistance}" class="retro-slider" />
+            <input id="slider-render-distance" type="range" min="2" max="50" step="1" value="${s.renderDistance}" class="retro-slider" />
           </div>
 
           <!-- 2. Perspective Option -->
@@ -133,8 +133,9 @@ export class SettingsModal {
             <ul class="controls-list">
               <li><span class="key-badge">Click Screen</span> : Lock Mouse Look / Read</li>
               <li><span class="key-badge">W</span><span class="key-badge">A</span><span class="key-badge">S</span><span class="key-badge">D</span> : Move / Strafe &nbsp;|&nbsp; <span class="key-badge">Space</span> : Jump</li>
+              <li><span class="key-badge">V</span> : Spectator Mode (Free Flight / NoClip) &nbsp;|&nbsp; <span class="key-badge">Ctrl</span> : Speed Boost</li>
               <li><span class="key-badge">N</span> : Grand Library &nbsp;|&nbsp; <span class="key-badge">E</span> : Read Books</li>
-              <li><span class="key-badge">Shift</span> : Sprint &nbsp;|&nbsp; <span class="key-badge">M</span> : Switch Map</li>
+              <li><span class="key-badge">Shift</span> : Sprint / Descend &nbsp;|&nbsp; <span class="key-badge">M</span> : Switch Map</li>
               <li><span class="key-badge">Esc</span> / <span class="key-badge">O</span> : Settings Menu</li>
             </ul>
           </div>
@@ -152,10 +153,11 @@ export class SettingsModal {
   }
 
   private getRenderDistLabel(chunks: number): string {
-    if (chunks <= 3) return 'Fast / Low';
-    if (chunks <= 6) return 'Balanced';
-    if (chunks <= 9) return 'High';
-    return 'Extreme';
+    if (chunks <= 4) return 'Fast / Retro';
+    if (chunks <= 8) return 'Balanced';
+    if (chunks <= 16) return 'High';
+    if (chunks <= 32) return 'Ultra Panoramic';
+    return 'Extreme Horizon (50 Chunks)';
   }
 
   private bindEvents(): void {

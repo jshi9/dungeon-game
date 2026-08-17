@@ -25,6 +25,7 @@ export interface HUDCallbacks {
   onToggleMode: () => void;
   onSelectResolution: (width: number, height: number) => void;
   onToggleFullscreen: () => void;
+  onToggleSpectator?: () => void;
   onSelectItem?: (item: InventoryItem | null, index: number) => void;
 }
 
@@ -34,6 +35,7 @@ export class RetroHUD {
 
   // Elements
   private modeBtn!: HTMLButtonElement;
+  private spectatorBtn!: HTMLButtonElement;
   private viewBadgeEl!: HTMLElement;
   private posValueEl!: HTMLElement;
   private chunkValueEl!: HTMLElement;
@@ -42,6 +44,7 @@ export class RetroHUD {
   private gamepadBadgeEl!: HTMLElement;
   private hotbarLabelEl!: HTMLElement;
   private hotbarSlotsContainer!: HTMLElement;
+  private controlsGuideEl!: HTMLElement;
 
   // Book Hover Tooltip
   private bookHoverBadgeEl!: HTMLElement;
@@ -54,6 +57,7 @@ export class RetroHUD {
   private musicSubtitleEl!: HTMLElement;
   private musicToastTimer: number | null = null;
 
+  public isSpectator: boolean = false;
   public items: InventoryItem[] = [...DEFAULT_HOTBAR_ITEMS];
   public selectedIndex: number = -1;
 
@@ -76,6 +80,10 @@ export class RetroHUD {
         </div>
 
         <div class="hud-controls-group">
+          <button id="btn-spectator-toggle" class="retro-panel retro-btn" title="Toggle Spectator Mode (V)">
+            <span>👁️ SPECTATOR: OFF</span>
+          </button>
+
           <button id="btn-mode-toggle" class="retro-panel retro-btn">
             <span>☀️ MAP: SURFACE</span>
           </button>
@@ -139,14 +147,15 @@ export class RetroHUD {
           </ul>
         </div>
 
-        <div class="retro-panel controls-guide">
-          <div><span class="key-badge">W</span><span class="key-badge">A</span><span class="key-badge">S</span><span class="key-badge">D</span> : Move &nbsp;|&nbsp; <span class="key-badge">Space</span> : Jump &nbsp;|&nbsp; <span class="key-badge">1</span>-<span class="key-badge">8</span> : Items</div>
+        <div id="hud-controls-guide" class="retro-panel controls-guide">
+          <div><span class="key-badge">W</span><span class="key-badge">A</span><span class="key-badge">S</span><span class="key-badge">D</span> : Move &nbsp;|&nbsp; <span class="key-badge">Space</span> : Jump &nbsp;|&nbsp; <span class="key-badge">1</span>-<span class="key-badge">8</span> : Items &nbsp;|&nbsp; <span class="key-badge">V</span> : Spectator</div>
           <div><span class="key-badge">Click</span> : Look/Read &nbsp;|&nbsp; <span class="key-badge">M</span> : Map &nbsp;|&nbsp; <span class="key-badge">N</span> : Library &nbsp;|&nbsp; <span class="key-badge">Esc</span> : Settings</div>
         </div>
       </footer>
     `;
 
     this.modeBtn = this.root.querySelector('#btn-mode-toggle')!;
+    this.spectatorBtn = this.root.querySelector('#btn-spectator-toggle')!;
     this.viewBadgeEl = this.root.querySelector('#hud-view-badge')!;
     this.posValueEl = this.root.querySelector('#tel-pos')!;
     this.chunkValueEl = this.root.querySelector('#tel-chunk')!;
@@ -155,6 +164,7 @@ export class RetroHUD {
     this.gamepadBadgeEl = this.root.querySelector('#tel-gamepad')!;
     this.hotbarLabelEl = this.root.querySelector('#hotbar-item-label')!;
     this.hotbarSlotsContainer = this.root.querySelector('#hotbar-slots')!;
+    this.controlsGuideEl = this.root.querySelector('#hud-controls-guide')!;
     this.bookHoverBadgeEl = this.root.querySelector('#hud-book-hover-badge')!;
     this.hoverTitleEl = this.root.querySelector('#hover-book-title')!;
     this.hoverCategoryEl = this.root.querySelector('#hover-book-category')!;
@@ -163,6 +173,10 @@ export class RetroHUD {
     this.musicSubtitleEl = this.root.querySelector('#music-subtitle')!;
 
     // Bind event listeners
+    this.spectatorBtn.addEventListener('click', () => {
+      this.callbacks.onToggleSpectator?.();
+    });
+
     this.modeBtn.addEventListener('click', () => {
       this.callbacks.onToggleMode();
     });
@@ -308,6 +322,25 @@ export class RetroHUD {
 
   public setPerspective(mode: CameraPerspective): void {
     this.viewBadgeEl.textContent = mode;
+  }
+
+  public setSpectator(isSpectator: boolean): void {
+    this.isSpectator = isSpectator;
+    if (isSpectator) {
+      this.spectatorBtn.innerHTML = `<span>✨ SPECTATOR: ON</span>`;
+      this.spectatorBtn.classList.add('spectator-active');
+      this.controlsGuideEl.innerHTML = `
+        <div><span class="key-badge">W</span><span class="key-badge">A</span><span class="key-badge">S</span><span class="key-badge">D</span> : 3D Fly &nbsp;|&nbsp; <span class="key-badge">Space</span>/<span class="key-badge">Shift</span> : Up/Down &nbsp;|&nbsp; <span class="key-badge">Ctrl</span> : Boost</div>
+        <div><span class="key-badge">V</span> : Exit Spectator &nbsp;|&nbsp; <span class="key-badge">M</span> : Map &nbsp;|&nbsp; <span class="key-badge">N</span> : Library &nbsp;|&nbsp; <span class="key-badge">Esc</span> : Settings</div>
+      `;
+    } else {
+      this.spectatorBtn.innerHTML = `<span>👁️ SPECTATOR: OFF</span>`;
+      this.spectatorBtn.classList.remove('spectator-active');
+      this.controlsGuideEl.innerHTML = `
+        <div><span class="key-badge">W</span><span class="key-badge">A</span><span class="key-badge">S</span><span class="key-badge">D</span> : Move &nbsp;|&nbsp; <span class="key-badge">Space</span> : Jump &nbsp;|&nbsp; <span class="key-badge">1</span>-<span class="key-badge">8</span> : Items &nbsp;|&nbsp; <span class="key-badge">V</span> : Spectator</div>
+        <div><span class="key-badge">Click</span> : Look/Read &nbsp;|&nbsp; <span class="key-badge">M</span> : Map &nbsp;|&nbsp; <span class="key-badge">N</span> : Library &nbsp;|&nbsp; <span class="key-badge">Esc</span> : Settings</div>
+      `;
+    }
   }
 
   public updateTelemetry(

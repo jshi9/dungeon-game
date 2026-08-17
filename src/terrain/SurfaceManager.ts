@@ -32,6 +32,7 @@ export function createTerrainSplatMaterial(atlas: TextureAtlas): THREE.MeshStand
       attribute float aTrailDist;
       attribute float aTrailU;
       varying vec3 vWorldPosition;
+      varying vec3 vWorldNormal;
       varying float vTrailDist;
       varying float vTrailU;
       ${shader.vertexShader}
@@ -40,6 +41,7 @@ export function createTerrainSplatMaterial(atlas: TextureAtlas): THREE.MeshStand
       `
       #include <begin_vertex>
       vWorldPosition = (modelMatrix * vec4(position, 1.0)).xyz;
+      vWorldNormal = normalize((modelMatrix * vec4(normal, 0.0)).xyz);
       vTrailDist = aTrailDist;
       vTrailU = aTrailU;
       `
@@ -62,6 +64,7 @@ export function createTerrainSplatMaterial(atlas: TextureAtlas): THREE.MeshStand
       uniform sampler2D uSnow;
 
       varying vec3 vWorldPosition;
+      varying vec3 vWorldNormal;
       varying float vTrailDist;
       varying float vTrailU;
 
@@ -134,10 +137,11 @@ export function createTerrainSplatMaterial(atlas: TextureAtlas): THREE.MeshStand
       float roadAlpha = 1.0 - smoothstep(1.8, 3.8, vTrailDist);
       vec4 finalGround = mix(grassBlend, roadBlend, roadAlpha);
 
-      // Steep Rock Slope Blend (Alpine Crag)
-      float slopeFactor = 1.0 - vNormal.y;
+      // Steep Rock Slope Blend (World-Space Slope invariant to camera perspective rotation)
+      vec3 wNorm = normalize(vWorldNormal);
+      float slopeFactor = 1.0 - max(0.0, wNorm.y);
       vec4 colRock = texture2D(uRock, wp * 0.08);
-      float rockWeight = smoothstep(0.30, 0.58, slopeFactor) * (1.0 - roadAlpha * 0.75);
+      float rockWeight = smoothstep(0.40, 0.70, slopeFactor) * (1.0 - roadAlpha * 0.75);
       finalGround = mix(finalGround, colRock, rockWeight);
 
       // Snow on High Mountain Summits
@@ -164,13 +168,16 @@ export class SurfaceChunk {
   private atlas: TextureAtlas;
   private terrainMat: THREE.MeshStandardMaterial;
 
+  public segments: number = 24;
+
   constructor(
     chunkX: number,
     chunkZ: number,
     size: number,
     noise: NoiseGenerator,
     atlas: TextureAtlas,
-    terrainMat: THREE.MeshStandardMaterial
+    terrainMat: THREE.MeshStandardMaterial,
+    segments: number = 24
   ) {
     this.chunkX = chunkX;
     this.chunkZ = chunkZ;
@@ -178,6 +185,7 @@ export class SurfaceChunk {
     this.noise = noise;
     this.atlas = atlas;
     this.terrainMat = terrainMat;
+    this.segments = segments;
     this.group = new THREE.Group();
     this.buildChunk();
   }
@@ -186,7 +194,7 @@ export class SurfaceChunk {
     const worldStartX = this.chunkX * this.size;
     const worldStartZ = this.chunkZ * this.size;
 
-    const segments = 24;
+    const segments = this.segments;
     const step = this.size / segments;
 
     // 1. Unified Terrain Buffer Geometry with Splat Blend Attributes
@@ -357,9 +365,7 @@ export class SurfaceChunk {
   }
 
   private chunkHash(cx: number, cz: number, salt: number): number {
-    let h = (cx * 374761393 + cz * 668265263 + salt * 1013904223) | 0;
-    h = Math.imul(h ^ (h >>> 13), 1274126177);
-    return ((h ^ (h >>> 16)) >>> 0) / 4294967295;
+    return this.noise.hashSeed(this.noise.seed, ((cx * 73856093) ^ (cz * 19349663) ^ salt) >>> 0);
   }
 
   private populateChunkFlora(
@@ -367,14 +373,47 @@ export class SurfaceChunk {
     worldStartZ: number,
     floraBuckets: Record<string, { positions: number[]; uvs: number[]; normals: number[] }>
   ): void {
-    // 1. Gothic Castle Spire at summit
-    if (this.chunkX === 0 && this.chunkZ === -9) {
-      this.buildGothicCastleLandmark(0, this.noise.getElevation(0, -140), -140, floraBuckets);
+    const chunkCenterX = worldStartX + this.size * 0.5;
+    const chunkCenterZ = worldStartZ + this.size * 0.5;
+
+    // 1. Procedural Seed Structures (Citadel, Watchtowers, Crypt Gates, Shrines)
+    for (const struct of this.noise.structures) {
+      if (
+        struct.x >= worldStartX - 8 &&
+        struct.x < worldStartX + this.size + 8 &&
+        struct.z >= worldStartZ - 8 &&
+        struct.z < worldStartZ + this.size + 8
+      ) {
+        if (struct.type === 'citadel') {
+          this.buildCitadelLandmark(struct.x, struct.y, struct.z, struct.rotationY, floraBuckets);
+        } else if (struct.type === 'watchtower') {
+          this.buildWatchtowerLandmark(struct.x, struct.y, struct.z, struct.rotationY, floraBuckets);
+        } else if (struct.type === 'crypt_gate') {
+          this.buildCryptGateLandmark(struct.x, struct.y, struct.z, struct.rotationY, floraBuckets);
+        } else if (struct.type === 'shrine') {
+          this.buildShrineLandmark(struct.x, struct.y, struct.z, struct.rotationY, floraBuckets);
+        }
+      }
     }
 
-    // 2. Ecological Tree Clustering
+    // 2. Biome-Specific Ecological Tree & Boulder Distribution
+    const centerSample = this.noise.getSample(chunkCenterX, chunkCenterZ);
+    const biome = centerSample.biomeType;
+
     const groveNoise = this.chunkHash(this.chunkX, this.chunkZ, 42);
-    const maxCandidates = groveNoise > 0.45 ? 6 : groveNoise > 0.2 ? 3 : 1;
+    let maxCandidates = 2;
+    if (biome === 'forest') {
+      maxCandidates = groveNoise > 0.4 ? 7 : 4;
+    } else if (biome === 'meadow') {
+      maxCandidates = groveNoise > 0.6 ? 3 : 1;
+    } else if (biome === 'swamp') {
+      maxCandidates = groveNoise > 0.35 ? 5 : 2;
+    } else if (biome === 'alpine') {
+      maxCandidates = groveNoise > 0.5 ? 2 : 1;
+    } else if (biome === 'snow') {
+      maxCandidates = groveNoise > 0.7 ? 1 : 0;
+    }
+
     const placedTrees: Array<{ x: number; z: number }> = [];
 
     for (let i = 0; i < maxCandidates; i++) {
@@ -385,13 +424,19 @@ export class SurfaceChunk {
       const wz = worldStartZ + 1.5 + rz * (this.size - 3.0);
 
       const distToTrail = this.noise.getTrailDistance(wx, wz);
-      if (distToTrail < 4.6) continue;
+      if (distToTrail < 4.4) continue;
 
-      const distToCastle = Math.hypot(wx, wz - (-140));
-      if (distToCastle < 32.0) continue;
+      let tooCloseToStruct = false;
+      for (const struct of this.noise.structures) {
+        if (Math.hypot(wx - struct.x, wz - struct.z) < struct.radius + 3.0) {
+          tooCloseToStruct = true;
+          break;
+        }
+      }
+      if (tooCloseToStruct) continue;
 
       const wy = this.noise.getElevation(wx, wz);
-      if (wy > 33.0) continue; // Above snowline
+      if (wy > 38.0) continue; // High snow summit
 
       let tooClose = false;
       for (const pt of placedTrees) {
@@ -404,27 +449,80 @@ export class SurfaceChunk {
 
       placedTrees.push({ x: wx, z: wz });
 
-      // Variety: random scale, rotation, tiers, and 5-bark & 5-foliage selection
+      // Biome-tailored bark & foliage selection
       const scaleRand = this.chunkHash(this.chunkX, this.chunkZ, i * 13 + 307);
       const scale = 0.8 + scaleRand * 0.7;
       const rotY = scaleRand * Math.PI * 2;
       const tierCount = scaleRand > 0.6 ? 4 : scaleRand > 0.25 ? 3 : 2;
 
-      const barkIdx = Math.floor(scaleRand * 100) % 5;
-      const folIdx = Math.floor(scaleRand * 300 + 7) % 5;
+      let barkIdx = Math.floor(scaleRand * 100) % 5;
+      let folIdx = Math.floor(scaleRand * 300 + 7) % 5;
+
+      if (biome === 'meadow') {
+        barkIdx = (Math.floor(scaleRand * 10) % 2); // 0 or 1 (oak/birch)
+        folIdx = (Math.floor(scaleRand * 10) % 2); // 0 or 1 (lush emerald)
+      } else if (biome === 'forest') {
+        barkIdx = 2 + (Math.floor(scaleRand * 10) % 2); // 2 or 3 (dark pine/mossy)
+        folIdx = 2 + (Math.floor(scaleRand * 10) % 2); // 2 or 3 (deep spruce)
+      } else if (biome === 'swamp') {
+        barkIdx = 4; // Charred dark oak
+        folIdx = 4; // Spectral olive
+      } else if (biome === 'alpine') {
+        barkIdx = 2;
+        folIdx = 3;
+      }
 
       this.mergeRealisticTree(wx, wy, wz, scale, rotY, tierCount, barkIdx, folIdx, floraBuckets);
     }
 
-    // 3. Roadside Lantern Posts
-    if (this.chunkZ % 3 === 0) {
+    // 3. Alpine Boulders & Crags
+    if (biome === 'alpine' || biome === 'snow') {
+      const bCount = this.chunkHash(this.chunkX, this.chunkZ, 701) > 0.5 ? 2 : 1;
+      for (let b = 0; b < bCount; b++) {
+        const bx = worldStartX + 2.0 + this.chunkHash(this.chunkX, this.chunkZ, b * 17 + 801) * (this.size - 4.0);
+        const bz = worldStartZ + 2.0 + this.chunkHash(this.chunkX, this.chunkZ, b * 19 + 802) * (this.size - 4.0);
+        if (this.noise.getTrailDistance(bx, bz) < 4.0) continue;
+        const by = this.noise.getElevation(bx, bz);
+        const bScale = 0.8 + this.chunkHash(this.chunkX, this.chunkZ, b * 23 + 803) * 1.4;
+        this.mergeBoulder(bx, by, bz, bScale, floraBuckets);
+      }
+    }
+
+    // 4. Seeded Roadside Timber Lantern Posts
+    if (Math.abs(this.chunkZ) % 2 === 0) {
       const wz = worldStartZ + 8;
       const trailX = this.noise.getTrailCenterX(wz);
-      const postX = trailX + 2.5;
+      const postX = trailX + 2.6;
       if (postX >= worldStartX && postX < worldStartX + this.size) {
         const postY = this.noise.getElevation(postX, wz);
         this.mergeTrailPost(postX, postY, wz, floraBuckets);
       }
+    }
+  }
+
+  private mergeBoulder(
+    x: number,
+    y: number,
+    z: number,
+    scale: number,
+    floraBuckets: Record<string, { positions: number[]; uvs: number[]; normals: number[] }>
+  ): void {
+    const stone = floraBuckets.stone;
+    const sides = 6;
+    const r = 1.2 * scale;
+    const h = 1.6 * scale;
+
+    for (let i = 0; i < sides; i++) {
+      const a0 = (i / sides) * Math.PI * 2;
+      const a1 = ((i + 1) / sides) * Math.PI * 2;
+      const x0 = x + Math.cos(a0) * r;
+      const z0 = z + Math.sin(a0) * r;
+      const x1 = x + Math.cos(a1) * r;
+      const z1 = z + Math.sin(a1) * r;
+
+      stone.positions.push(x0, y - 0.2, z0, x, y + h, z, x1, y - 0.2, z1);
+      stone.normals.push(0, 1, 0, 0, 1, 0, 0, 1, 0);
+      stone.uvs.push(0, 0, 0.5, 1, 1, 0);
     }
   }
 
@@ -446,7 +544,7 @@ export class SurfaceChunk {
     const bark = floraBuckets[`bark_${barkIdx}`];
     const foliage = floraBuckets[`foliage_${folIdx}`];
 
-    // 1. Tapered Trunk (8 Sides, Base R=0.38, Top R=0.16)
+    // 1. Tapered Trunk (8 Sides, Base R=0.36, Top R=0.16)
     const sides = 8;
     const trunkH = 9.0 * scale;
     const rBase = 0.36 * scale;
@@ -456,13 +554,11 @@ export class SurfaceChunk {
       const a0 = rotY + (i / sides) * Math.PI * 2;
       const a1 = rotY + ((i + 1) / sides) * Math.PI * 2;
 
-      // Bottom vertices
       const x0 = x + Math.cos(a0) * rBase;
       const z0 = z + Math.sin(a0) * rBase;
       const x1 = x + Math.cos(a1) * rBase;
       const z1 = z + Math.sin(a1) * rBase;
 
-      // Top vertices
       const x0_top = x + Math.cos(a0) * rTop;
       const z0_top = z + Math.sin(a0) * rTop;
       const x1_top = x + Math.cos(a1) * rTop;
@@ -478,12 +574,10 @@ export class SurfaceChunk {
       const nx1 = Math.cos(a1);
       const nz1 = Math.sin(a1);
 
-      // Triangle 1: (x0, y, z0) -> (x0_top, y + trunkH, z0_top) -> (x1, y, z1)
       bark.positions.push(x0, y - 0.2, z0, x0_top, y + trunkH, z0_top, x1, y - 0.2, z1);
       bark.normals.push(nx0, 0, nz0, nx0, 0, nz0, nx1, 0, nz1);
       bark.uvs.push(u0, v0, u0, v1, u1, v0);
 
-      // Triangle 2: (x1, y, z1) -> (x0_top, y + trunkH, z0_top) -> (x1_top, y + trunkH, z1_top)
       bark.positions.push(x1, y - 0.2, z1, x0_top, y + trunkH, z0_top, x1_top, y + trunkH, z1_top);
       bark.normals.push(nx1, 0, nz1, nx0, 0, nz0, nx1, 0, nz1);
       bark.uvs.push(u1, v0, u0, v1, u1, v1);
@@ -519,7 +613,6 @@ export class SurfaceChunk {
       const baseY = y + tOffsetY;
       const tierRot = rotY + t * 0.55;
 
-      // Outer Conical Needle Skirt (8 Sides)
       for (let i = 0; i < sides; i++) {
         const a0 = tierRot + (i / sides) * Math.PI * 2;
         const a1 = tierRot + ((i + 1) / sides) * Math.PI * 2;
@@ -528,20 +621,17 @@ export class SurfaceChunk {
         const bx1 = x + Math.cos(a1) * tR;
         const bz1 = z + Math.sin(a1) * tR;
 
-        // Front Face
         foliage.positions.push(bx0, baseY, bz0, x, apexY, z, bx1, baseY, bz1);
         const nx = Math.cos((a0 + a1) * 0.5);
         const nz = Math.sin((a0 + a1) * 0.5);
         foliage.normals.push(nx, 0.4, nz, 0, 1, 0, nx, 0.4, nz);
         foliage.uvs.push(0, 0, 0.5, 1, 1, 0);
 
-        // Double-sided backface for dense silhouette
         foliage.positions.push(bx1, baseY, bz1, x, apexY, z, bx0, baseY, bz0);
         foliage.normals.push(-nx, 0.4, -nz, 0, 1, 0, -nx, 0.4, -nz);
         foliage.uvs.push(1, 0, 0.5, 1, 0, 0);
       }
 
-      // 4 Interior Branch Quads for deep 3D foliage volume
       for (let b = 0; b < 4; b++) {
         const ba = tierRot + (b / 4) * Math.PI + Math.PI / 4;
         const bx0 = x + Math.cos(ba) * (tR * 0.85);
@@ -571,7 +661,7 @@ export class SurfaceChunk {
     const h = 2.4;
     const r = 0.09;
 
-    // 1. Vertical Timber Post (Square)
+    // Vertical Timber Post
     for (let i = 0; i < 4; i++) {
       const a0 = (i / 4) * Math.PI * 2;
       const a1 = ((i + 1) / 4) * Math.PI * 2;
@@ -598,13 +688,13 @@ export class SurfaceChunk {
       wood.uvs.push(u1, v0, u0, v1, u1, v1);
     }
 
-    // 2. Horizontal Cross Beam Support
+    // Horizontal Support Arm
     const armLen = 0.45;
     wood.positions.push(x - r, y + h - 0.2, z, x - r - armLen, y + h - 0.2, z, x - r, y + h, z);
     wood.normals.push(0, 0, 1, 0, 0, 1, 0, 0, 1);
     wood.uvs.push(0, 0, 1, 0, 0, 1);
 
-    // 3. Hanging Antique Brass Lantern Cage
+    // Hanging Brass Lantern
     const lx = x - r - armLen + 0.08;
     const ly = y + h - 0.55;
     const lz = z;
@@ -629,21 +719,23 @@ export class SurfaceChunk {
     }
   }
 
-  private buildGothicCastleLandmark(
+  private buildCitadelLandmark(
     cx: number,
     cy: number,
     cz: number,
+    rotY: number,
     floraBuckets: Record<string, { positions: number[]; uvs: number[]; normals: number[] }>
   ): void {
     const stone = floraBuckets.stone;
     const roof = floraBuckets.bark_4;
 
+    // 1. Central Keep (Octagonal Tower)
     const sides = 8;
-    const r = 4.8;
-    const h = 22.0;
+    const r = 5.2;
+    const h = 24.0;
     for (let i = 0; i < sides; i++) {
-      const a0 = (i / sides) * Math.PI * 2;
-      const a1 = ((i + 1) / sides) * Math.PI * 2;
+      const a0 = rotY + (i / sides) * Math.PI * 2;
+      const a1 = rotY + ((i + 1) / sides) * Math.PI * 2;
       const x0 = cx + Math.cos(a0) * r;
       const z0 = cz + Math.sin(a0) * r;
       const x1 = cx + Math.cos(a1) * r;
@@ -655,25 +747,137 @@ export class SurfaceChunk {
       const nz1 = Math.sin(a1);
       const u0 = (i / sides) * 4;
       const u1 = ((i + 1) / sides) * 4;
-      const v0 = 0.0;
-      const v1 = h * 0.3;
 
-      // Triangle 1: (x0, cy, z0) -> (x0, cy + h, z0) -> (x1, cy, z1)
       stone.positions.push(x0, cy, z0, x0, cy + h, z0, x1, cy, z1);
       stone.normals.push(nx0, 0, nz0, nx0, 0, nz0, nx1, 0, nz1);
-      stone.uvs.push(u0, v0, u0, v1, u1, v0);
+      stone.uvs.push(u0, 0, u0, h * 0.3, u1, 0);
 
-      // Triangle 2: (x1, cy, z1) -> (x0, cy + h, z0) -> (x1, cy + h, z1)
       stone.positions.push(x1, cy, z1, x0, cy + h, z0, x1, cy + h, z1);
       stone.normals.push(nx1, 0, nz1, nx0, 0, nz0, nx1, 0, nz1);
-      stone.uvs.push(u1, v0, u0, v1, u1, v1);
+      stone.uvs.push(u1, 0, u0, h * 0.3, u1, h * 0.3);
 
-      // Roof cone facet
-      const apexY = cy + h + 8.5;
+      // Conical Slatestone Roof
+      const apexY = cy + h + 9.0;
       roof.positions.push(x0, cy + h, z0, cx, apexY, cz, x1, cy + h, z1);
       roof.normals.push(nx0, 0.6, nz0, 0, 1, 0, nx1, 0.6, nz1);
       roof.uvs.push(0, 0, 0.5, 1, 1, 0);
     }
+
+    // 2. Four Corner Bastions (Flanking Towers)
+    const bastionOffset = 11.0;
+    const bastionR = 2.4;
+    const bastionH = 14.0;
+
+    for (let b = 0; b < 4; b++) {
+      const ba = rotY + (b / 4) * Math.PI * 2 + Math.PI / 4;
+      const bx = cx + Math.cos(ba) * bastionOffset;
+      const bz = cz + Math.sin(ba) * bastionOffset;
+
+      for (let i = 0; i < 6; i++) {
+        const a0 = (i / 6) * Math.PI * 2;
+        const a1 = ((i + 1) / 6) * Math.PI * 2;
+        const x0 = bx + Math.cos(a0) * bastionR;
+        const z0 = bz + Math.sin(a0) * bastionR;
+        const x1 = bx + Math.cos(a1) * bastionR;
+        const z1 = bz + Math.sin(a1) * bastionR;
+
+        stone.positions.push(x0, cy, z0, x0, cy + bastionH, z0, x1, cy, z1);
+        stone.normals.push(0, 0, 1, 0, 0, 1, 0, 0, 1);
+        stone.uvs.push(0, 0, 0, 2, 1, 0);
+
+        stone.positions.push(x1, cy, z1, x0, cy + bastionH, z0, x1, cy + bastionH, z1);
+        stone.normals.push(0, 0, 1, 0, 0, 1, 0, 0, 1);
+        stone.uvs.push(1, 0, 0, 2, 1, 2);
+
+        roof.positions.push(x0, cy + bastionH, z0, bx, cy + bastionH + 4.5, bz, x1, cy + bastionH, z1);
+        roof.normals.push(0, 1, 0, 0, 1, 0, 0, 1, 0);
+        roof.uvs.push(0, 0, 0.5, 1, 1, 0);
+      }
+    }
+  }
+
+  private buildWatchtowerLandmark(
+    cx: number,
+    cy: number,
+    cz: number,
+    rotY: number,
+    floraBuckets: Record<string, { positions: number[]; uvs: number[]; normals: number[] }>
+  ): void {
+    const stone = floraBuckets.stone;
+    const wood = floraBuckets.wood;
+    const w = 3.6;
+    const h = 13.0;
+
+    for (let i = 0; i < 4; i++) {
+      const a0 = rotY + (i / 4) * Math.PI * 2;
+      const a1 = rotY + ((i + 1) / 4) * Math.PI * 2;
+      const x0 = cx + Math.cos(a0) * (w * 0.7);
+      const z0 = cz + Math.sin(a0) * (w * 0.7);
+      const x1 = cx + Math.cos(a1) * (w * 0.7);
+      const z1 = cz + Math.sin(a1) * (w * 0.7);
+
+      stone.positions.push(x0, cy, z0, x0, cy + h, z0, x1, cy, z1);
+      stone.normals.push(0, 0, 1, 0, 0, 1, 0, 0, 1);
+      stone.uvs.push(0, 0, 0, 3, 1, 0);
+
+      stone.positions.push(x1, cy, z1, x0, cy + h, z0, x1, cy + h, z1);
+      stone.normals.push(0, 0, 1, 0, 0, 1, 0, 0, 1);
+      stone.uvs.push(1, 0, 0, 3, 1, 3);
+    }
+
+    // Top Timber Floor Platform
+    wood.positions.push(cx - w, cy + h - 0.2, cz - w, cx + w, cy + h - 0.2, cz - w, cx - w, cy + h - 0.2, cz + w);
+    wood.normals.push(0, 1, 0, 0, 1, 0, 0, 1, 0);
+    wood.uvs.push(0, 0, 1, 0, 0, 1);
+  }
+
+  private buildCryptGateLandmark(
+    cx: number,
+    cy: number,
+    cz: number,
+    _rotY: number,
+    floraBuckets: Record<string, { positions: number[]; uvs: number[]; normals: number[] }>
+  ): void {
+    const stone = floraBuckets.stone;
+    const w = 4.0;
+    const h = 4.8;
+
+    // Carved Portal Pillars
+    stone.positions.push(cx - w * 0.5, cy, cz, cx - w * 0.5, cy + h, cz, cx + w * 0.5, cy + h, cz);
+    stone.normals.push(0, 0, 1, 0, 0, 1, 0, 0, 1);
+    stone.uvs.push(0, 0, 0, 1, 1, 1);
+
+    stone.positions.push(cx - w * 0.5, cy, cz, cx + w * 0.5, cy + h, cz, cx + w * 0.5, cy, cz);
+    stone.normals.push(0, 0, 1, 0, 0, 1, 0, 0, 1);
+    stone.uvs.push(0, 0, 1, 1, 1, 0);
+
+    // Glowing Torch Mounts on Sides
+    this.mergeTrailPost(cx - w * 0.6, cy, cz + 0.8, floraBuckets);
+    this.mergeTrailPost(cx + w * 0.6, cy, cz + 0.8, floraBuckets);
+  }
+
+  private buildShrineLandmark(
+    cx: number,
+    cy: number,
+    cz: number,
+    _rotY: number,
+    floraBuckets: Record<string, { positions: number[]; uvs: number[]; normals: number[] }>
+  ): void {
+    const stone = floraBuckets.stone;
+    const wood = floraBuckets.wood;
+
+    // Stone Altar Block
+    stone.positions.push(cx - 0.8, cy, cz - 0.8, cx - 0.8, cy + 1.2, cz - 0.8, cx + 0.8, cy, cz - 0.8);
+    stone.normals.push(0, 0, 1, 0, 0, 1, 0, 0, 1);
+    stone.uvs.push(0, 0, 0, 1, 1, 0);
+
+    // Timber Roof Canopy
+    wood.positions.push(cx - 1.2, cy + 2.6, cz, cx + 1.2, cy + 2.6, cz, cx, cy + 3.6, cz);
+    wood.normals.push(0, 0, 1, 0, 0, 1, 0, 0, 1);
+    wood.uvs.push(0, 0, 1, 0, 0.5, 1);
+
+    // Roadside Lantern
+    this.mergeTrailPost(cx + 1.4, cy, cz, floraBuckets);
   }
 
   public dispose(): void {
@@ -726,11 +930,14 @@ export class SurfaceManager {
     this.update(0, 0, true);
   }
 
+  private lastPlayerX: number = 0;
+  private lastPlayerZ: number = 0;
+
   public setRenderRadius(radius: number): void {
-    this.renderRadius = THREE.MathUtils.clamp(radius, 2, 8);
+    this.renderRadius = THREE.MathUtils.clamp(radius, 2, 50);
     this.lastChunkX = -999999;
     this.lastChunkZ = -999999;
-    this.update(0, 0, true);
+    this.update(this.lastPlayerX, this.lastPlayerZ, true);
   }
 
   public getElevation(worldX: number, worldZ: number): number {
@@ -739,6 +946,9 @@ export class SurfaceManager {
 
   public update(playerX: number, playerZ: number, force: boolean = false): void {
     if (!this.isVisible && !force) return;
+
+    this.lastPlayerX = playerX;
+    this.lastPlayerZ = playerZ;
 
     const centerChunkX = Math.floor(playerX / this.chunkSize);
     const centerChunkZ = Math.floor(playerZ / this.chunkSize);
@@ -751,27 +961,47 @@ export class SurfaceManager {
     this.lastChunkZ = centerChunkZ;
 
     const activeKeys = new Set<string>();
+    const rSquared = (this.renderRadius + 0.5) * (this.renderRadius + 0.5);
+
+    const chunksToLoad: Array<{ cx: number; cz: number; distSq: number }> = [];
 
     for (let dz = -this.renderRadius; dz <= this.renderRadius; dz++) {
       for (let dx = -this.renderRadius; dx <= this.renderRadius; dx++) {
-        const cx = centerChunkX + dx;
-        const cz = centerChunkZ + dz;
-        const key = `${cx},${cz}`;
-        activeKeys.add(key);
+        const distSq = dx * dx + dz * dz;
+        if (distSq <= rSquared) {
+          const cx = centerChunkX + dx;
+          const cz = centerChunkZ + dz;
+          const key = `${cx},${cz}`;
+          activeKeys.add(key);
 
-        if (!this.chunks.has(key)) {
-          const chunk = new SurfaceChunk(
-            cx,
-            cz,
-            this.chunkSize,
-            this.noise,
-            this.atlas,
-            this.terrainSplatMat
-          );
-          this.chunks.set(key, chunk);
-          this.group.add(chunk.group);
+          if (!this.chunks.has(key)) {
+            chunksToLoad.push({ cx, cz, distSq });
+          }
         }
       }
+    }
+
+    // Sort closest to farthest so immediate terrain loads first
+    chunksToLoad.sort((a, b) => a.distSq - b.distSq);
+
+    for (const item of chunksToLoad) {
+      const key = `${item.cx},${item.cz}`;
+      const dist = Math.sqrt(item.distSq);
+      let segs = 24;
+      if (dist > 18) segs = 6;
+      else if (dist > 8) segs = 12;
+
+      const chunk = new SurfaceChunk(
+        item.cx,
+        item.cz,
+        this.chunkSize,
+        this.noise,
+        this.atlas,
+        this.terrainSplatMat,
+        segs
+      );
+      this.chunks.set(key, chunk);
+      this.group.add(chunk.group);
     }
 
     this.chunks.forEach((chunk, key) => {
