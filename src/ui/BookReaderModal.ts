@@ -1,6 +1,7 @@
 import { BookData, BookPage } from '../lore/BookTypes';
 import { MathRenderer } from '../lore/MathRenderer';
 import { bookGeneratorService } from '../services/BookGeneratorService';
+import { aiBookService } from '../services/aiBookService';
 
 export interface BookReaderCallbacks {
   onClose?: () => void;
@@ -8,8 +9,8 @@ export interface BookReaderCallbacks {
 
 /**
  * Authentic Medieval Two-Page Vellum Manuscript Reader Modal
- * Featuring real-time generative narrative content, active parchment shimmer loading state,
- * contextual KaTeX math gating for arcane treatises, and authentic illuminated typesetting.
+ * Featuring long-form multi-page reading (10–50 folios), background batch prefetching,
+ * subtle in-world deciphering loading states, and contextual KaTeX math gating across 18 dark fantasy genres.
  */
 export class BookReaderModal {
   private overlayEl: HTMLElement;
@@ -18,6 +19,7 @@ export class BookReaderModal {
   private currentPageIndex: number = 0; // index in book.pages (spread shows page & page+1)
   private isOpen: boolean = false;
   private isLoading: boolean = false;
+  private isAwaitingPrefetch: boolean = false;
   private errorMessage: string | null = null;
   private onCloseCallback?: () => void;
 
@@ -77,13 +79,15 @@ export class BookReaderModal {
     this.currentPageIndex = 0;
     this.isOpen = true;
     this.errorMessage = null;
+    this.isAwaitingPrefetch = false;
+
     if (onClose) {
       this.onCloseCallback = onClose;
     }
     this.overlayEl.classList.remove('hidden');
     document.exitPointerLock();
 
-    // Check if book has full content generated or needs real-time generative scribe
+    // If initial pages (1-8) aren't loaded, show full deciphering shimmer state
     if (!book.isLoaded || !book.pages || book.pages.length <= 4) {
       this.isLoading = true;
       this.render();
@@ -94,10 +98,9 @@ export class BookReaderModal {
           title: book.title,
           subtitle: book.subtitle,
           author: book.author,
-          classification: book.classification,
-          subgenre: book.subgenre,
           era: book.era,
           genre: book.genre,
+          targetPageCount: book.targetPageCount,
           seed: book.seed
         });
 
@@ -133,31 +136,59 @@ export class BookReaderModal {
     return this.isOpen;
   }
 
-  private nextPage(): void {
+  public async goToPage(targetIndex: number): Promise<void> {
     if (!this.currentBook || this.isLoading) return;
-    if (this.currentPageIndex + 2 < this.currentBook.pages.length) {
+    const maxPages = this.currentBook.targetPageCount || this.currentBook.pages.length;
+    const clamped = Math.max(0, Math.min(targetIndex - (targetIndex % 2), maxPages - 1));
+    this.currentPageIndex = clamped;
+
+    if (this.currentPageIndex >= this.currentBook.pages.length) {
+      this.isAwaitingPrefetch = true;
+      this.render();
+      await bookGeneratorService.ensurePageAvailable(this.currentBook, this.currentPageIndex);
+      this.isAwaitingPrefetch = false;
+    }
+
+    this.render();
+  }
+
+  public async nextPage(): Promise<void> {
+    if (!this.currentBook || this.isLoading) return;
+    const maxPages = this.currentBook.targetPageCount || this.currentBook.pages.length;
+    if (this.currentPageIndex + 2 < maxPages) {
       this.currentPageIndex += 2;
+
+      // If page is still being prefetched in background
+      if (this.currentPageIndex >= this.currentBook.pages.length) {
+        this.isAwaitingPrefetch = true;
+        this.render();
+        await bookGeneratorService.ensurePageAvailable(this.currentBook, this.currentPageIndex);
+        this.isAwaitingPrefetch = false;
+      }
+
       this.render();
     }
   }
 
-  private prevPage(): void {
+  public prevPage(): void {
     if (!this.currentBook || this.isLoading) return;
     if (this.currentPageIndex >= 2) {
       this.currentPageIndex -= 2;
+      this.isAwaitingPrefetch = false;
       this.render();
     }
   }
 
-  private render(): void {
+  public render(): void {
     if (!this.currentBook) return;
     const book = this.currentBook;
+    const totalPages = Math.max(book.targetPageCount || 16, book.pages.length);
 
     const fontClass = `font-${book.fontFamily || 'garamond'}`;
     const sizeClass = `size-${book.fontSize || 'regular'}`;
     const illumClass = book.layoutFormat === 'illuminated' ? 'has-illuminated-border' : '';
 
-    // 1. Loading State Spread
+    // 1. Initial Full Loading State Spread
     if (this.isLoading) {
       this.modalEl.innerHTML = `
         <div class="book-leather-binding ${fontClass} ${sizeClass}" style="border-color: ${book.coverColor || '#5a301a'};">
@@ -260,12 +291,30 @@ export class BookReaderModal {
       return;
     }
 
-    // 3. Normal Two-Page Spread
+    // 3. Normal Two-Page Spread (With In-World Prefetch Skeleton if waiting on background batch)
     const leftPage = book.pages[this.currentPageIndex] || null;
     const rightPage = book.pages[this.currentPageIndex + 1] || null;
 
     const hasPrev = this.currentPageIndex > 0;
-    const hasNext = this.currentPageIndex + 2 < book.pages.length;
+    const hasNext = this.currentPageIndex + 2 < totalPages;
+
+    // Generate jump dropdown options for the whole 10-50 page codex
+    const optionsHtml: string[] = [];
+    for (let i = 0; i < totalPages; i += 2) {
+      const p1 = i + 1;
+      const p2 = Math.min(i + 2, totalPages);
+      let label = `Folios ${p1}–${p2}`;
+      if (p1 === 1) label += ' (Half-Title & Frontispiece)';
+      else if (p1 === 3) label += ' (Title Page & Contents)';
+      else {
+        const matchingCh = book.blueprint?.chapterOutlines.find((c) => p1 >= c.pageRange[0] && p1 <= c.pageRange[1]);
+        if (matchingCh) {
+          label += ` (${matchingCh.title})`;
+        }
+      }
+      const selected = i === this.currentPageIndex ? 'selected' : '';
+      optionsHtml.push(`<option value="${i}" ${selected}>${label}</option>`);
+    }
 
     this.modalEl.innerHTML = `
       <div class="book-leather-binding ${fontClass} ${sizeClass}" style="border-color: ${book.coverColor || '#5a301a'};">
@@ -274,12 +323,12 @@ export class BookReaderModal {
 
         <div class="book-pages-spread">
           <!-- LEFT PARCHMENT PAGE -->
-          <div class="parchment-page left-page ${illumClass}">
+          <div class="parchment-page left-page ${illumClass} ${!leftPage ? 'loading-parchment-shimmer' : ''}">
             <div class="page-corner top-left">⚜</div>
             <div class="page-corner bottom-left">⚜</div>
-            ${book.isAIGenerated ? '<div class="ai-badge">✦ AI SCRIBE ✦</div>' : ''}
+            ${book.isAIGenerated ? '<div class="ai-badge">✦ AI SCRIPTORIUM ✦</div>' : ''}
             <div class="page-inner">
-              ${leftPage ? this.renderPageContent(leftPage, book, true) : ''}
+              ${leftPage ? this.renderPageContent(leftPage, book, true) : this.renderPrefetchSkeleton(this.currentPageIndex + 1)}
               <div class="page-footer">
                 <span class="page-num">${leftPage && leftPage.pageType !== 'half-title' ? leftPage.pageNumber : ''}</span>
               </div>
@@ -290,11 +339,17 @@ export class BookReaderModal {
           <div class="book-spine-crease"></div>
 
           <!-- RIGHT PARCHMENT PAGE -->
-          <div class="parchment-page right-page ${illumClass}">
+          <div class="parchment-page right-page ${illumClass} ${!rightPage && this.currentPageIndex + 1 < totalPages ? 'loading-parchment-shimmer' : ''}">
             <div class="page-corner top-right">⚜</div>
             <div class="page-corner bottom-right">⚜</div>
             <div class="page-inner">
-              ${rightPage ? this.renderPageContent(rightPage, book, false) : '<div class="blank-page-note">~ End of Volume ~</div>'}
+              ${
+                rightPage
+                  ? this.renderPageContent(rightPage, book, false)
+                  : this.currentPageIndex + 1 < totalPages
+                  ? this.renderPrefetchSkeleton(this.currentPageIndex + 2)
+                  : '<div class="blank-page-note">~ End of Volume ~</div>'
+              }
               <div class="page-footer">
                 <span class="page-num">${rightPage ? rightPage.pageNumber : ''}</span>
               </div>
@@ -306,17 +361,20 @@ export class BookReaderModal {
         <div class="book-nav-bar">
           <div class="nav-left-group">
             <button id="btn-prev-page" class="retro-btn nav-page-btn ornate-brass-btn" ${!hasPrev ? 'disabled' : ''}>
-              ◀ PREVIOUS PAGE
+              ◀ PREVIOUS
             </button>
           </div>
 
           <div class="nav-center-group">
-            <span class="page-indicator">Folios ${this.currentPageIndex + 1}–${Math.min(this.currentPageIndex + 2, book.pages.length)} of ${book.pages.length}</span>
+            <select id="select-folio-jump" class="book-folio-select" title="Jump to Folio">
+              ${optionsHtml.join('')}
+            </select>
+            <span class="page-indicator">Folios ${this.currentPageIndex + 1}–${Math.min(this.currentPageIndex + 2, totalPages)} of ${totalPages}${this.isAwaitingPrefetch ? ' (✦ Inscribing...)' : ''}</span>
           </div>
 
           <div class="nav-right-group">
             <button id="btn-next-page" class="retro-btn nav-page-btn ornate-brass-btn" ${!hasNext ? 'disabled' : ''}>
-              NEXT PAGE ▶
+              NEXT ▶
             </button>
             <button id="btn-close-book" class="retro-btn close-book-btn ornate-brass-btn">
               ✕ CLOSE (ESC)
@@ -337,6 +395,15 @@ export class BookReaderModal {
       this.nextPage();
     });
 
+    const folioSelect = this.modalEl.querySelector('#select-folio-jump') as HTMLSelectElement;
+    folioSelect?.addEventListener('change', (e) => {
+      e.stopPropagation();
+      const val = parseInt(folioSelect.value, 10);
+      if (!isNaN(val)) {
+        this.goToPage(val);
+      }
+    });
+
     this.modalEl.querySelector('#btn-close-book')?.addEventListener('click', (e) => {
       e.stopPropagation();
       this.close();
@@ -346,6 +413,21 @@ export class BookReaderModal {
       e.stopPropagation();
       this.close();
     });
+  }
+
+  private renderPrefetchSkeleton(pageNum: number): string {
+    return `
+      <div class="scribe-loading-container ghost-text-container">
+        <div class="ghost-line ghost-header"></div>
+        <div class="ghost-sub-note">Deciphering ancient folio ${pageNum}...</div>
+        <div class="ghost-line full"></div>
+        <div class="ghost-line almost"></div>
+        <div class="ghost-line med"></div>
+        <div class="ghost-line full" style="margin-top: 18px;"></div>
+        <div class="ghost-line almost"></div>
+        <div class="ghost-line short"></div>
+      </div>
+    `;
   }
 
   private renderPageContent(page: BookPage, book: BookData, _isLeft: boolean): string {
@@ -360,14 +442,14 @@ export class BookReaderModal {
       case 'frontispiece':
         return `
           <div class="page-frontispiece">
-            <div class="frontispiece-ascii">${page.content}</div>
+            <div class="frontispiece-ascii">${page.content.replace(/\n/g, '<br/>')}</div>
           </div>
         `;
 
       case 'title-page':
         return `
           <div class="page-title-page">
-            <div class="book-category-tag">${(book.genre || book.classification || 'CHRONICLE').toUpperCase()} • ${(book.subgenre || 'LORE').toUpperCase()}</div>
+            <div class="book-category-tag">${book.genre.toUpperCase()}</div>
             <h1 class="book-main-title">${book.title}</h1>
             <div class="book-subtitle">— ${book.subtitle} —</div>
             <div class="ornate-divider">❦ ════════ ❧</div>
@@ -396,7 +478,7 @@ export class BookReaderModal {
       default:
         return `
           <div class="chapter-header">${page.chapterTitle || ''}</div>
-          <div class="page-body-text ${book.layoutFormat === 'two-column' ? 'layout-two-column' : book.layoutFormat === 'verse' ? 'layout-verse' : ''}">
+          <div class="page-body-text ${book.layoutFormat === 'two-column' ? 'layout-two-column' : book.layoutFormat === 'verse' ? 'layout-verse' : book.layoutFormat === 'play-script' ? 'layout-play-script' : ''}">
             ${this.formatBodyText(page.content, book)}
           </div>
         `;
@@ -404,7 +486,7 @@ export class BookReaderModal {
   }
 
   private formatBodyText(content: string, book: BookData): string {
-    const isMathAllowed = book.isSTEM || ['ArcaneTreatise', 'Alchemy', 'Numerology', 'AstralGeometry'].includes(book.genre);
+    const isMathAllowed = aiBookService.isMathAllowedForGenre(book.genre);
     const paragraphs = content.split('\n\n');
 
     return paragraphs
@@ -419,21 +501,43 @@ export class BookReaderModal {
             return `<div class="math-display-eq">${MathRenderer.renderDisplayEquation(eq)}</div>`;
           }
 
-          if (trimmed.startsWith('[THEOREM') || trimmed.startsWith('[AXIOM') || trimmed.startsWith('[PROOF')) {
+          if (trimmed.startsWith('[THEOREM') || trimmed.startsWith('[AXIOM') || trimmed.startsWith('[PROOF') || trimmed.startsWith('[SCHEMATIC')) {
             return `<div class="math-proof-card"><div class="math-theorem-header">✦ ${trimmed} ✦</div></div>`;
           }
         }
 
-        // 2. Q.E.D. / Finis Seal
+        // 2. Playscript character dialogue handling
+        if (book.genre === 'Tragic Plays' && (trimmed.startsWith('LORD ') || trimmed.startsWith('PRINCE ') || trimmed.startsWith('QUEEN ') || trimmed.startsWith('KING ') || trimmed.startsWith('[ACT '))) {
+          if (trimmed.startsWith('[ACT ')) {
+            return `<div class="play-scene-header">${trimmed}</div>`;
+          }
+          const colonIdx = trimmed.indexOf(':');
+          if (colonIdx > 0) {
+            const speaker = trimmed.slice(0, colonIdx);
+            const line = trimmed.slice(colonIdx + 1);
+            return `<p class="play-dialogue"><strong class="play-speaker">${speaker}:</strong>${line}</p>`;
+          }
+        }
+
+        // 3. Q.E.D. / Finis Seal
         if (trimmed.includes('Q.E.D') || trimmed.includes('Quod Erat Demonstrandum') || trimmed === '[Q.E.D.]') {
           return `<div class="math-qed-badge">❦ Quod Erat Demonstrandum • Q.E.D.</div>`;
         }
 
-        // 3. Process KaTeX math if allowed, else clean text
+        // 4. Process KaTeX math if allowed, else clean text
         const processedText = isMathAllowed ? MathRenderer.renderInlineAndBlocks(trimmed) : trimmed;
 
-        // 4. Regular Paragraph with Illuminated Drop Cap on First Paragraph
-        if (idx === 0 && !trimmed.startsWith('*') && !trimmed.startsWith('•') && !trimmed.startsWith('[') && !trimmed.startsWith('$') && !trimmed.startsWith('<')) {
+        // 5. Regular Paragraph with Illuminated Drop Cap on First Paragraph
+        if (
+          idx === 0 &&
+          !trimmed.startsWith('*') &&
+          !trimmed.startsWith('•') &&
+          !trimmed.startsWith('[') &&
+          !trimmed.startsWith('$') &&
+          !trimmed.startsWith('<') &&
+          book.genre !== 'Tragic Plays' &&
+          book.genre !== 'Malediction Poetry'
+        ) {
           const firstChar = processedText.charAt(0);
           const rest = processedText.slice(1);
           return `<p class="first-paragraph"><span class="drop-cap">${firstChar}</span>${rest.replace(/\n/g, '<br/>')}</p>`;

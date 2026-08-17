@@ -10,6 +10,7 @@ import {
   PageSectionType
 } from './BookTypes';
 import { bookGeneratorService } from '../services/BookGeneratorService';
+import { aiBookService } from '../services/aiBookService';
 
 export {
   type BookData,
@@ -276,29 +277,34 @@ export class LibraryLoreGenerator {
     const coverColor = this.COVER_COLORS[Math.floor(prng() * this.COVER_COLORS.length)];
     const accentColor = this.ACCENT_COLORS[Math.floor(prng() * this.ACCENT_COLORS.length)];
 
-    const genre = bookGeneratorService.inferGenre(title, classification, subgenre);
-    const isSTEM = bookGeneratorService.isStemGenre(genre);
+    const genre = bookGeneratorService.inferDarkFantasyGenre(title);
+    const isSTEM = aiBookService.isMathAllowedForGenre(genre);
 
     const fontFamilies: BookFontFamily[] = ['garamond', 'gothic', 'scriptorium', 'crimson', 'mystic'];
     const fontSizes: BookFontSize[] = ['compact', 'regular', 'relaxed'];
 
-    const fontFamily: BookFontFamily = isSTEM ? 'crimson' : fontFamilies[Math.floor(prng() * fontFamilies.length)];
+    const fontFamily: BookFontFamily = isSTEM ? 'crimson' : genre === 'Malediction Poetry' ? 'mystic' : fontFamilies[Math.floor(prng() * fontFamilies.length)];
     const fontSize: BookFontSize = isSTEM ? 'compact' : fontSizes[Math.floor(prng() * fontSizes.length)];
 
     let layoutFormat: BookLayoutFormat = 'standard';
     let writingStyle: BookWritingStyle = 'chronicle-history';
 
-    if (isSTEM) {
-      layoutFormat = 'standard';
-      writingStyle = 'academic-treatise';
-    } else if (genre === 'DarkFantasy' || genre === 'Fiction') {
-      writingStyle = 'gothic-fiction';
-    } else if (genre === 'Philosophy') {
+    if (genre === 'Tragic Plays') {
+      layoutFormat = 'play-script';
+      writingStyle = 'dramatic-play';
+    } else if (genre === 'Malediction Poetry') {
+      layoutFormat = 'verse';
+      writingStyle = 'epic-verse';
+    } else if (genre === 'Heretical Philosophies') {
       layoutFormat = 'marginalia';
       writingStyle = 'philosophical-dialogue';
+    } else if (isSTEM) {
+      layoutFormat = 'standard';
+      writingStyle = 'academic-treatise';
     }
 
     const id = `book_${seed}_${title.toLowerCase().replace(/[^a-z0-9]/g, '_')}`;
+    const targetPageCount = 12 + Math.floor(prng() * 37); // 12 to 48 pages
 
     // Return lightweight metadata skeleton; full pages are resolved on-demand by BookGeneratorService
     return {
@@ -310,6 +316,7 @@ export class LibraryLoreGenerator {
       classification,
       subgenre,
       genre,
+      targetPageCount,
       coverColor,
       accentColor,
       fontFamily,

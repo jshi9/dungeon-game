@@ -1,14 +1,30 @@
-export type BookGenre =
-  | 'Chronicle'
-  | 'Bestiary'
-  | 'ArcaneTreatise'
-  | 'DarkFantasy'
-  | 'Historical'
-  | 'Alchemy'
-  | 'Numerology'
-  | 'AstralGeometry'
-  | 'Fiction'
-  | 'Philosophy';
+export type DarkFantasyGenre =
+  // 1. Forbidden Magic & Arcane Texts (Formulas / LaTeX Allowed)
+  | 'Necromancy Grimoires'
+  | 'Demonology Codices'
+  | 'Abyssal Gazeteers'
+  | 'Alchemical Formulae'
+  | 'Hemomancy Scrolls'
+  // 2. World Lore & Grim History (Prose Only)
+  | 'Apocalyptic Chronicles'
+  | 'Genealogies of Damned Lineages'
+  | 'Inquisition Journals'
+  | 'Monarchic Decrees'
+  | 'Mythological Cycle Books'
+  // 3. Bestiaries & Field Guides (Prose & Tactical Notes)
+  | 'Cryptid Anatomies'
+  | 'Heresiographies'
+  | 'Flora Morbida'
+  // 4. Dark Philosophy & Fiction (Atmospheric Prose & Poetry)
+  | 'Heretical Philosophies'
+  | 'Tragic Plays'
+  | 'Malediction Poetry'
+  // 5. Practical & Lost Knowledge (Technical & Cipher-Heavy)
+  | 'Architectural Layouts'
+  | 'Blacksmithing Manuals'
+  | 'Cipher Keys';
+
+export type BookGenre = DarkFantasyGenre;
 
 export type MainBookClassification =
   | 'Fiction'
@@ -31,10 +47,7 @@ export type PageSectionType =
   | 'prologue'
   | 'chapter'
   | 'epilogue'
-  | 'acknowledgments'
-  | 'appendix'
-  | 'glossary'
-  | 'author-bio';
+  | 'appendix';
 
 export type BookFontFamily =
   | 'garamond'    // Classic scholarly serif (EB Garamond / Baskerville)
@@ -53,7 +66,8 @@ export type BookLayoutFormat =
   | 'two-column'   // Two-column scholarly layout
   | 'marginalia'   // Text with scriptorium marginal glosses
   | 'illuminated'  // Decorative border frame around pages
-  | 'verse';       // Centered poetic stanzas for Epic Poetry
+  | 'verse'        // Centered poetic stanzas for Malediction Poetry
+  | 'play-script'; // Script format for Tragic Plays
 
 export type BookWritingStyle =
   | 'academic-treatise'
@@ -62,27 +76,29 @@ export type BookWritingStyle =
   | 'chronicle-history'
   | 'epic-verse'
   | 'philosophical-dialogue'
-  | 'gothic-fiction';
+  | 'gothic-fiction'
+  | 'dramatic-play';
 
-export interface BookPage {
-  pageType: PageSectionType;
-  chapterTitle: string;
-  pageNumber: number;
-  content: string;
-  headerText?: string;
-  hasMathProof?: boolean;
-  marginalNote?: string;
+export interface ChapterOutlineBeat {
+  chapterIndex: number;
+  title: string;
+  pageRange: [number, number];
+  keyBeats: string;
+  hasMath: boolean;
 }
 
-export interface BookMetadata {
+export interface BookBlueprint {
   id: string;
   title: string;
   subtitle: string;
   author: string;
   era: string;
+  genre: DarkFantasyGenre;
   classification: MainBookClassification;
   subgenre: string;
-  genre: BookGenre;
+  targetPageCount: number; // 10 to 50 pages
+  overallPremise: string;
+  chapterOutlines: ChapterOutlineBeat[];
   coverColor: string;
   accentColor: string;
   fontFamily: BookFontFamily;
@@ -93,19 +109,43 @@ export interface BookMetadata {
   seed: number;
 }
 
-export interface GeneratedBookJson {
+export interface BookPage {
+  pageType: PageSectionType;
+  chapterTitle: string;
+  pageNumber: number;
+  content: string;
+  headerText?: string;
+  hasMathProof?: boolean;
+  marginalNote?: string;
+  isLoadingPlaceholder?: boolean;
+}
+
+export interface BookMetadata {
+  id: string;
   title: string;
+  subtitle: string;
   author: string;
-  genre: BookGenre;
-  subtitle?: string;
-  era?: string;
-  summary?: string;
-  pages: string[];
+  era: string;
+  classification: MainBookClassification;
+  subgenre: string;
+  genre: DarkFantasyGenre;
+  targetPageCount: number;
+  coverColor: string;
+  accentColor: string;
+  fontFamily: BookFontFamily;
+  fontSize: BookFontSize;
+  layoutFormat: BookLayoutFormat;
+  writingStyle: BookWritingStyle;
+  isSTEM: boolean;
+  seed: number;
 }
 
 export interface BookData extends BookMetadata {
   pages: BookPage[];
   isLoaded: boolean;
+  isFullyPrefetched?: boolean;
   isAIGenerated?: boolean;
   summary?: string;
+  blueprint?: BookBlueprint;
+  prefetchedPagesCount?: number;
 }

@@ -1,37 +1,32 @@
 import {
   BookData,
-  BookGenre,
+  DarkFantasyGenre,
   BookPage,
-  GeneratedBookJson,
-  MainBookClassification,
-  BookFontFamily,
-  BookFontSize,
-  BookLayoutFormat,
-  BookWritingStyle
+  BookBlueprint,
+  ChapterOutlineBeat
 } from '../lore/BookTypes';
 import { aiConfigManager } from '../config/aiConfig';
+import { aiBookService } from './aiBookService';
+import { bookCache } from './bookCache';
 
 export interface GenerateBookParams {
   id?: string;
   title: string;
   subtitle?: string;
   author?: string;
-  classification?: MainBookClassification;
-  subgenre?: string;
+  genre?: DarkFantasyGenre;
   era?: string;
-  genre?: BookGenre;
   seed?: number | string;
-  pageCount?: number;
+  targetPageCount?: number;
   forceRefresh?: boolean;
 }
 
 export class BookGeneratorService {
   private static instance: BookGeneratorService;
-  private memoryCache: Map<string, BookData> = new Map();
+  private activePrefetchJobs: Set<string> = new Set();
+  private pageWaiters: Map<string, Array<() => void>> = new Map();
 
-  private constructor() {
-    this.restoreCacheFromStorage();
-  }
+  private constructor() {}
 
   public static getInstance(): BookGeneratorService {
     if (!BookGeneratorService.instance) {
@@ -40,597 +35,564 @@ export class BookGeneratorService {
     return BookGeneratorService.instance;
   }
 
-  private getCacheKey(id?: string, title?: string): string {
-    return (id || title || 'unknown_book').toLowerCase().replace(/[^a-z0-9]/g, '_');
-  }
-
-  private restoreCacheFromStorage(): void {
-    try {
-      const keys = Object.keys(localStorage);
-      for (const k of keys) {
-        if (k.startsWith('retro3d_book_cache_')) {
-          const raw = localStorage.getItem(k);
-          if (raw) {
-            const data: BookData = JSON.parse(raw);
-            this.memoryCache.set(data.id, data);
-            this.memoryCache.set(this.getCacheKey(undefined, data.title), data);
-          }
-        }
-      }
-    } catch {}
-  }
-
-  private saveToStorage(book: BookData): void {
-    try {
-      const cacheKey = `retro3d_book_cache_${this.getCacheKey(book.id, book.title)}`;
-      localStorage.setItem(cacheKey, JSON.stringify(book));
-    } catch {}
-  }
-
-  public getCachedBook(id?: string, title?: string): BookData | null {
-    if (id && this.memoryCache.has(id)) {
-      return this.memoryCache.get(id)!;
-    }
-    const titleKey = this.getCacheKey(id, title);
-    if (this.memoryCache.has(titleKey)) {
-      return this.memoryCache.get(titleKey)!;
-    }
-    return null;
-  }
-
-  /**
-   * Generates a complete book using configured AI provider or in-universe procedural fallback.
-   */
+  // =========================================================================
+  // MAIN ENTRY POINT: GENERATE OR LOAD LONG-FORM BOOK (10–50 PAGES)
+  // =========================================================================
   public async generateBook(params: GenerateBookParams): Promise<BookData> {
-    const cacheKey = this.getCacheKey(params.id, params.title);
+    const title = params.title || 'The Untitled Volume';
+    const numSeed = typeof params.seed === 'number' ? params.seed : this.hashString(title + (params.seed || ''));
+    const genre = params.genre || this.inferDarkFantasyGenre(title);
+    const author = params.author || this.generateAuthorName(numSeed);
+    const era = params.era || this.generateEra(numSeed);
+    const id = params.id || `book_${this.sanitizeKey(title)}`;
 
-    // 1. Check Caches unless forceRefresh is set
+    // 1. Check persistent cache
     if (!params.forceRefresh) {
-      const cached = this.getCachedBook(params.id, params.title);
+      const cached = await bookCache.getBookAsync(id);
       if (cached && cached.isLoaded && cached.pages.length > 0) {
+        if (!cached.isFullyPrefetched && cached.pages.length < cached.targetPageCount) {
+          this.triggerBackgroundPrefetch(cached);
+        }
         return cached;
       }
     }
 
-    const title = params.title || 'The Untitled Volume';
-    const numSeed = typeof params.seed === 'number' ? params.seed : this.hashString(title + (params.seed || ''));
-    const genre = params.genre || this.inferGenre(title, params.classification, params.subgenre);
-    const classification = params.classification || this.inferClassification(genre);
-    const subgenre = params.subgenre || genre;
-    const author = params.author || this.generateAuthorName(numSeed);
-    const era = params.era || this.generateEra(numSeed);
-    const id = params.id || `book_${this.getCacheKey(undefined, title)}`;
+    // 2. Determine target page count (10 to 50 pages)
+    const targetPageCount = params.targetPageCount || this.calculateTargetPageCount(numSeed);
 
-    const isSTEM = this.isStemGenre(genre);
-
-    let generatedJson: GeneratedBookJson | null = null;
+    // 3. Tier 1: Generate or Load Blueprint
+    let blueprint = bookCache.getBlueprint(id);
     let isAIGenerated = false;
 
-    // 2. Attempt Real-Time AI Generation if API key is active
-    if (aiConfigManager.hasActiveKey()) {
-      try {
-        generatedJson = await this.callAIProvider(title, author, genre, era, params.pageCount || 4, isSTEM);
-        isAIGenerated = true;
-      } catch (err) {
-        console.warn('[BookGeneratorService] AI generation encountered error, falling back to Scriptorium Weaver:', err);
+    if (!blueprint) {
+      if (aiConfigManager.hasActiveKey()) {
+        try {
+          blueprint = await aiBookService.generateBlueprint(title, author, genre, era, targetPageCount);
+          isAIGenerated = true;
+        } catch (err) {
+          console.warn('[BookGeneratorService] AI Blueprint generation failed, using procedural blueprint:', err);
+        }
       }
+
+      if (!blueprint) {
+        blueprint = this.createProceduralBlueprint(id, title, author, genre, era, targetPageCount, numSeed);
+      }
+      bookCache.saveBlueprint(blueprint);
     }
 
-    // 3. Fallback to In-Universe Scriptorium Weaver
-    if (!generatedJson || !generatedJson.pages || generatedJson.pages.length === 0) {
-      generatedJson = this.generateProceduralLore(title, author, genre, era, numSeed, params.pageCount || 4, isSTEM);
-      isAIGenerated = false;
-    }
+    // 4. Generate Initial Batch (Pages 1 to 4 front matter + Pages 5 to 8 initial chapter folios)
+    const initialPages = await this.generateInitialPages(blueprint, isAIGenerated, numSeed);
 
-    // 4. Assemble BookData with structured manuscript pages
-    const bookData: BookData = this.assembleBookData({
+    const isMathAllowed = aiBookService.isMathAllowedForGenre(genre);
+
+    const bookData: BookData = {
       id,
-      title: generatedJson.title || title,
-      subtitle: generatedJson.subtitle || params.subtitle || `A Chronicle of ${genre}`,
-      author: generatedJson.author || author,
-      era: generatedJson.era || era,
-      classification,
-      subgenre,
-      genre,
-      summary: generatedJson.summary,
+      title: blueprint.title,
+      subtitle: blueprint.subtitle,
+      author: blueprint.author,
+      era: blueprint.era,
+      genre: blueprint.genre,
+      classification: blueprint.classification,
+      subgenre: blueprint.subgenre,
+      targetPageCount: blueprint.targetPageCount,
+      coverColor: blueprint.coverColor,
+      accentColor: blueprint.accentColor,
+      fontFamily: blueprint.fontFamily,
+      fontSize: blueprint.fontSize,
+      layoutFormat: blueprint.layoutFormat,
+      writingStyle: blueprint.writingStyle,
+      isSTEM: isMathAllowed,
       seed: numSeed,
-      isSTEM,
+      blueprint,
+      pages: initialPages,
+      isLoaded: true,
+      isFullyPrefetched: initialPages.length >= blueprint.targetPageCount,
       isAIGenerated,
-      pageStrings: generatedJson.pages
-    });
+      prefetchedPagesCount: initialPages.length
+    };
 
-    // 5. Save to Caches
-    this.memoryCache.set(id, bookData);
-    this.memoryCache.set(cacheKey, bookData);
-    this.saveToStorage(bookData);
+    bookCache.saveBook(bookData);
+
+    // 5. Trigger Tier 2: Background Batch Prefetching for remaining pages
+    if (bookData.pages.length < bookData.targetPageCount) {
+      this.triggerBackgroundPrefetch(bookData);
+    }
 
     return bookData;
   }
 
   // =========================================================================
-  // AI PROVIDER DISPATCHER
+  // TIER 1: INITIAL PAGES BUILDER (Pages 1–8)
   // =========================================================================
-  private async callAIProvider(
-    title: string,
-    author: string,
-    genre: BookGenre,
-    era: string,
-    pageCount: number,
-    isSTEM: boolean
-  ): Promise<GeneratedBookJson> {
-    const provider = aiConfigManager.getProvider();
-    const apiKey = aiConfigManager.getApiKey();
-    const model = aiConfigManager.getModel();
-    const endpoint = aiConfigManager.getEndpoint();
-
-    const systemPrompt = this.buildSystemPrompt(genre, isSTEM, pageCount);
-    const userPrompt = `Generate a complete in-world book titled "${title}". Author: "${author}". Historical Era: "${era}". Genre: "${genre}". Required Pages: ${pageCount}.`;
-
-    if (provider === 'gemini') {
-      return this.callGemini(apiKey, model, systemPrompt, userPrompt);
-    } else if (provider === 'openai' || provider === 'groq') {
-      return this.callOpenAICompatible(apiKey, model, provider, endpoint, systemPrompt, userPrompt);
-    } else if (provider === 'custom' && endpoint) {
-      return this.callCustomEndpoint(endpoint, apiKey, systemPrompt, userPrompt);
-    }
-
-    // Default to Gemini
-    return this.callGemini(apiKey, model, systemPrompt, userPrompt);
-  }
-
-  private buildSystemPrompt(genre: BookGenre, isSTEM: boolean, pageCount: number): string {
-    const mathDirective = isSTEM
-      ? `This book belongs to the "${genre}" academic discipline. You MAY include authentic, elegant LaTeX mathematical expressions (using $$ for display equations or $ for inline math) such as geometric proofs, alchemical balances, or astral matrices where appropriate.`
-      : `CRITICAL RULE: This is a narrative "${genre}" volume (Tales, Chronicles, Lore, Bestiary, or History). It MUST CONTAIN 100% NATURAL, RICH, ATMOSPHERIC DARK FANTASY PROSE. DO NOT USE ANY LATEX, MATH FORMULAS, OR EQUATIONS IN THIS BOOK.`;
-
-    return `You are the Grand Arch-Scribe of the Imperial Citadel Library in a 2000s retro dark fantasy realm.
-Your task is to author a coherent, atmospheric, beautifully written manuscript based on the book's title and genre.
-
-${mathDirective}
-
-Each page in the "pages" array should contain 2 to 3 substantive paragraphs of immersive in-world lore, dialogue, historical accounts, or mystical treatises (approx 120-180 words per page).
-Provide exactly ${pageCount} pages that tell a continuous, engaging story or treatise across:
-- Page 1: Foundational premise, historical context, or ominous beginning.
-- Page 2: Rising tension, expeditions, deeper discoveries, or core methodology.
-- Page 3: The crucible, encounter, revelation, or esoteric climax.
-- Page 4: Archival conclusion, philosophical resolution, or warnings to posterity.
-
-Respond ONLY with valid JSON matching this exact structure:
-{
-  "title": "Title of the Book",
-  "subtitle": "Poetic Subtitle",
-  "author": "Author Name",
-  "genre": "${genre}",
-  "summary": "1-2 sentence archival summary",
-  "pages": [
-    "Page 1 paragraph text...",
-    "Page 2 paragraph text...",
-    "Page 3 paragraph text...",
-    "Page 4 paragraph text..."
-  ]
-}`;
-  }
-
-  private async callGemini(
-    apiKey: string,
-    modelName: string,
-    systemPrompt: string,
-    userPrompt: string
-  ): Promise<GeneratedBookJson> {
-    const model = modelName || 'gemini-1.5-flash';
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 12000);
-
-    try {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        signal: controller.signal,
-        body: JSON.stringify({
-          system_instruction: {
-            parts: [{ text: systemPrompt }]
-          },
-          contents: [
-            {
-              role: 'user',
-              parts: [{ text: userPrompt }]
-            }
-          ],
-          generationConfig: {
-            temperature: 0.8,
-            topP: 0.95,
-            response_mime_type: 'application/json'
-          }
-        })
-      });
-
-      clearTimeout(timeoutId);
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Gemini API HTTP ${response.status}: ${errorText}`);
-      }
-
-      const json = await response.json();
-      const text = json.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (!text) throw new Error('Empty response from Gemini API');
-
-      return JSON.parse(text) as GeneratedBookJson;
-    } finally {
-      clearTimeout(timeoutId);
-    }
-  }
-
-  private async callOpenAICompatible(
-    apiKey: string,
-    modelName: string,
-    provider: 'openai' | 'groq',
-    customEndpoint: string,
-    systemPrompt: string,
-    userPrompt: string
-  ): Promise<GeneratedBookJson> {
-    let url = customEndpoint;
-    if (!url) {
-      url = provider === 'groq'
-        ? 'https://api.groq.com/openai/v1/chat/completions'
-        : 'https://api.openai.com/v1/chat/completions';
-    }
-
-    const model = modelName || (provider === 'groq' ? 'llama-3.1-8b-instant' : 'gpt-4o-mini');
-
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 12000);
-
-    try {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`
-        },
-        signal: controller.signal,
-        body: JSON.stringify({
-          model,
-          temperature: 0.8,
-          response_format: { type: 'json_object' },
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: userPrompt }
-          ]
-        })
-      });
-
-      clearTimeout(timeoutId);
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`${provider.toUpperCase()} API HTTP ${response.status}: ${errorText}`);
-      }
-
-      const json = await response.json();
-      const content = json.choices?.[0]?.message?.content;
-      if (!content) throw new Error('Empty response from API');
-
-      return JSON.parse(content) as GeneratedBookJson;
-    } finally {
-      clearTimeout(timeoutId);
-    }
-  }
-
-  private async callCustomEndpoint(
-    endpoint: string,
-    apiKey: string,
-    systemPrompt: string,
-    userPrompt: string
-  ): Promise<GeneratedBookJson> {
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
-
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ systemPrompt, userPrompt })
-    });
-
-    if (!response.ok) {
-      throw new Error(`Custom endpoint HTTP ${response.status}`);
-    }
-
-    return (await response.json()) as GeneratedBookJson;
-  }
-
-  // =========================================================================
-  // INTELLIGENT PROCEDURAL SCRIPTORIUM WEAVER (Deterministic Offline Scribe)
-  // =========================================================================
-  private generateProceduralLore(
-    title: string,
-    author: string,
-    genre: BookGenre,
-    era: string,
-    seed: number,
-    pageCount: number,
-    isSTEM: boolean
-  ): GeneratedBookJson {
-    const prng = this.createPrng(seed);
-
-    const titleKeywords = this.extractTitleKeywords(title);
-    const primaryConcept = titleKeywords[0] || 'the Unspoken Mystery';
-    const secondaryConcept = titleKeywords[1] || 'the Elder Realm';
-
-    const locations = ['the lower catacombs', 'the Solstice Spire', 'the Whispering Crypts', 'the Iron Vault of Veritas', 'the Sunken Citadel'];
-    const location = locations[Math.floor(prng() * locations.length)];
-
-    const pages: string[] = [];
-
-    if (isSTEM) {
-      // Arcane Treatise / Alchemy / Astral Geometry
-      pages.push(
-        `It is the fundamental axiom of ${primaryConcept} that all observable matter resonates with an underlying etheric harmonic. In ${location}, prior to the great reformation of ${era}, natural philosophers posited that every spatial volume possesses an intrinsic flux.\n\n` +
-        `When the boundary conditions are subjected to harmonic convergence, the celestial gradient establishes equilibrium:\n\n` +
-        `$$\\oint_{\\partial \\Omega} \\nabla \\Psi \\cdot d\\mathbf{S} = \\lambda \\int_{\\Omega} \\rho(\\mathbf{r}) \\, dV$$\n\n` +
-        `Here $\\Psi$ represents the astral potential while $\\lambda$ denotes the sacred resonance coefficient observed across the northern obsidian spires.`
-      );
-
-      pages.push(
-        `Upon applying the transformation matrices of ${secondaryConcept}, the perturbation expansion yields distinct eigenmodes. Observations recorded within the high observatory demonstrate that spectral divergence remains bounded under continuous curvature.\n\n` +
-        `$$\\mathbf{M}_{\\kappa} = \\begin{pmatrix} \\cos \\theta & -\\sin \\theta & 0 \\\\ \\sin \\theta & \\cos \\theta & 0 \\\\ 0 & 0 & e^{-\\alpha t} \\end{pmatrix}$$\n\n` +
-        `Thus, the dissipation of etheric tension occurs exponentially along the tertiary axis, affirming the theorem of celestial conservation first inscribed by Master ${author}.`
-      );
-
-      pages.push(
-        `The alchemical distillation of these principles requires meticulous crucible containment. When metallic salts are exposed to polarized moonlight at the solstice zenith, the latent transmutation energy attains critical resonance:\n\n` +
-        `$$\\Delta G^{\\circ} = -R T \\ln \\mathcal{K}_{\\mathrm{trans}} + \\hbar \\omega_{\\mathrm{astral}}$$\n\n` +
-        `Measurements confirmed across four consecutive lunar alignments exhibited an empirical error margin below three parts in ten thousand, establishing this proof beyond dispute.`
-      );
-
-      pages.push(
-        `Let all subsequent scholars and apprentices take heed: while the mathematical scaffolding of ${title} remains unyielding, improper invocation of these field invariants risks catastrophic planar collapse.\n\n` +
-        `We leave these theorems sealed within the Great Citadel Archives for the preservation of truth across all forthcoming eras.\n\n` +
-        `❦ Quod Erat Demonstrandum • Inscribed by ${author}.`
-      );
-    } else {
-      // Pure Narrative Prose (Chronicle, Bestiary, DarkFantasy, Historical, Fiction, Philosophy)
-      pages.push(
-        `The earliest records of ${primaryConcept} were carved into the damp slate of ${location} long before stone towers crowned the northern crags. In those forgotten years of ${era}, the wind carried whispers across the mist-shrouded valleys, speaking of ancient covenants struck between man and shadow.\n\n` +
-        `Travellers journeying along the Old King's Highway would often speak of solitary lights flickering high among the pine ridges, where no hearth or fortress had ever been raised. It was said that whoever sought the truth of ${secondaryConcept} would find their footsteps inexorably drawn toward the deep forest barrows.`
-      );
-
-      pages.push(
-        `By the time Master ${author} reached the border marches, the autumn rains had turned the logging trails into black mire. Deep within the ruined sanctuary, amongst moss-choked flagstones and rusted iron braziers, lay the first unmistakable signs of the ancient congregation.\n\n` +
-        `There, etched into the lintel above the vault, were names belonging to lineages long thought extinguished. The air grew heavy with the scent of ozone and crushed juniper, and every shadow seemed to cast its gaze upon the intruder.`
-      );
-
-      pages.push(
-        `In the darkest hours before the false dawn, the true nature of ${title} revealed itself with terrible clarity. The vault doors, forged from star-fallen iron and bound with brass rivets, opened without sound to reveal an abyss bathed in pale silver phosphorescence.\n\n` +
-        `Neither sword nor shield could stay the dread that settled over the expedition. Those who ventured beyond the threshold returned changed, their voices reduced to dry whispers and their eyes bearing the reflection of constellations that no living astronomer had ever charted.`
-      );
-
-      pages.push(
-        `Let this volume stand as a solemn testament to what transpired beneath the roots of the world. The chronicle of ${primaryConcept} is not merely a tale of stone and sorcery, but a warning to all who dare awaken what the ancients chose to bury.\n\n` +
-        `Preserve these folios under lock and seal, and let no candle burn near these pages when the new moon rises over the citadel spires.\n\n` +
-        `— Recorded by ${author}, Master Chronicler.`
-      );
-    }
-
-    return {
-      title,
-      subtitle: `A Narrative Account of ${genre}`,
-      author,
-      genre,
-      era,
-      summary: `An authentic ${genre} manuscript chronicling ${primaryConcept} and the mysteries of ${secondaryConcept}.`,
-      pages: pages.slice(0, pageCount)
-    };
-  }
-
-  // =========================================================================
-  // MANUSCRIPT SPREAD ASSEMBLER
-  // =========================================================================
-  private assembleBookData(params: {
-    id: string;
-    title: string;
-    subtitle: string;
-    author: string;
-    era: string;
-    classification: MainBookClassification;
-    subgenre: string;
-    genre: BookGenre;
-    summary?: string;
-    seed: number;
-    isSTEM: boolean;
-    isAIGenerated: boolean;
-    pageStrings: string[];
-  }): BookData {
-    const prng = this.createPrng(params.seed);
-
-    const coverColors = ['#4a1c14', '#1f2e24', '#1c2838', '#382212', '#2d1838', '#3b2f1e', '#1c1c24'];
-    const accentColors = ['#d4af37', '#c29b38', '#b8860b', '#cd7f32', '#997a3d', '#aa823a'];
-    const coverColor = coverColors[Math.floor(prng() * coverColors.length)];
-    const accentColor = accentColors[Math.floor(prng() * accentColors.length)];
-
-    const fontFamilies: BookFontFamily[] = ['garamond', 'gothic', 'scriptorium', 'crimson', 'mystic'];
-    const fontSizes: BookFontSize[] = ['compact', 'regular', 'relaxed'];
-
-    const fontFamily: BookFontFamily = params.isSTEM ? 'crimson' : fontFamilies[Math.floor(prng() * fontFamilies.length)];
-    const fontSize: BookFontSize = params.isSTEM ? 'compact' : fontSizes[Math.floor(prng() * fontSizes.length)];
-
-    let layoutFormat: BookLayoutFormat = 'standard';
-    let writingStyle: BookWritingStyle = 'chronicle-history';
-
-    if (params.isSTEM) {
-      layoutFormat = 'standard';
-      writingStyle = 'academic-treatise';
-    } else if (params.genre === 'DarkFantasy' || params.genre === 'Fiction') {
-      layoutFormat = 'standard';
-      writingStyle = 'gothic-fiction';
-    } else if (params.genre === 'Philosophy') {
-      layoutFormat = 'marginalia';
-      writingStyle = 'philosophical-dialogue';
-    }
-
+  private async generateInitialPages(
+    blueprint: BookBlueprint,
+    isAIGenerated: boolean,
+    seed: number
+  ): Promise<BookPage[]> {
     const pages: BookPage[] = [];
 
-    // 1. Half-Title (Folio 1)
+    // Page 1: Half-Title
     pages.push({
       pageType: 'half-title',
       chapterTitle: '',
       pageNumber: 1,
-      content: `\n\n\n\n\n\n${params.title.toUpperCase()}\n\n❦`
+      content: `\n\n\n\n\n\n${blueprint.title.toUpperCase()}\n\n❦`
     });
 
-    // 2. Frontispiece (Folio 2)
+    // Page 2: Frontispiece
     pages.push({
       pageType: 'frontispiece',
       chapterTitle: 'FRONTISPIECE',
       pageNumber: 2,
-      content: `═══════════════════════════════\n    IMPERIAL CITADEL SCRIPTORIUM\n    ARCHIVAL CATALOGUE REGISTRY\n═══════════════════════════════\n\nPreserved in the Solstice Vaults\nDiscipline: ${params.genre.toUpperCase()}\nEra: ${params.era.toUpperCase()}\n\n❦ Omnia Vincit Veritas ❦`
+      content: `═══════════════════════════════\n    IMPERIAL CITADEL SCRIPTORIUM\n    ARCHIVAL CATALOGUE REGISTRY\n═══════════════════════════════\n\nPreserved in the Solstice Vaults\nDiscipline: ${blueprint.genre.toUpperCase()}\nEra: ${blueprint.era.toUpperCase()}\nTarget Length: ${blueprint.targetPageCount} Folios\n\n❦ Omnia Vincit Veritas ❦`
     });
 
-    // 3. Title Page (Folio 3)
+    // Page 3: Title Page
     pages.push({
       pageType: 'title-page',
       chapterTitle: 'TITLE PAGE',
       pageNumber: 3,
-      content: `${params.title.toUpperCase()}\n\n— ${params.subtitle} —\n\n\nBY\n${params.author.toUpperCase()}\n\n\nARCHIVAL GENRE: ${params.genre.toUpperCase()}\nACADEMIC DISCIPLINE: ${params.subgenre.toUpperCase()}\n\n\n❦ ══════════════════ ❧\nPUBLISHED BY THE ORDER OF THE COMPASS\nARCHIVES OF ALDERIA • ${params.era.toUpperCase()}`
+      content: `${blueprint.title.toUpperCase()}\n\n— ${blueprint.subtitle} —\n\n\nBY\n${blueprint.author.toUpperCase()}\n\n\nARCHIVAL GENRE: ${blueprint.genre.toUpperCase()}\nACADEMIC DISCIPLINE: ${blueprint.subgenre.toUpperCase()}\n\n\n❦ ══════════════════ ❧\nPUBLISHED UNDER THE SEAL OF THE ARCH-LIBRARIAN\nARCHIVES OF ALDERIA • ${blueprint.era.toUpperCase()}`
     });
 
-    // 4. Archival Notice / Copyright (Folio 4)
+    // Page 4: Archival Notice & Table of Contents
+    const tocLines = blueprint.chapterOutlines.map((c) => `• Chapter ${this.toRoman(c.chapterIndex)}: ${c.title} (Folios ${c.pageRange[0]}–${c.pageRange[1]})`).join('\n');
     pages.push({
       pageType: 'copyright',
-      chapterTitle: 'ARCHIVAL NOTICE',
+      chapterTitle: 'ARCHIVAL RECORD & CONTENTS',
       pageNumber: 4,
-      content: `ARCHIVAL REPOSITORY OF ALDERIA\nPreserved under the Perpetual Edict of the Imperial Council.\n\nManuscript Registry: ARCH-${1000 + (params.seed % 9000)}-AL-${10 + (params.seed % 89)}\nClassification: ${params.genre}\nCatalog Location: Imperial Bay ${1 + (params.seed % 8)}, Shelf ${1 + (params.seed % 6)}\nHistorical Era: ${params.era}\n\nHand-inscribed upon Linen Vellum with Iron-Gall Ink.\nBound in Calfskin with Brass Hardware.\n\n${params.isAIGenerated ? '✦ Transcribed via Real-Time Scriptorium AI Intelligence ✦' : '✦ Transcribed via Canonical Archival Codex ✦'}`
+      content: `ARCHIVAL REPOSITORY OF ALDERIA\nRegistry Code: ARCH-${1000 + (seed % 9000)}-${blueprint.genre.slice(0, 3).toUpperCase()}-${10 + (seed % 89)}\n\nTABLE OF CONTENTS:\n${tocLines}\n\n${isAIGenerated ? '✦ Transcribed via Real-Time Scriptorium AI Intelligence ✦' : '✦ Canonical Scriptorium Codex ✦'}`
     });
 
-    // 5. Narrative Chapter Pages (Folios 5..N)
-    const chapterRomanNumerals = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII'];
-    let pageNum = 5;
+    // Pages 5 to 8 (Opening Chapter Pages)
+    const initialBatchEnd = Math.min(8, blueprint.targetPageCount);
+    let chapterPages: string[] = [];
 
-    for (let i = 0; i < params.pageStrings.length; i++) {
-      const roman = chapterRomanNumerals[i] || `${i + 1}`;
-      const pageContent = params.pageStrings[i];
-
-      pages.push({
-        pageType: 'chapter',
-        chapterTitle: `CHAPTER ${roman}`,
-        pageNumber: pageNum,
-        content: pageContent,
-        headerText: `${params.title.toUpperCase()} • FOLIO ${pageNum}`,
-        hasMathProof: params.isSTEM
-      });
-      pageNum++;
+    if (isAIGenerated && aiConfigManager.hasActiveKey()) {
+      try {
+        const batch = await aiBookService.generatePageBatch(blueprint, 5, initialBatchEnd, 'Opening folios', blueprint.chapterOutlines[0]);
+        chapterPages = batch.pages;
+      } catch (err) {
+        console.warn('[BookGeneratorService] Initial AI page batch failed, using procedural weaver:', err);
+      }
     }
 
-    // 6. Epilogue (Last Folio)
-    pages.push({
-      pageType: 'epilogue',
-      chapterTitle: 'EPILOGUE: THE SEAL OF SECRETS',
-      pageNumber: pageNum,
-      content: `Thus concludes the manuscript of ${params.title}.\n\n` +
-        `Let those who hold this vellum remember that words once spoken into the dark never truly perish. ` +
-        `May the light of wisdom guide those who wander the deep archives.\n\n` +
-        `❦ Ex Libris Bibliotheca Magna • Finis ❦`,
-      headerText: `${params.title.toUpperCase()} • EPILOGUE`
+    if (chapterPages.length === 0) {
+      chapterPages = this.generateProceduralBatch(blueprint, 5, initialBatchEnd, seed);
+    }
+
+    for (let i = 0; i < chapterPages.length; i++) {
+      const pageNum = 5 + i;
+      const chOutline = blueprint.chapterOutlines.find((c) => pageNum >= c.pageRange[0] && pageNum <= c.pageRange[1]) || blueprint.chapterOutlines[0];
+      pages.push({
+        pageType: 'chapter',
+        chapterTitle: chOutline ? `CHAPTER ${this.toRoman(chOutline.chapterIndex)}: ${chOutline.title.toUpperCase()}` : `FOLIO ${pageNum}`,
+        pageNumber: pageNum,
+        content: chapterPages[i],
+        headerText: `${blueprint.title.toUpperCase()} • FOLIO ${pageNum}`,
+        hasMathProof: blueprint.isSTEM
+      });
+    }
+
+    return pages;
+  }
+
+  // =========================================================================
+  // TIER 2: BACKGROUND BATCH PREFETCHING (Pages 9..N up to 50)
+  // =========================================================================
+  public triggerBackgroundPrefetch(book: BookData): void {
+    if (this.activePrefetchJobs.has(book.id) || book.isFullyPrefetched) return;
+    this.activePrefetchJobs.add(book.id);
+
+    // Run async in background without blocking player
+    (async () => {
+      let currentEnd = book.pages.length;
+      let runningSummary = `First ${currentEnd} folios inscribed covering initial premises of ${book.title}.`;
+
+      while (currentEnd < book.targetPageCount) {
+        const batchStart = currentEnd + 1;
+        const batchEnd = Math.min(batchStart + 5, book.targetPageCount); // 6 pages per batch
+
+        const chOutline = book.blueprint?.chapterOutlines.find((c) => batchStart >= c.pageRange[0] && batchStart <= c.pageRange[1]);
+
+        let batchPages: string[] = [];
+
+        if (book.isAIGenerated && aiConfigManager.hasActiveKey() && book.blueprint) {
+          try {
+            const result = await aiBookService.generatePageBatch(
+              book.blueprint,
+              batchStart,
+              batchEnd,
+              runningSummary,
+              chOutline
+            );
+            batchPages = result.pages;
+            runningSummary = result.batchSummary;
+          } catch (err) {
+            console.warn(`[BookGeneratorService] AI Prefetch batch ${batchStart}-${batchEnd} failed, falling back to procedural weaver:`, err);
+          }
+        }
+
+        if (batchPages.length === 0 && book.blueprint) {
+          batchPages = this.generateProceduralBatch(book.blueprint, batchStart, batchEnd, book.seed + batchStart * 17);
+        }
+
+        for (let i = 0; i < batchPages.length; i++) {
+          const pageNum = batchStart + i;
+          const isEpilogue = pageNum === book.targetPageCount;
+          const currentCh = book.blueprint?.chapterOutlines.find((c) => pageNum >= c.pageRange[0] && pageNum <= c.pageRange[1]);
+
+          book.pages.push({
+            pageType: isEpilogue ? 'epilogue' : 'chapter',
+            chapterTitle: isEpilogue
+              ? 'EPILOGUE: THE SEAL OF SECRETS'
+              : currentCh
+              ? `CHAPTER ${this.toRoman(currentCh.chapterIndex)}: ${currentCh.title.toUpperCase()}`
+              : `FOLIO ${pageNum}`,
+            pageNumber: pageNum,
+            content: batchPages[i],
+            headerText: `${book.title.toUpperCase()} • FOLIO ${pageNum}`,
+            hasMathProof: book.isSTEM
+          });
+        }
+
+        book.prefetchedPagesCount = book.pages.length;
+        if (book.pages.length >= book.targetPageCount) {
+          book.isFullyPrefetched = true;
+        }
+
+        bookCache.saveBook(book);
+        currentEnd = book.pages.length;
+
+        // Notify any listeners waiting for these pages
+        this.notifyPageWaiters(book.id);
+
+        // Brief yield between batches to keep frame rate silky smooth
+        await new Promise((r) => setTimeout(r, 60));
+      }
+
+      this.activePrefetchJobs.delete(book.id);
+    })().catch((err) => {
+      console.error('[BookGeneratorService] Error in background prefetch:', err);
+      this.activePrefetchJobs.delete(book.id);
     });
+  }
+
+  public async ensurePageAvailable(book: BookData, pageNumber: number): Promise<void> {
+    if (pageNumber < book.pages.length) return;
+    if (book.isFullyPrefetched) return;
+
+    // Trigger prefetch if not active
+    this.triggerBackgroundPrefetch(book);
+
+    // Wait until the required page is prefetched
+    if (pageNumber >= book.pages.length) {
+      await new Promise<void>((resolve) => {
+        const key = `${book.id}_${pageNumber}`;
+        if (!this.pageWaiters.has(key)) {
+          this.pageWaiters.set(key, []);
+        }
+        this.pageWaiters.get(key)!.push(resolve);
+
+        // Safety timeout so modal never hangs indefinitely
+        setTimeout(resolve, 8000);
+      });
+    }
+  }
+
+  private notifyPageWaiters(bookId: string): void {
+    this.pageWaiters.forEach((callbacks, key) => {
+      if (key.startsWith(bookId)) {
+        callbacks.forEach((cb) => cb());
+        this.pageWaiters.delete(key);
+      }
+    });
+  }
+
+  // =========================================================================
+  // DETERMINISTIC PROCEDURAL WEAVER (All 18 Genres, 10–50 Pages)
+  // =========================================================================
+  private createProceduralBlueprint(
+    id: string,
+    title: string,
+    author: string,
+    genre: DarkFantasyGenre,
+    era: string,
+    targetPageCount: number,
+    seed: number
+  ): BookBlueprint {
+    const isMathAllowed = aiBookService.isMathAllowedForGenre(genre);
+
+    const chapterCount = targetPageCount <= 16 ? 3 : targetPageCount <= 30 ? 4 : 5;
+    const pagesPerChapter = Math.floor((targetPageCount - 4) / chapterCount);
+
+    const chapterOutlines: ChapterOutlineBeat[] = [];
+    let curPage = 5;
+
+    for (let c = 1; c <= chapterCount; c++) {
+      const isLast = c === chapterCount;
+      const endP = isLast ? targetPageCount : curPage + pagesPerChapter - 1;
+
+      chapterOutlines.push({
+        chapterIndex: c,
+        title: this.getChapterTitleForGenre(genre, c, isLast),
+        pageRange: [curPage, endP],
+        keyBeats: `Narrative progression through phase ${c} of ${genre}`,
+        hasMath: isMathAllowed && c % 2 === 0
+      });
+      curPage = endP + 1;
+    }
 
     return {
-      id: params.id,
-      title: params.title,
-      subtitle: params.subtitle,
-      author: params.author,
-      era: params.era,
-      classification: params.classification,
-      subgenre: params.subgenre,
-      genre: params.genre,
-      coverColor,
-      accentColor,
-      fontFamily,
-      fontSize,
-      layoutFormat,
-      writingStyle,
-      isSTEM: params.isSTEM,
-      seed: params.seed,
-      summary: params.summary,
-      pages,
-      isLoaded: true,
-      isAIGenerated: params.isAIGenerated
+      id,
+      title,
+      subtitle: `A Long-Form Codex of ${genre}`,
+      author,
+      era,
+      genre,
+      classification: this.inferClassification(genre),
+      subgenre: genre,
+      targetPageCount,
+      overallPremise: `A comprehensive manuscript examining ${title} through the lens of ${genre}.`,
+      chapterOutlines,
+      coverColor: this.getCoverColorForGenre(genre, seed),
+      accentColor: this.getAccentColorForGenre(genre, seed),
+      fontFamily: isMathAllowed ? 'crimson' : genre === 'Malediction Poetry' ? 'mystic' : 'garamond',
+      fontSize: isMathAllowed ? 'compact' : 'regular',
+      layoutFormat: genre === 'Malediction Poetry' ? 'verse' : genre === 'Tragic Plays' ? 'play-script' : 'standard',
+      writingStyle: this.inferWritingStyle(genre),
+      isSTEM: isMathAllowed,
+      seed
     };
+  }
+
+  private generateProceduralBatch(
+    blueprint: BookBlueprint,
+    startPage: number,
+    endPage: number,
+    seed: number
+  ): string[] {
+    const prng = this.createPrng(seed);
+    const pages: string[] = [];
+    const isMathAllowed = blueprint.isSTEM;
+
+    for (let p = startPage; p <= endPage; p++) {
+      const isLast = p === blueprint.targetPageCount;
+      pages.push(this.generateSingleProceduralPage(blueprint, p, isLast, isMathAllowed, prng));
+    }
+
+    return pages;
+  }
+
+  private generateSingleProceduralPage(
+    blueprint: BookBlueprint,
+    pageNum: number,
+    isLast: boolean,
+    isMathAllowed: boolean,
+    prng: () => number
+  ): string {
+    const genre = blueprint.genre;
+    const author = blueprint.author;
+    const title = blueprint.title;
+
+    if (genre === 'Tragic Plays') {
+      const act = Math.floor((pageNum - 5) / 4) + 1;
+      const scene = ((pageNum - 5) % 4) + 1;
+      return (
+        `[ACT ${this.toRoman(act)}, SCENE ${this.toRoman(scene)}]\n\n` +
+        `LORD CORVO: (Drawing the blackened dagger) Look upon the northern sky, brother. The comet bleeds across the zenith just as the seer foretold.\n\n` +
+        `PRINCE ALISTAIR: (Turning toward the iron parapet) Then our father's decree was not madness, but sanctuary. If the seal below the crypts fails before midnight, no living soul within this citadel shall witness the sunrise.\n\n` +
+        `LORD CORVO: Let the bells ring out from the high barrow. What was broken in blood can only be mended in silence.`
+      );
+    }
+
+    if (genre === 'Malediction Poetry') {
+      const stanzas = [
+        `Where the hollow shadow falls upon the basalt crest,\nThe iron ravens gather for the midnight quest.\nSeek not the silver key where living waters weep,\nFor ancient vows are broken in the sunken deep.`,
+        `Four paces past the arch of weeping granite stone,\nBeneath the seventh flagstone lies the king alone.\nLet not the torch burn red when winter winds arise,\nLest hungry eyes awaken beneath starless skies.`
+      ];
+      return stanzas.join('\n\n');
+    }
+
+    if (isMathAllowed) {
+      if (genre === 'Alchemical Formulae') {
+        return (
+          `The transmutation kinetics of ${title} require rigorous stoichiometric balancing across the crucible boundary. When starlight salts undergo sublimation in vitriol:\n\n` +
+          `$$\\Delta H_{\\mathrm{calc}} = -R \\, T \\ln \\left( \\frac{\\alpha_{\\mathrm{mercury}}}{\\beta_{\\mathrm{brimstone}}} \\right) + \\oint_{\\mathcal{C}} \\kappa_{\\mathrm{catalyst}} \\, ds$$\n\n` +
+          `Empirical distillation recorded at the solstice confirmed an equilibrium coefficient of $\\mathcal{K} = 1.414 \\times 10^{-4}$, verifying the complete dissolution of impurities.`
+        );
+      }
+
+      if (genre === 'Abyssal Gazeteers') {
+        return (
+          `The spatial curvature within the sunken rift departs sharply from Euclidean metrics. The dimensional distortion tensor along the obsidian corridor is given by:\n\n` +
+          `$$R_{\\mu \\nu} - \\frac{1}{2} R g_{\\mu \\nu} + \\Lambda_{\\mathrm{abyss}} g_{\\mu \\nu} = \\frac{8 \\pi G}{c^4} T_{\\mu \\nu}$$\n\n` +
+          `Here the manifold exhibits a non-orientable folding at an angle of $\\theta = \\frac{7\\pi}{11}$, causing compass needles to rotate in recursive logarithmic spirals.`
+        );
+      }
+
+      if (genre === 'Architectural Layouts') {
+        return (
+          `Structural load calculations for the subterranean vaulted spans beneath ${title} dictate that the pointed arches must distribute compressive vectors along the diagonal buttresses:\n\n` +
+          `$$\\sigma_{\\mathrm{vault}} = \\frac{F_{\\mathrm{dead}} \\cos \\phi}{2 \\, b \\, h} + \\int_0^L \\omega(x) \\, \\frac{x}{L} \\, dx$$\n\n` +
+          `Calculations demonstrate that mortared granite can endure an upward thrust exceeding $4.8 \\times 10^5 \\text{ N/m}^2$ prior to masonry fracture.`
+        );
+      }
+
+      if (genre === 'Cipher Keys') {
+        return (
+          `The imperial substitution grid utilizes prime factorization matrices for archival concealment. The modular decryption function is formalized as:\n\n` +
+          `$$C(m) \\equiv m^{e} \\pmod{p \\cdot q}, \\quad \\text{where } e \\cdot d \\equiv 1 \\pmod{\\phi(n)}$$\n\n` +
+          `When the rune ring is rotated through offset $k = 13$, the hidden cipher yields the exact coordinate coordinates of the inner vault.`
+        );
+      }
+
+      // Necromancy / Hemomancy math
+      return (
+        `The decay rate of bound etheric souls is governed by the sacred exponential dispersion law:\n\n` +
+        `$$\\Psi_{\\mathrm{soul}}(t) = \\Psi_0 \\, e^{-\\gamma_{\\mathrm{grave}} t} \\cos(\\omega_{\\mathrm{pulse}} t)$$\n\n` +
+        `Where $\\gamma_{\\mathrm{grave}}$ denotes the salt-warding constant inscribed by Master ${author}.`
+      );
+    }
+
+    // Default: 100% Pure Prose for Chronicles, Genealogies, Inquisition Journals, Bestiaries, Decrees, etc.
+    const themes = [
+      `The annals of ${title} recall how the eastern garrison was consumed by relentless frost during the Great Schism. Soldiers posted along the high curtain wall reported strange lights dancing above the pine canopy, moving with deliberate intent across the frozen ridges.`,
+      `In the deep cellars beneath the old fortress, inquisitors uncovered centuries-old parchments sealed with black wax. Every passage spoke of an unbroken pact that bound the ruling family to the guardians of the lower dark.`,
+      `Those who dared explore the forgotten subterranean halls returned with accounts of endless colonnades carved from seamless black basalt. No chisel marks could be found upon the stone, as though the entire labyrinth had been shaped by a single breath of primordial fire.`
+    ];
+
+    const chosenTheme = themes[Math.floor(prng() * themes.length)];
+
+    if (isLast) {
+      return (
+        `${chosenTheme}\n\n` +
+        `Thus is the record of ${title} brought to its conclusion. May those who read these folios heed the warnings transcribed herein, and let the seal remain unbroken until the end of days.\n\n` +
+        `— Transcribed by Master ${author}, Grand Scriptorium.`
+      );
+    }
+
+    return (
+      `${chosenTheme}\n\n` +
+      `As the expedition pressed deeper into the catacombs, the air grew increasingly thin and scented with old incense. Every step echoed against the vaulted ceiling, warning all within that living feet had returned to the halls of the departed.`
+    );
   }
 
   // =========================================================================
   // UTILITIES & INFERENCE HELPERS
   // =========================================================================
-  public inferGenre(title: string, classification?: string, subgenre?: string): BookGenre {
-    const t = `${title} ${classification || ''} ${subgenre || ''}`.toLowerCase();
+  public inferDarkFantasyGenre(title: string): DarkFantasyGenre {
+    const t = title.toLowerCase();
+    if (t.includes('necro') || t.includes('corpse') || t.includes('reanimat') || t.includes('soul')) return 'Necromancy Grimoires';
+    if (t.includes('demon') || t.includes('fiend') || t.includes('pact') || t.includes('summon')) return 'Demonology Codices';
+    if (t.includes('abyss') || t.includes('cosmic') || t.includes('madness') || t.includes('gazetteer')) return 'Abyssal Gazeteers';
+    if (t.includes('alchem') || t.includes('transmut') || t.includes('crucible') || t.includes('elixir')) return 'Alchemical Formulae';
+    if (t.includes('blood') || t.includes('hemo') || t.includes('sanguine') || t.includes('flesh')) return 'Hemomancy Scrolls';
+    if (t.includes('apocalypse') || t.includes('dead god') || t.includes('ruin') || t.includes('fall of')) return 'Apocalyptic Chronicles';
+    if (t.includes('lineage') || t.includes('genealog') || t.includes('house of') || t.includes('dynasty')) return 'Genealogies of Damned Lineages';
+    if (t.includes('inquisit') || t.includes('confess') || t.includes('heresy') || t.includes('purge')) return 'Inquisition Journals';
+    if (t.includes('decree') || t.includes('edict') || t.includes('monarch') || t.includes('crown')) return 'Monarchic Decrees';
+    if (t.includes('myth') || t.includes('pantheon') || t.includes('gods') || t.includes('cycle')) return 'Mythological Cycle Books';
+    if (t.includes('cryptid') || t.includes('beast') || t.includes('monster') || t.includes('anatom')) return 'Cryptid Anatomies';
+    if (t.includes('cult') || t.includes('heresiograph') || t.includes('cabal')) return 'Heresiographies';
+    if (t.includes('flora') || t.includes('herb') || t.includes('plant') || t.includes('fungi') || t.includes('morbida')) return 'Flora Morbida';
+    if (t.includes('philosoph') || t.includes('void') || t.includes('entropy') || t.includes('nihil')) return 'Heretical Philosophies';
+    if (t.includes('play') || t.includes('tragedy') || t.includes('drama') || t.includes('script')) return 'Tragic Plays';
+    if (t.includes('poem') || t.includes('verse') || t.includes('ballad') || t.includes('malediction')) return 'Malediction Poetry';
+    if (t.includes('architect') || t.includes('vault') || t.includes('masonry') || t.includes('layout')) return 'Architectural Layouts';
+    if (t.includes('smith') || t.includes('forge') || t.includes('iron') || t.includes('blade')) return 'Blacksmithing Manuals';
+    if (t.includes('cipher') || t.includes('cryptograph') || t.includes('key') || t.includes('code')) return 'Cipher Keys';
 
-    if (t.includes('algebra') || t.includes('geometry') || t.includes('calculat') || t.includes('astral') || t.includes('ephemeris') || t.includes('orbital') || t.includes('sphere')) {
-      return 'AstralGeometry';
-    }
-    if (t.includes('alchem') || t.includes('smelt') || t.includes('crucible') || t.includes('transmutation') || t.includes('elixir') || t.includes('potions')) {
-      return 'Alchemy';
-    }
-    if (t.includes('treatise') || t.includes('theorem') || t.includes('axiom') || t.includes('mechanic') || t.includes('arcane') || t.includes('optics') || t.includes('resonance')) {
-      return 'ArcaneTreatise';
-    }
-    if (t.includes('number') || t.includes('ratio') || t.includes('numerology') || t.includes('cipher') || t.includes('crypt')) {
-      return 'Numerology';
-    }
-    if (t.includes('beast') || t.includes('monster') || t.includes('dragon') || t.includes('fauna') || t.includes('flora') || t.includes('serpent') || t.includes('griffin')) {
-      return 'Bestiary';
-    }
-    if (t.includes('chronicle') || t.includes('history') || t.includes('annals') || t.includes('conquest') || t.includes('war') || t.includes('empire') || t.includes('reign')) {
-      return 'Chronicle';
-    }
-    if (t.includes('philosophy') || t.includes('truth') || t.includes('dialogue') || t.includes('doctrine') || t.includes('meditation') || t.includes('epistemology')) {
-      return 'Philosophy';
-    }
-    if (t.includes('legend') || t.includes('myth') || t.includes('tale') || t.includes('ballad') || t.includes('saga') || t.includes('shadow') || t.includes('knight')) {
-      return 'DarkFantasy';
-    }
-
-    return 'DarkFantasy';
+    return 'Apocalyptic Chronicles';
   }
 
-  public isStemGenre(genre: BookGenre): boolean {
-    return genre === 'ArcaneTreatise' || genre === 'Alchemy' || genre === 'Numerology' || genre === 'AstralGeometry';
+  private calculateTargetPageCount(seed: number): number {
+    const prng = this.createPrng(seed + 999);
+    // Returns randomized page count between 12 and 48 pages
+    return 12 + Math.floor(prng() * 37);
   }
 
-  private inferClassification(genre: BookGenre): MainBookClassification {
-    switch (genre) {
-      case 'ArcaneTreatise':
-      case 'AstralGeometry':
-      case 'Numerology':
-        return 'Breakthroughs & Theories';
-      case 'Alchemy':
-        return 'Professional Manuals';
-      case 'Chronicle':
-      case 'Historical':
-        return 'Non-Fiction';
-      case 'Bestiary':
-        return 'Academic Texts & Grammar';
-      case 'Philosophy':
-        return 'Dissertations';
-      case 'DarkFantasy':
-      case 'Fiction':
-      default:
-        return 'Tales & Mythology';
-    }
+  private getChapterTitleForGenre(genre: DarkFantasyGenre, chapterIndex: number, isLast: boolean): string {
+    if (isLast) return 'The Final Revelation & Sealed Epilogue';
+    const titles: Record<DarkFantasyGenre, string[]> = {
+      'Necromancy Grimoires': ['Preparation of the Salt-Vessels', 'Rites of the First Breath', 'Binding of Bone and Will', 'The Eternal Slumber'],
+      'Demonology Codices': ['The Hierarchy of the Pit', 'Circles of Sulfur and Salt', 'Pacts of the Silver Quill', 'The True Names'],
+      'Abyssal Gazeteers': ['The Non-Euclidean Spires', 'Tides of the Outer Void', 'The Singing Monoliths', 'The Edge of Sanity'],
+      'Alchemical Formulae': ['Purification of Raw Vitriol', 'The Great Hermetic Conjunction', 'Sublimation of Astral Salts', 'The Philosopher\'s Stone'],
+      'Hemomancy Scrolls': ['The Pulse of the Sacred Vessel', 'Sanguine Coagulation Rites', 'The Flesh-Weaver\'s Lattice', 'The Crimson Tide'],
+      'Apocalyptic Chronicles': ['The Day the Heavens Bled', 'Fall of the Golden Citadel', 'The March of the Ash Hordes', 'The Silent Desolation'],
+      'Genealogies of Damned Lineages': ['The Progenitors of Night', 'The First Corrupted Scion', 'The Curse of the Silver Manor', 'The Extinguished Bloodlines'],
+      'Inquisition Journals': ['Suspicions in the Border Marches', 'The Trials of the Black Candle', 'Confessions in Iron', 'The Cleansing Fire'],
+      'Monarchic Decrees': ['Edict of the Iron Scepter', 'Seizure of the Northern Barrows', 'The Sentence of Exile', 'The Eternal Ban'],
+      'Mythological Cycle Books': ['Dawn of the Blind Titans', 'The War of Three Suns', 'When the Stars Abandoned Us', 'The Silent Heavens'],
+      'Cryptid Anatomies': ['Dissection of the Barrow Fiend', 'Harvesting the Venom Siphon', 'Skeletal Densities and Armor', 'Eradication Tactics'],
+      'Heresiographies': ['The Secret Sigils of the Hand', 'The Midnight Assemblies', 'The Avatar of the Swarm', 'Methods of Purging the Cabal'],
+      'Flora Morbida': ['Tomb-Moss and Grave Fungi', 'The Weeping Nightshade', 'Preparation of Antidote Draughts', 'Harvesting Precautions'],
+      'Heretical Philosophies': ['The Illusion of Light', 'Discourses on Absolute Entropy', 'The Architecture of Nothingness', 'The Final Solace'],
+      'Tragic Plays': ['Act I: The Ominous Crown', 'Act II: Poison in the Goblet', 'Act III: The Midnight Duel', 'Act IV: The Ruined Kingdom'],
+      'Malediction Poetry': ['Stanzas of the Black Moon', 'Ballad of the Forgotten Tomb', 'Verses for the Sleepless', 'The Final Rhyme'],
+      'Architectural Layouts': ['Surveying the Crypt Foundations', 'Cantilever Strains and Pressure Gates', 'The Mechanism of the Pendulum', 'The Hidden Scriptorium'],
+      'Blacksmithing Manuals': ['Smelting the Meteorite Core', 'Bone-Quenching and Carbon Infusion', 'Damascus Blade Folding', 'Tempering the Edge'],
+      'Cipher Keys': ['The Permutation Wheel', 'Modular Prime Transpositions', 'Deciphering the Archon Runes', 'The Unbreakable Key']
+    };
+
+    const list = titles[genre] || ['Foundational Principles', 'Deep Exploration', 'The Crucible'];
+    return list[chapterIndex - 1] || `Discourse Part ${chapterIndex}`;
   }
 
-  private extractTitleKeywords(title: string): string[] {
-    const stopWords = new Set(['the', 'of', 'and', 'in', 'on', 'a', 'an', 'to', 'for', 'with', 'by', 'from', 'at', 'into', 'upon']);
-    const words = title
-      .replace(/[^a-zA-Z0-9\s]/g, '')
-      .split(/\s+/)
-      .filter((w) => w.length > 2 && !stopWords.has(w.toLowerCase()));
-    return words.length > 0 ? words : ['The Elder Relic', 'Ancient Lore'];
+  private getCoverColorForGenre(genre: DarkFantasyGenre, seed: number): string {
+    const prng = this.createPrng(seed + 123);
+    const colors: Record<DarkFantasyGenre, string[]> = {
+      'Necromancy Grimoires': ['#1a1a24', '#2d1838', '#1c1626'],
+      'Demonology Codices': ['#4a1c14', '#5c1313', '#3b1010'],
+      'Abyssal Gazeteers': ['#14294a', '#101d36', '#0c1629'],
+      'Alchemical Formulae': ['#1d5334', '#153b26', '#102e1e'],
+      'Hemomancy Scrolls': ['#5a1010', '#420d0d', '#6e1515'],
+      'Apocalyptic Chronicles': ['#382212', '#29180c', '#402615'],
+      'Genealogies of Damned Lineages': ['#3b2f1e', '#2e2417', '#423421'],
+      'Inquisition Journals': ['#4a1414', '#381010', '#541717'],
+      'Monarchic Decrees': ['#4a3c18', '#382e12', '#59491d'],
+      'Mythological Cycle Books': ['#222226', '#18181b', '#2c2c33'],
+      'Cryptid Anatomies': ['#2b3d2b', '#1e2b1e', '#364d36'],
+      'Heresiographies': ['#381c38', '#291429', '#472447'],
+      'Flora Morbida': ['#233823', '#192919', '#2d472d'],
+      'Heretical Philosophies': ['#18181b', '#222226', '#121214'],
+      'Tragic Plays': ['#4a2030', '#361723', '#5c283c'],
+      'Malediction Poetry': ['#2b183b', '#1f112b', '#381f4d'],
+      'Architectural Layouts': ['#383226', '#2b261d', '#453e2f'],
+      'Blacksmithing Manuals': ['#2e2620', '#241e19', '#3b3129'],
+      'Cipher Keys': ['#1c2838', '#141d29', '#24344a']
+    };
+    const set = colors[genre] || ['#3b190f', '#24140c'];
+    return set[Math.floor(prng() * set.length)];
+  }
+
+  private getAccentColorForGenre(_genre: DarkFantasyGenre, seed: number): string {
+    const prng = this.createPrng(seed + 456);
+    const accents = ['#ffd700', '#d4af37', '#c29b38', '#b8860b', '#cd7f32', '#c86d49', '#dfd2b5'];
+    return accents[Math.floor(prng() * accents.length)];
+  }
+
+  private inferClassification(genre: DarkFantasyGenre): any {
+    if (['Necromancy Grimoires', 'Demonology Codices', 'Abyssal Gazeteers', 'Hemomancy Scrolls'].includes(genre)) return 'Mysticism & Magic';
+    if (['Alchemical Formulae', 'Architectural Layouts', 'Blacksmithing Manuals', 'Cipher Keys'].includes(genre)) return 'Professional Manuals';
+    if (['Apocalyptic Chronicles', 'Genealogies of Damned Lineages', 'Inquisition Journals', 'Monarchic Decrees'].includes(genre)) return 'Non-Fiction';
+    if (['Cryptid Anatomies', 'Heresiographies', 'Flora Morbida'].includes(genre)) return 'Academic Texts & Grammar';
+    if (['Heretical Philosophies'].includes(genre)) return 'Dissertations';
+    return 'Tales & Mythology';
+  }
+
+  private inferWritingStyle(genre: DarkFantasyGenre): any {
+    if (genre === 'Tragic Plays') return 'dramatic-play';
+    if (genre === 'Malediction Poetry') return 'epic-verse';
+    if (genre === 'Heretical Philosophies') return 'philosophical-dialogue';
+    if (aiBookService.isMathAllowedForGenre(genre)) return 'academic-treatise';
+    return 'chronicle-history';
   }
 
   private generateAuthorName(seed: number): string {
-    const firstNames = ['Aurelius', 'Cassian', 'Valerius', 'Ignatius', 'Theodosia', 'Severus', 'Lucian', 'Hadrian', 'Gawain', 'Taliesin', 'Zephyrus', 'Farhan', 'Hildegard', 'Rowena', 'Balthazar'];
-    const epithets = ['of Oakhaven', 'of the Iron Quill', 'the Stargazer', 'of Sunken Alderia', 'of House Lionheart', 'Arch-Scholar of Veritas', 'the Alchemist of Caelum-Vara', 'the Cartographer'];
+    const firstNames = ['Aurelius', 'Cassian', 'Valerius', 'Ignatius', 'Theodosia', 'Severus', 'Lucian', 'Hadrian', 'Gawain', 'Taliesin', 'Zephyrus', 'Farhan', 'Hildegard', 'Rowena', 'Balthazar', 'Vespera', 'Malakor', 'Morvath'];
+    const epithets = ['of Oakhaven', 'of the Iron Quill', 'the Stargazer', 'of Sunken Alderia', 'the Sightless', 'of House Lionheart', 'Arch-Scholar of Veritas', 'the Alchemist of Caelum-Vara', 'the Cartographer of Marid-Khar', 'the Flesh-Binder', 'the Cryptographer'];
     const prng = this.createPrng(seed);
     const f = firstNames[Math.floor(prng() * firstNames.length)];
     const e = epithets[Math.floor(prng() * epithets.length)];
@@ -651,6 +613,10 @@ Respond ONLY with valid JSON matching this exact structure:
     return eras[Math.floor(prng() * eras.length)];
   }
 
+  private sanitizeKey(str: string): string {
+    return str.toLowerCase().replace(/[^a-z0-9]/g, '_');
+  }
+
   private createPrng(seed: number): () => number {
     let s = (seed ^ 0x6d2b79f5) >>> 0;
     return () => {
@@ -666,6 +632,20 @@ Respond ONLY with valid JSON matching this exact structure:
       hash = (hash * 33) ^ str.charCodeAt(i);
     }
     return Math.abs(hash);
+  }
+
+  private toRoman(n: number): string {
+    const map: [number, string][] = [
+      [10, 'X'], [9, 'IX'], [5, 'V'], [4, 'IV'], [1, 'I']
+    ];
+    let res = '';
+    for (const [val, roman] of map) {
+      while (n >= val) {
+        res += roman;
+        n -= val;
+      }
+    }
+    return res || `${n}`;
   }
 }
 
